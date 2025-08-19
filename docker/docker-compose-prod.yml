@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile.nginx
+    image: flask-source-nginx:latest
+    ports:
+      - "80:80"      # HTTP (redirects to HTTPS)
+      - "443:443"    # HTTPS  
+      - "8404:8404"  # Nginx stats
+    volumes:
+      - ../config/ssl-certs:/ssl-certs  # SSL certificates
+    depends_on:
+      - flask-app
+    restart: unless-stopped
+    networks:
+      - flask-network
+
+  flask-app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.flask-prod
+    image: flask-source:latest
+    volumes:
+      - ../config:/config                    # All configuration
+      - ../config/ssl-certs:/ssl-certs      # SSL certificates (if needed by app)
+      - flask-uploads:/app/uploads         # Persistent image uploads
+    environment:
+      - FLASK_ENV=${FLASK_ENV:-production}
+      - FLASK_DEBUG=${FLASK_DEBUG:-0}
+      - SSL_ENABLED=${SSL_ENABLED:-true}
+      
+      # Internal PostgreSQL settings (default)
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-flask_prod_pass}
+      
+      # External PostgreSQL settings (optional)
+      # Set these to use an external database instead of internal
+      - EXTERNAL_POSTGRES_HOST=${EXTERNAL_POSTGRES_HOST}
+      - EXTERNAL_POSTGRES_PORT=${EXTERNAL_POSTGRES_PORT:-5432}
+      - EXTERNAL_POSTGRES_USER=${EXTERNAL_POSTGRES_USER}
+      - EXTERNAL_POSTGRES_PASSWORD=${EXTERNAL_POSTGRES_PASSWORD}
+      - EXTERNAL_POSTGRES_DB=${EXTERNAL_POSTGRES_DB}
+    restart: unless-stopped
+    expose:
+      - "5000"
+    networks:
+      - flask-network
+
+volumes:
+  flask-uploads:
+    driver: local
+
+networks:
+  flask-network:
+    driver: bridge

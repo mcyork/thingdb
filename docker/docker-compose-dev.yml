@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  nginx:
+    image: flask-dev-nginx:latest
+    ports:
+      - "80:80"      # HTTP (redirects to HTTPS)
+      - "443:443"    # HTTPS  
+      - "8404:8404"  # Nginx stats
+    volumes:
+      - ../config/ssl-certs:/ssl-certs  # SSL certificates
+    depends_on:
+      - flask-app
+    restart: unless-stopped
+    networks:
+      - flask-network
+
+  flask-app:
+    image: flask-dev-app:latest
+    volumes:
+      - ../config/ssl-certs:/ssl-certs
+      - ../src:/app              # Mount source code for live reload
+      - ../config/data:/postgres-data   # Persistent database storage
+      - flask-uploads:/app/uploads  # Persistent image uploads
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+      - SSL_ENABLED=true
+      - POSTGRES_HOST=localhost
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=docker
+      - POSTGRES_PASSWORD=docker
+      - POSTGRES_DB=docker_dev
+      - SKIP_DB_INIT=true
+    restart: unless-stopped
+    expose:
+      - "5000"
+    networks:
+      - flask-network
+
+volumes:
+  flask-uploads:
+    driver: local
+
+networks:
+  flask-network:
+    driver: bridge

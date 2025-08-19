@@ -1,0 +1,20 @@
+# OPTIMIZED Base Requirements - Remove unused dependencies
+
+# Core Flask (pinned versions for stability)
+flask==2.3.3
+gunicorn==21.2.0
+
+# Database (keep psycopg2-binary - it's needed)
+psycopg2-binary==2.9.7
+
+# Image processing (essential for thumbnails) 
+Pillow==10.0.1
+
+# Basic utilities
+requests==2.31.0
+python-dotenv==1.0.0
+
+# CONFIRMED REMOVED (not used in your app.py):
+# redis==4.6.0                 # You don't use Redis
+# flask-session==0.5.0         # You don't use Redis sessions  
+# flask-sqlalchemy==3.0.5      # You use raw psycopg2, not SQLAlchemy ORM

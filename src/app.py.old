@@ -1,0 +1,2330 @@
+from flask import Flask, jsonify, request, redirect, url_for, render_template, Response
+import psycopg2
+import re
+from werkzeug.utils import secure_filename
+from PIL import Image
+import io
+import hashlib
+import time
+import json
+import numpy as np
+from collections import OrderedDict
+
+# Embedding imports (lazy loaded to avoid startup delays)
+_embedding_model = None
+
+app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+
+# Application version - increment this when making changes
+APP_VERSION = "1.3.0"
+
+
+# Database configuration
+DB_CONFIG = {
+    'host': 'localhost',
+    'database': 'docker_dev',
+    'user': 'docker',
+    'password': 'docker'
+}
+
+# Connection pool (simple in-memory pool)
+_connection_pool = []
+_MAX_POOL_SIZE = 5
+
+# Image cache (in-memory cache for images)
+class ImageCache:
+    def __init__(self, max_size=100, max_age=3600):  # 100 images, 1 hour TTL
+        self.cache = OrderedDict()
+        self.max_size = max_size
+        self.max_age = max_age
+    
+    def get(self, key):
+        if key in self.cache:
+            data, timestamp = self.cache[key]
+            if time.time() - timestamp < self.max_age:
+                # Move to end (most recently used)
+                self.cache.move_to_end(key)
+                return data
+            else:
+                # Expired
+                del self.cache[key]
+        return None
+    
+    def set(self, key, data):
+        if key in self.cache:
+            # Update existing
+            del self.cache[key]
+        elif len(self.cache) >= self.max_size:
+            # Remove oldest
+            self.cache.popitem(last=False)
+        
+        self.cache[key] = (data, time.time())
+
+# Global image cache instances
+_thumbnail_cache = ImageCache(max_size=200, max_age=1800)  # 200 thumbnails, 30 min
+_image_cache = ImageCache(max_size=50, max_age=900)        # 50 full images, 15 min
+
+
+def get_embedding_model():
+    """Lazy load the embedding model to avoid startup delays"""
+    global _embedding_model
+    if _embedding_model is None:
+        try:
+            from sentence_transformers import SentenceTransformer
+            print("[DEBUG] Loading embedding model (first use only)...")
+            _embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+            print("[DEBUG] Embedding model loaded successfully")
+        except Exception as e:
+            print(f"[ERROR] Failed to load embedding model: {e}")
+            _embedding_model = False  # Mark as failed to avoid retries
+    return _embedding_model if _embedding_model is not False else None
+
+
+def generate_embedding(text):
+    """Generate embedding vector for text"""
+    model = get_embedding_model()
+    if not model:
+        return None
+    
+    try:
+        # Combine and clean text
+        clean_text = str(text).strip() if text else ""
+        if not clean_text:
+            return None
+            
+        # Generate embedding
+        embedding = model.encode(clean_text)
+        return embedding.tolist()  # Convert to list for JSON storage
+    except Exception as e:
+        print(f"[ERROR] Failed to generate embedding: {e}")
+        return None
+
+
+def cosine_similarity(vec1, vec2):
+    """Calculate cosine similarity between two vectors"""
+    try:
+        # Ensure vectors are lists/arrays
+        if isinstance(vec1, dict) or isinstance(vec2, dict):
+            print(f"[ERROR] Invalid vector type: vec1={type(vec1)}, vec2={type(vec2)}")
+            return 0
+            
+        # Convert to numpy arrays
+        vec1 = np.array(vec1, dtype=float)
+        vec2 = np.array(vec2, dtype=float)
+        
+        # Verify shapes
+        if vec1.shape != vec2.shape:
+            print(f"[ERROR] Vector shape mismatch: {vec1.shape} vs {vec2.shape}")
+            return 0
+        
+        dot_product = np.dot(vec1, vec2)
+        norm1 = np.linalg.norm(vec1)
+        norm2 = np.linalg.norm(vec2)
+        
+        if norm1 == 0 or norm2 == 0:
+            return 0
+            
+        return dot_product / (norm1 * norm2)
+    except Exception as e:
+        print(f"[ERROR] Cosine similarity calculation failed: {e}")
+        print(f"[DEBUG] vec1 type: {type(vec1)}, vec2 type: {type(vec2)}")
+        return 0
+
+
+def get_db_connection():
+    """Get database connection from pool or create new one"""
+    global _connection_pool
+    
+    if _connection_pool:
+        try:
+            conn = _connection_pool.pop()
+            # Test if connection is still alive
+            conn.cursor().execute('SELECT 1')
+            return conn
+        except:
+            pass
+    
+    return psycopg2.connect(**DB_CONFIG)
+
+
+def return_db_connection(conn):
+    """Return connection to pool"""
+    global _connection_pool
+    
+    if len(_connection_pool) < _MAX_POOL_SIZE:
+        try:
+            conn.cursor().execute('SELECT 1')
+            _connection_pool.append(conn)
+        except:
+            conn.close()
+    else:
+        conn.close()
+
+
+def generate_thumbnail(image_data, max_size=(200, 200), rotation=0):
+    """Generate optimized thumbnail from image data with rotation"""
+    try:
+        # Open image from bytes
+        image = Image.open(io.BytesIO(image_data))
+        
+        # Convert to RGB if necessary
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+        
+        # Apply rotation
+        if rotation != 0:
+            image = image.rotate(-rotation, expand=True)  # Negative for clockwise
+        
+        # Create thumbnail with better resampling
+        image.thumbnail(max_size, Image.Resampling.LANCZOS)
+        
+        # Save to bytes with optimized settings for small size
+        output = io.BytesIO()
+        try:
+            # Use WebP for much smaller thumbnails
+            image.save(output, 
+                      format='WebP', 
+                      quality=70,           # Lower quality for smaller file
+                      optimize=True,        # Optimize for size
+                      lossless=False)       # Use lossy compression
+        except Exception:
+            # Fallback to JPEG if WebP fails
+            image.save(output, 
+                      format='JPEG', 
+                      quality=75,           # Lower quality for smaller file
+                      optimize=True,        # Optimize for size
+                      progressive=True)     # Progressive JPEG
+        output.seek(0)
+        
+        return output.getvalue()
+    except Exception as e:
+        print(f"Thumbnail generation failed: {e}")
+        return None
+
+
+def rotate_image(image_data, current_rotation, additional_rotation=90):
+    """Rotate image and return new image data"""
+    try:
+        # Open image from bytes
+        image = Image.open(io.BytesIO(image_data))
+        
+        # Convert to RGB if necessary
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+        
+        # Calculate new rotation
+        new_rotation = (current_rotation + additional_rotation) % 360
+        
+        # Apply only the additional rotation (90 degrees clockwise)
+        if additional_rotation != 0:
+            image = image.rotate(-additional_rotation, expand=True)
+        
+        # Save to bytes with compression
+        output = io.BytesIO()
+        image.save(output, format='JPEG', quality=85, optimize=True, progressive=True)
+        output.seek(0)
+        
+        return output.getvalue(), new_rotation
+    except Exception as e:
+        print(f"Image rotation failed: {e}")
+        return None, current_rotation
+
+
+def generate_preview(image_data, max_size=(800, 800), rotation=0):
+    """Generate low-resolution preview from image data"""
+    try:
+        # Open image from bytes
+        image = Image.open(io.BytesIO(image_data))
+        
+        # Convert to RGB if necessary
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+        
+        # Apply rotation
+        if rotation != 0:
+            image = image.rotate(-rotation, expand=True)
+        
+        # Resize to preview size
+        image.thumbnail(max_size, Image.Resampling.LANCZOS)
+        
+        # Save to bytes with optimal compression for fast loading
+        output = io.BytesIO()
+        try:
+            # Use WebP for much smaller previews
+            image.save(output, format='WebP', quality=75, optimize=True, lossless=False)
+        except Exception:
+            # Fallback to JPEG if WebP fails
+            image.save(output, format='JPEG', quality=60, optimize=True)
+        output.seek(0)
+        
+        return output.getvalue()
+    except Exception as e:
+        print(f"Preview generation failed: {e}")
+        return None
+
+def init_database():
+    """Initialize database tables"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Create items table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS items (
+            guid VARCHAR(36) PRIMARY KEY,
+            item_name VARCHAR(255),
+            description TEXT,
+            source_url TEXT,
+            created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Check if source_url column exists, add if not
+    cursor.execute("""
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'items' AND column_name = 'source_url'
+    """)
+    has_source_url = cursor.fetchone()
+    
+    if not has_source_url:
+        cursor.execute('ALTER TABLE items ADD COLUMN source_url TEXT')
+    
+    # Check if item_name column exists, add if not
+    cursor.execute("""
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'items' AND column_name = 'item_name'
+    """)
+    has_item_name = cursor.fetchone()
+    
+    if not has_item_name:
+        cursor.execute('ALTER TABLE items ADD COLUMN item_name VARCHAR(255)')
+    
+    # Check if description column exists, add if not
+    cursor.execute("""
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'items' AND column_name = 'description'
+    """)
+    has_description = cursor.fetchone()
+    
+    if not has_description:
+        cursor.execute('ALTER TABLE items ADD COLUMN description TEXT')
+    
+    # Check if parent_guid column exists, add if not
+    cursor.execute("""
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'items' AND column_name = 'parent_guid'
+    """)
+    has_parent_guid = cursor.fetchone()
+    
+    if not has_parent_guid:
+        cursor.execute('''
+            ALTER TABLE items 
+            ADD COLUMN parent_guid VARCHAR(36) 
+            REFERENCES items(guid) ON DELETE SET NULL
+        ''')
+    
+    # Check if embedding_vector column exists, add if not
+    cursor.execute("""
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'items' AND column_name = 'embedding_vector'
+    """)
+    has_embedding_vector = cursor.fetchone()
+    
+    if not has_embedding_vector:
+        cursor.execute('''
+            ALTER TABLE items 
+            ADD COLUMN embedding_vector TEXT
+        ''')
+    
+    # Check if label_number column exists, add if not
+    cursor.execute("""
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'items' AND column_name = 'label_number'
+    """)
+    has_label_number = cursor.fetchone()
+    
+    if not has_label_number:
+        cursor.execute('''
+            ALTER TABLE items 
+            ADD COLUMN label_number INTEGER
+        ''')
+        
+        # Create sequence for auto-incrementing label numbers
+        cursor.execute('''
+            CREATE SEQUENCE IF NOT EXISTS label_number_seq 
+            START WITH 1 INCREMENT BY 1 NO CYCLE
+        ''')
+    
+        # Check if images table exists with preview column
+    cursor.execute("""
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'images' AND column_name = 'preview_data'
+    """)
+    has_preview_column = cursor.fetchone()
+    
+    if not has_preview_column:
+        # Check if images table exists at all
+        cursor.execute("""
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_name = 'images'
+        """)
+        table_exists = cursor.fetchone()
+        
+        if table_exists:
+            # Add preview column to existing table
+            cursor.execute('ALTER TABLE images ADD COLUMN preview_data BYTEA')
+        else:
+            # Create new images table with BLOB storage and thumbnails
+            cursor.execute('''
+                CREATE TABLE images (
+                    id SERIAL PRIMARY KEY,
+                    item_guid VARCHAR(36) REFERENCES items(guid) ON DELETE CASCADE,
+                    filename VARCHAR(255) NOT NULL,
+                    image_data BYTEA NOT NULL,
+                    thumbnail_data BYTEA,
+                    preview_data BYTEA,
+                    content_type VARCHAR(100) NOT NULL,
+                    rotation_degrees INTEGER DEFAULT 0,
+                    is_primary BOOLEAN DEFAULT FALSE,
+                    upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    description TEXT,
+                    ocr_text TEXT,
+                    ai_description TEXT
+                )
+            ''')
+    
+    # Check if is_primary column exists, add if not
+    cursor.execute("""
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'images' AND column_name = 'is_primary'
+    """)
+    has_is_primary = cursor.fetchone()
+    
+    if not has_is_primary:
+        cursor.execute('ALTER TABLE images ADD COLUMN is_primary BOOLEAN DEFAULT FALSE')
+    
+    # Create text_content table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS text_content (
+            id SERIAL PRIMARY KEY,
+            item_guid VARCHAR(36) REFERENCES items(guid) ON DELETE CASCADE,
+            content_type VARCHAR(50) NOT NULL,
+            content TEXT NOT NULL,
+            created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Create categories table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS categories (
+            id SERIAL PRIMARY KEY,
+            item_guid VARCHAR(36) REFERENCES items(guid) ON DELETE CASCADE,
+            category_name VARCHAR(100) NOT NULL
+        )
+    ''')
+    
+    # Create qr_aliases table for multiple QR codes per item
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS qr_aliases (
+            qr_code VARCHAR(255) PRIMARY KEY,
+            item_guid VARCHAR(36) REFERENCES items(guid) ON DELETE CASCADE,
+            created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    conn.commit()
+    conn.close()
+
+def extract_guid_from_url(url):
+    """Extract GUID from URL like https://inv.esoup.net/qr/97637b6a-0a1a-4647-b37c-6056a4c02041"""
+    guid_pattern = (r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-'
+                   r'[0-9a-f]{12}')
+    match = re.search(guid_pattern, url, re.IGNORECASE)
+    return match.group(0) if match else None
+
+
+def is_valid_guid(guid):
+    """Validate GUID format"""
+    guid_pattern = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    return bool(re.match(guid_pattern, guid, re.IGNORECASE))
+
+def get_item_data(guid):
+    """Get all data for an item"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Get item info including parent_guid and label_number
+    cursor.execute('SELECT guid, item_name, description, source_url, created_date, updated_date, parent_guid, label_number FROM items WHERE guid = %s', (guid,))
+    item = cursor.fetchone()
+    
+    if not item:
+        conn.close()
+        return None
+    
+    # Get parent item details if exists
+    parent_item = None
+    if item[6]:  # parent_guid is at index 6
+        cursor.execute('SELECT guid, item_name FROM items WHERE guid = %s', (item[6],))
+        parent_item = cursor.fetchone()
+    
+    # Get full ancestor chain (breadcrumb)
+    breadcrumb = []
+    current_parent_guid = item[6]
+    max_depth = 10  # Prevent infinite loops
+    depth = 0
+    
+    while current_parent_guid and depth < max_depth:
+        cursor.execute('SELECT guid, item_name, parent_guid FROM items WHERE guid = %s', (current_parent_guid,))
+        ancestor = cursor.fetchone()
+        if ancestor:
+            breadcrumb.insert(0, (ancestor[0], ancestor[1]))  # Insert at beginning to maintain order
+            current_parent_guid = ancestor[2]
+        else:
+            break
+        depth += 1
+    
+    # Get contained items (children)
+    cursor.execute('''
+        SELECT i.guid, i.item_name, i.created_date,
+               (SELECT COUNT(*) FROM images WHERE item_guid = i.guid) as image_count,
+               (SELECT id FROM images WHERE item_guid = i.guid AND is_primary = TRUE LIMIT 1) as primary_image_id
+        FROM items i
+        WHERE i.parent_guid = %s
+        ORDER BY i.item_name, i.created_date DESC
+    ''', (guid,))
+    contained_items = cursor.fetchall()
+    
+    # Get images
+    cursor.execute('''SELECT id, item_guid, filename, image_data, thumbnail_data, preview_data, 
+                             content_type, rotation_degrees, is_primary, upload_date, description, ocr_text, ai_description 
+                      FROM images WHERE item_guid = %s ORDER BY is_primary DESC, upload_date DESC''', (guid,))
+    images = cursor.fetchall()
+    
+    # Get text content
+    cursor.execute('SELECT * FROM text_content WHERE item_guid = %s ORDER BY created_date DESC', (guid,))
+    text_content = cursor.fetchall()
+    
+    # Get categories
+    cursor.execute('SELECT * FROM categories WHERE item_guid = %s ORDER BY category_name', (guid,))
+    categories = cursor.fetchall()
+    
+    conn.close()
+    
+    # Check if item was created within last 5 minutes
+    import datetime
+    created_date = item[4]  # created_date is at index 4
+    is_recently_created = False
+    if created_date:
+        time_diff = datetime.datetime.now() - created_date
+        is_recently_created = time_diff.total_seconds() < 300  # 5 minutes
+    
+    return {
+        'item': item,
+        'parent_item': parent_item,
+        'breadcrumb': breadcrumb,
+        'contained_items': contained_items,
+        'images': images,
+        'text_content': text_content,
+        'categories': categories,
+        'is_recently_created': is_recently_created,
+        'item_name': item[1],
+        'description': item[2]
+    }
+
+@app.route('/')
+def home():
+    """Home page with GUID entry and QR code scanning"""
+    # Get list of existing items
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT items.guid, items.item_name, items.created_date, 
+               (SELECT COUNT(*) FROM images WHERE item_guid = items.guid) as image_count,
+               (SELECT COUNT(*) FROM text_content WHERE item_guid = items.guid) as text_count,
+               primary_images.id as primary_image_id,
+               items.label_number
+        FROM items 
+        LEFT JOIN images as primary_images ON items.guid = primary_images.item_guid AND primary_images.is_primary = TRUE
+        ORDER BY items.created_date DESC
+    ''')
+    items = cursor.fetchall()
+    conn.close()
+    
+    return render_template('home.html', items=items, version=APP_VERSION)
+
+@app.route('/process-guid', methods=['POST'])
+def process_guid():
+    """Process GUID input and redirect to item page"""
+    guid_input = request.form.get('guid', '').strip()
+    
+    if not guid_input:
+        return redirect(url_for('home'))
+    
+    # Extract GUID from URL if provided
+    guid = extract_guid_from_url(guid_input)
+    if not guid:
+        # Assume it's a direct GUID
+        guid = guid_input
+    
+    # Validate GUID format
+    if not is_valid_guid(guid):
+        return render_template('error.html', 
+            heading='❌ Invalid GUID Format',
+            message=f'The provided GUID "{guid_input}" is not in the correct format.',
+            details='Expected format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx')
+    
+    # First check if this QR code is an alias
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT item_guid FROM qr_aliases WHERE qr_code = %s', (guid_input,))
+    alias_result = cursor.fetchone()
+    
+    if alias_result:
+        # This QR code is an alias, redirect to the actual item
+        actual_guid = alias_result[0]
+        conn.close()
+        return redirect(url_for('item_page', guid=actual_guid))
+    
+    # Check if item exists
+    cursor.execute('SELECT guid FROM items WHERE guid = %s', (guid,))
+    item_exists = cursor.fetchone() is not None
+    
+    # Track if this is a new item for the association UI
+    is_new_item = False
+    
+    # Create item if it doesn't exist
+    if not item_exists:
+        # Store the original input as source_url if it looks like a URL
+        source_url = guid_input if guid_input.startswith('http') else None
+        # Default name is first 8 characters of GUID
+        default_name = f"Item_{guid[:8]}"
+        
+        # Generate embedding for the default name
+        embedding_vector = generate_embedding(default_name)
+        embedding_json = json.dumps(embedding_vector) if embedding_vector else None
+        
+        # Get next label number by finding max existing + 1
+        cursor.execute("SELECT MAX(label_number) FROM items WHERE label_number IS NOT NULL")
+        max_label = cursor.fetchone()[0]
+        label_number = (max_label or 0) + 1
+        
+        # Update sequence to stay in sync
+        cursor.execute("SELECT setval('label_number_seq', %s)", (label_number,))
+        
+        cursor.execute('INSERT INTO items (guid, item_name, source_url, embedding_vector, label_number, created_date) VALUES (%s, %s, %s, %s, %s, NOW())', 
+                      (guid, default_name, source_url, embedding_json, label_number))
+        conn.commit()
+        is_new_item = True
+    
+    conn.close()
+    
+    # Pass new_item flag to show association UI
+    return redirect(url_for('item_page', guid=guid, new_item='1' if is_new_item else None))
+
+@app.route('/item/<guid>')
+def item_page(guid):
+    """Display item page with images, text, and editing capabilities"""
+    if not is_valid_guid(guid):
+        return render_template('error.html', 
+            heading='❌ Invalid GUID',
+            message='The provided GUID is not valid.')
+    
+    item_data = get_item_data(guid)
+    if not item_data:
+        return render_template('error.html', 
+            heading='❌ Item not found',
+            message='The requested item could not be found.')
+    
+    # Check if this should show the association UI
+    show_association = False
+    is_new_from_param = request.args.get('new_item') == '1'
+    
+    if is_new_from_param or item_data['is_recently_created']:
+        # Only show association UI if item is empty (no images, no description)
+        has_content = (len(item_data['images']) > 0 or 
+                      (item_data['description'] and item_data['description'].strip()))
+        show_association = not has_content
+    
+    return render_template('item.html', 
+        guid=guid,
+        item_data=item_data,
+        images=item_data['images'],
+        categories=item_data['categories'],
+        show_association=show_association)
+
+@app.route('/upload-image/<guid>', methods=['POST'])
+def upload_image(guid):
+    """Handle image upload for an item"""
+    if not is_valid_guid(guid):
+        return 'Invalid GUID', 400
+    
+    if 'image' not in request.files:
+        return 'No image file', 400
+    
+    file = request.files['image']
+    if file.filename == '':
+        return 'No selected file', 400
+    
+    if file:
+        filename = secure_filename(file.filename)
+        description = request.form.get('description', '')
+        
+        # Read image data
+        raw_image_data = file.read()
+        
+        # Convert raw formats (CR2, NEF, etc.) to JPEG for web compatibility
+        try:
+            from PIL import Image
+            import io
+            
+            # Try to open with PIL (handles CR2, RAW, etc.)
+            image = Image.open(io.BytesIO(raw_image_data))
+            
+            # Convert to RGB if necessary
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
+            
+            # Check if this is a raw format that needs conversion
+            original_format = image.format
+            is_raw_format = filename.lower().endswith(('.cr2', '.nef', '.arw', '.orf', '.dng', '.raw'))
+            
+            if is_raw_format or original_format in ['CR2', 'NEF', 'ARW', 'ORF', 'DNG']:
+                # Convert to WebP for better compression and quality
+                output = io.BytesIO()
+                try:
+                    # Try WebP first (much smaller than JPEG)
+                    image.save(output, format='WebP', quality=85, optimize=True, lossless=False)
+                    image_data = output.getvalue()
+                    content_type = 'image/webp'
+                    print(f"[DEBUG] Converted {original_format or 'raw'} file {filename} to WebP ({len(raw_image_data)} -> {len(image_data)} bytes, {len(raw_image_data)//len(image_data)}x smaller)")
+                except Exception as webp_error:
+                    # Fallback to JPEG if WebP fails
+                    print(f"[DEBUG] WebP conversion failed, using JPEG: {webp_error}")
+                    output = io.BytesIO()
+                    image.save(output, format='JPEG', quality=90, optimize=True, progressive=True)
+                    image_data = output.getvalue()
+                    content_type = 'image/jpeg'
+                    print(f"[DEBUG] Converted {original_format or 'raw'} file {filename} to JPEG ({len(raw_image_data)} -> {len(image_data)} bytes)")
+            else:
+                # Keep original for standard formats
+                image_data = raw_image_data
+                content_type = file.content_type or 'image/jpeg'
+                
+        except Exception as e:
+            print(f"[DEBUG] PIL conversion failed for {filename}: {e}, using original")
+            # Fallback to original data if conversion fails
+            image_data = raw_image_data
+            content_type = file.content_type or 'image/jpeg'
+        
+        # Generate thumbnail and preview
+        thumbnail_data = generate_thumbnail(image_data)
+        preview_data = generate_preview(image_data)
+        
+        # Save to database as BLOB
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Check if this is the first image for the item
+        cursor.execute('SELECT COUNT(*) FROM images WHERE item_guid = %s', (guid,))
+        image_count = cursor.fetchone()[0]
+        is_first_image = (image_count == 0)
+        
+        cursor.execute(
+            'INSERT INTO images (item_guid, filename, image_data, thumbnail_data, preview_data, content_type, description, is_primary) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)',
+            (guid, filename, image_data, thumbnail_data, preview_data, content_type, description, is_first_image)
+        )
+        conn.commit()
+        conn.close()
+        
+        return redirect(url_for('item_page', guid=guid))
+
+@app.route('/add-text/<guid>', methods=['POST'])
+def add_text(guid):
+    """Add text content to an item"""
+    if not is_valid_guid(guid):
+        return 'Invalid GUID', 400
+    
+    content = request.form.get('content', '').strip()
+    content_type = request.form.get('content_type', 'general')
+    
+    if not content:
+        return redirect(url_for('item_page', guid=guid))
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        'INSERT INTO text_content (item_guid, content_type, content) VALUES (%s, %s, %s)',
+        (guid, content_type, content)
+    )
+    conn.commit()
+    conn.close()
+    
+    return redirect(url_for('item_page', guid=guid))
+
+@app.route('/add-category/<guid>', methods=['POST'])
+def add_category(guid):
+    """Add category to an item"""
+    if not is_valid_guid(guid):
+        return 'Invalid GUID', 400
+    
+    category_name = request.form.get('category_name', '').strip()
+    
+    if not category_name:
+        return redirect(url_for('item_page', guid=guid))
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        'INSERT INTO categories (item_guid, category_name) VALUES (%s, %s)',
+        (guid, category_name)
+    )
+    conn.commit()
+    conn.close()
+    
+    return redirect(url_for('item_page', guid=guid))
+
+
+@app.route('/image/<int:image_id>')
+def serve_image(image_id):
+    """Serve optimized 800x800 preview image for fast loading"""
+    import time
+    import sys
+    start_time = time.time()
+    print(f"[DEBUG] Starting image request for ID {image_id}", flush=True)
+    sys.stdout.flush()
+    
+    # Need to get rotation first to create proper cache key
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        'SELECT rotation_degrees FROM images WHERE id = %s',
+        (image_id,)
+    )
+    rotation_result = cursor.fetchone()
+    return_db_connection(conn)
+    
+    if not rotation_result:
+        return 'Image not found', 404
+        
+    rotation = rotation_result[0] or 0
+    cache_key = f"img_{image_id}_r{rotation}"  # Include rotation in cache key
+    
+    # Try cache first
+    cached_data = _image_cache.get(cache_key)
+    if cached_data:
+        print(f"[DEBUG] Cache HIT for {image_id} (rotation {rotation}) after {(time.time()-start_time)*1000:.1f}ms", flush=True)
+        image_data, content_type, etag = cached_data
+        
+        # Check if client has cached version
+        if request.headers.get('If-None-Match') == etag:
+            return '', 304
+        
+        response = Response(image_data, mimetype=content_type)
+        response.headers['Cache-Control'] = 'public, max-age=3600'  # 1 hour
+        response.headers['ETag'] = etag
+        response.headers['Content-Length'] = len(image_data)
+        return response
+    
+    # Cache miss - fetch from database
+    print(f"[DEBUG] Cache MISS for {image_id} (rotation {rotation}), fetching from DB after {(time.time()-start_time)*1000:.1f}ms", flush=True)
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        'SELECT preview_data, content_type, filename, rotation_degrees FROM images WHERE id = %s',
+        (image_id,)
+    )
+    db_time = time.time()
+    result = cursor.fetchone()
+    return_db_connection(conn)
+    print(f"[DEBUG] DB query completed after {(time.time()-db_time)*1000:.1f}ms", flush=True)
+    
+    if result:
+        image_data, content_type, filename, rotation = result
+        
+        # Use preview_data for faster loading (800x800 instead of full resolution)
+        if not image_data:
+            return 'Preview not available', 404
+            
+        # Auto-detect WebP content type for generated previews
+        if image_data and len(image_data) > 20:
+            # Convert memoryview to bytes if needed
+            data_bytes = bytes(image_data) if isinstance(image_data, memoryview) else image_data
+            if data_bytes.startswith(b'RIFF') and b'WEBP' in data_bytes[:20]:
+                content_type = 'image/webp'
+        
+        # Apply rotation if needed
+        if rotation and rotation != 0:
+            try:
+                from PIL import Image
+                import io
+                
+                # Open image and apply rotation
+                image = Image.open(io.BytesIO(image_data))
+                if image.mode != 'RGB':
+                    image = image.convert('RGB')
+                
+                # Apply stored rotation (negative for clockwise)
+                image = image.rotate(-rotation, expand=True)
+                
+                # Save back to bytes
+                output = io.BytesIO()
+                image.save(output, format='JPEG', quality=85, optimize=True, progressive=True)
+                image_data = output.getvalue()
+            except Exception as e:
+                print(f"[DEBUG] Rotation application failed: {e}")
+        
+        # Temporarily disable hash calculation to test
+        hash_time = time.time()
+        etag = f'"{image_id}_{len(image_data)}_{rotation}"'  # Include rotation in ETag
+        print(f"[DEBUG] Simple ETag created after {(time.time()-hash_time)*1000:.1f}ms", flush=True)
+        
+        # Convert memoryview to bytes for cache and response
+        image_bytes = bytes(image_data) if isinstance(image_data, memoryview) else image_data
+        
+        # Store in cache
+        _image_cache.set(cache_key, (image_bytes, content_type, etag))
+        print(f"[DEBUG] Total request time: {(time.time()-start_time)*1000:.1f}ms", flush=True)
+        
+        
+        # Check if client has cached version
+        if request.headers.get('If-None-Match') == etag:
+            return '', 304
+        
+        response = Response(image_bytes, mimetype=content_type)
+        response.headers['Cache-Control'] = 'public, max-age=3600'  # 1 hour
+        response.headers['ETag'] = etag
+        response.headers['Content-Length'] = len(image_bytes)
+        return response
+    else:
+        return 'Image not found', 404
+
+
+@app.route('/original/<int:image_id>')
+def serve_original_image(image_id):
+    """Serve full-resolution original image (may be slow for large files)"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        'SELECT image_data, content_type, filename FROM images WHERE id = %s',
+        (image_id,)
+    )
+    result = cursor.fetchone()
+    return_db_connection(conn)
+    
+    if result:
+        image_data, content_type, filename = result
+        if image_data:
+            from flask import Response
+            response = Response(image_data, mimetype=content_type)
+            response.headers['Content-Disposition'] = f'inline; filename="{filename}"'
+            response.headers['Cache-Control'] = 'public, max-age=3600'
+            return response
+    
+    return 'Original image not found', 404
+
+
+@app.route('/thumbnail/<int:image_id>')
+def serve_thumbnail(image_id):
+    """Serve optimized thumbnail from cache or database"""
+    cache_key = f"thumb_{image_id}"
+    
+    # Try cache first
+    cached_data = _thumbnail_cache.get(cache_key)
+    if cached_data:
+        thumbnail_data, etag = cached_data
+        
+        # Check if client has cached version
+        if request.headers.get('If-None-Match') == etag:
+            return '', 304
+        
+        # Auto-detect WebP content type for generated thumbnails
+        content_type = 'image/jpeg'
+        if thumbnail_data and len(thumbnail_data) > 20:
+            # Convert memoryview to bytes if needed
+            data_bytes = bytes(thumbnail_data) if isinstance(thumbnail_data, memoryview) else thumbnail_data
+            if data_bytes.startswith(b'RIFF') and b'WEBP' in data_bytes[:20]:
+                content_type = 'image/webp'
+            
+        # Convert memoryview to bytes for Response
+        thumbnail_bytes = bytes(thumbnail_data) if isinstance(thumbnail_data, memoryview) else thumbnail_data
+        
+        response = Response(thumbnail_bytes, mimetype=content_type)
+        response.headers['Cache-Control'] = 'public, max-age=1800'  # 30 minutes
+        response.headers['ETag'] = etag
+        return response
+    
+    # Cache miss - fetch from database
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        'SELECT thumbnail_data, filename, image_data, rotation_degrees FROM images WHERE id = %s',
+        (image_id,)
+    )
+    result = cursor.fetchone()
+    return_db_connection(conn)
+    
+    if result:
+        thumbnail_data, filename, image_data, rotation_degrees = result
+        if thumbnail_data:
+            # Check if thumbnail needs regeneration due to rotation
+            if rotation_degrees and rotation_degrees != 0:
+                # Regenerate thumbnail with the stored rotation applied
+                thumbnail_data = generate_thumbnail(image_data, rotation=rotation_degrees)
+                if thumbnail_data:
+                    # Update database with new thumbnail
+                    conn = get_db_connection()
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        'UPDATE images SET thumbnail_data = %s WHERE id = %s',
+                        (thumbnail_data, image_id)
+                    )
+                    conn.commit()
+                    return_db_connection(conn)
+            
+            # Use simple hash instead of MD5 for speed
+            etag = f'"{hash(thumbnail_data) % 2**32}"'
+            
+            # Store in cache
+            _thumbnail_cache.set(cache_key, (thumbnail_data, etag))
+            
+                
+            # Check if client has cached version
+            if request.headers.get('If-None-Match') == etag:
+                return '', 304
+            
+            # Auto-detect WebP content type for generated thumbnails  
+            content_type = 'image/jpeg'
+            if thumbnail_data and len(thumbnail_data) > 20:
+                # Convert memoryview to bytes if needed
+                data_bytes = bytes(thumbnail_data) if isinstance(thumbnail_data, memoryview) else thumbnail_data
+                if data_bytes.startswith(b'RIFF') and b'WEBP' in data_bytes[:20]:
+                    content_type = 'image/webp'
+                
+            # Convert memoryview to bytes for Response
+            thumbnail_bytes = bytes(thumbnail_data) if isinstance(thumbnail_data, memoryview) else thumbnail_data
+            
+            response = Response(thumbnail_bytes, mimetype=content_type)
+            response.headers['Cache-Control'] = 'public, max-age=1800'  # 30 minutes
+            response.headers['ETag'] = etag
+            response.headers['Content-Length'] = len(thumbnail_bytes)
+            return response
+        else:
+            # Fallback to full image if no thumbnail
+            return serve_image(image_id)
+    else:
+        return 'Thumbnail not found', 404
+
+
+@app.route('/preview/<int:image_id>')
+def serve_preview(image_id):
+    """Serve preview image from database"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        'SELECT preview_data, filename FROM images WHERE id = %s',
+        (image_id,)
+    )
+    result = cursor.fetchone()
+    conn.close()
+    
+    if result:
+        preview_data, filename = result
+        if preview_data:
+            from flask import Response
+            response = Response(preview_data, mimetype='image/jpeg')
+            response.headers['Cache-Control'] = 'public, max-age=31536000'
+            response.headers['Content-Length'] = len(preview_data)
+            return response
+        else:
+            # Fallback to thumbnail if no preview
+            return serve_thumbnail(image_id)
+    else:
+        return 'Preview not found', 404
+
+
+@app.route('/rotate-image/<int:image_id>', methods=['POST'])
+def rotate_image_handler(image_id):
+    """Handle image rotation"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get current image data and rotation
+        cursor.execute(
+            'SELECT image_data, rotation_degrees FROM images WHERE id = %s',
+            (image_id,)
+        )
+        result = cursor.fetchone()
+        
+        if not result:
+            conn.close()
+            return 'Image not found', 404
+        
+        image_data, current_rotation = result
+        
+        # Calculate new rotation (don't modify image data, just update rotation degrees)
+        new_rotation = (current_rotation + 90) % 360
+        
+        # Generate new thumbnail with the new rotation applied
+        new_thumbnail = generate_thumbnail(image_data, rotation=new_rotation)
+        
+        if new_thumbnail:
+            # Update database (only update thumbnail and rotation, keep original image_data)
+            cursor.execute(
+                'UPDATE images SET thumbnail_data = %s, rotation_degrees = %s WHERE id = %s',
+                (new_thumbnail, new_rotation, image_id)
+            )
+            conn.commit()
+            conn.close()
+            
+            # Clear cache for this image
+            _image_cache.cache.pop(f"img_{image_id}", None)
+            _thumbnail_cache.cache.pop(f"thumb_{image_id}", None)
+            
+            return jsonify({"success": True, "rotation": new_rotation}), 200
+        else:
+            conn.close()
+            return jsonify({"success": False, "error": "Thumbnail generation failed"}), 500
+            
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/delete-category/<int:category_id>', methods=['POST'])
+def delete_category(category_id):
+    """Delete a category/tag"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get category info for verification
+        cursor.execute('SELECT item_guid, category_name FROM categories WHERE id = %s', (category_id,))
+        result = cursor.fetchone()
+        
+        if not result:
+            conn.close()
+            return jsonify({"success": False, "error": "Category not found"}), 404
+        
+        item_guid, category_name = result
+        
+        # Delete the category
+        cursor.execute('DELETE FROM categories WHERE id = %s', (category_id,))
+        conn.commit()
+        conn.close()
+        
+        return jsonify({"success": True, "deleted_category": category_name}), 200
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/delete-image/<int:image_id>', methods=['POST'])
+def delete_image(image_id):
+    """Delete a single image"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get item GUID for redirect
+        cursor.execute('SELECT item_guid FROM images WHERE id = %s', (image_id,))
+        result = cursor.fetchone()
+        
+        if not result:
+            conn.close()
+            return jsonify({"success": False, "error": "Image not found"}), 404
+        
+        item_guid = result[0]
+        
+        # Delete the image
+        cursor.execute('DELETE FROM images WHERE id = %s', (image_id,))
+        conn.commit()
+        conn.close()
+        
+        # Clear cache for this image
+        _image_cache.cache.pop(f"img_{image_id}", None)
+        _thumbnail_cache.cache.pop(f"thumb_{image_id}", None)
+        
+        return jsonify({"success": True}), 200
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/delete-item/<guid>', methods=['POST'])
+def delete_item(guid):
+    """Delete entire item and all its data"""
+    print(f"Delete item called with GUID: {guid}")
+    try:
+        if not is_valid_guid(guid):
+            print(f"Invalid GUID: {guid}")
+            return jsonify({"success": False, "error": "Invalid GUID"}), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Check if item exists first
+        cursor.execute('SELECT guid FROM items WHERE guid = %s', (guid,))
+        if not cursor.fetchone():
+            conn.close()
+            print(f"Item not found: {guid}")
+            return jsonify({"success": False, "error": "Item not found"}), 404
+        
+        # Delete item (cascades to images, text_content, categories)
+        cursor.execute('DELETE FROM items WHERE guid = %s', (guid,))
+        deleted_count = cursor.rowcount
+        conn.commit()
+        conn.close()
+        
+        print(f"Deleted {deleted_count} items for GUID: {guid}")
+        return jsonify({"success": True, "deleted_count": deleted_count}), 200
+        
+    except Exception as e:
+        print(f"Error deleting item {guid}: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/update-item-name/<guid>', methods=['POST'])
+def update_item_name(guid):
+    """Update item name"""
+    if not is_valid_guid(guid):
+        return jsonify({"success": False, "error": "Invalid GUID"}), 400
+    
+    item_name = request.form.get('item_name', '').strip()
+    if not item_name:
+        return jsonify({"success": False, "error": "Name cannot be empty"}), 400
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get current description to combine with new name for embedding
+        cursor.execute('SELECT description FROM items WHERE guid = %s', (guid,))
+        result = cursor.fetchone()
+        description = result[0] if result and result[0] else ""
+        
+        # Combine name and description for comprehensive embedding
+        combined_text = f"{item_name} {description}".strip()
+        embedding_vector = generate_embedding(combined_text)
+        embedding_json = json.dumps(embedding_vector) if embedding_vector else None
+        
+        cursor.execute('UPDATE items SET item_name = %s, embedding_vector = %s, updated_date = CURRENT_TIMESTAMP WHERE guid = %s', 
+                      (item_name, embedding_json, guid))
+        conn.commit()
+        conn.close()
+        
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/update-item-description/<guid>', methods=['POST'])
+def update_item_description(guid):
+    """Update item description"""
+    if not is_valid_guid(guid):
+        return jsonify({"success": False, "error": "Invalid GUID"}), 400
+    
+    description = request.form.get('description', '').strip()
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get current item name to combine with new description for embedding
+        cursor.execute('SELECT item_name FROM items WHERE guid = %s', (guid,))
+        result = cursor.fetchone()
+        item_name = result[0] if result and result[0] else ""
+        
+        # Combine name and description for comprehensive embedding
+        combined_text = f"{item_name} {description}".strip()
+        embedding_vector = generate_embedding(combined_text)
+        embedding_json = json.dumps(embedding_vector) if embedding_vector else None
+        
+        cursor.execute('UPDATE items SET description = %s, embedding_vector = %s, updated_date = CURRENT_TIMESTAMP WHERE guid = %s', 
+                      (description, embedding_json, guid))
+        conn.commit()
+        conn.close()
+        
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/update-item-label/<guid>', methods=['POST'])
+def update_item_label(guid):
+    """Update item label number"""
+    if not is_valid_guid(guid):
+        return jsonify({"success": False, "error": "Invalid GUID"}), 400
+    
+    label_number = request.form.get('label_number', '').strip()
+    
+    # Validate label number (should be numeric if provided)
+    if label_number and not label_number.isdigit():
+        return jsonify({"success": False, "error": "Label number must be numeric"}), 400
+    
+    # Convert to integer or None
+    label_value = int(label_number) if label_number else None
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            'UPDATE items SET label_number = %s, updated_date = CURRENT_TIMESTAMP WHERE guid = %s',
+            (label_value, guid)
+        )
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({"success": True, "label_number": label_value})
+    except Exception as e:
+        print(f"Error updating label number: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/bulk-assign-labels', methods=['POST'])
+def bulk_assign_labels():
+    """Auto-assign sequential label numbers to all items that don't have them yet"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get the current highest label number
+        cursor.execute("SELECT MAX(label_number) FROM items WHERE label_number IS NOT NULL")
+        max_label = cursor.fetchone()[0]
+        next_number = (max_label or 0) + 1
+        
+        # Get all items without label numbers, ordered by creation date (oldest first)
+        cursor.execute("""
+            SELECT guid, item_name 
+            FROM items 
+            WHERE label_number IS NULL 
+            ORDER BY created_date ASC
+        """)
+        unlabeled_items = cursor.fetchall()
+        
+        if not unlabeled_items:
+            return jsonify({
+                "success": True, 
+                "message": "No unlabeled items found",
+                "assigned_count": 0
+            })
+        
+        # Assign sequential numbers starting from next_number
+        assigned_count = 0
+        assignments = []
+        
+        for item in unlabeled_items:
+            guid, item_name = item
+            label_to_assign = next_number + assigned_count
+            
+            cursor.execute(
+                'UPDATE items SET label_number = %s, updated_date = CURRENT_TIMESTAMP WHERE guid = %s',
+                (label_to_assign, guid)
+            )
+            
+            assignments.append({
+                "guid": guid,
+                "name": item_name or f"Item_{guid[:8]}",
+                "label": label_to_assign
+            })
+            assigned_count += 1
+        
+        # Update the sequence to stay in sync
+        final_number = next_number + assigned_count - 1
+        cursor.execute("SELECT setval('label_number_seq', %s)", (final_number,))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            "success": True,
+            "message": f"Successfully assigned labels to {assigned_count} items",
+            "assigned_count": assigned_count,
+            "starting_number": next_number,
+            "ending_number": final_number,
+            "assignments": assignments
+        })
+        
+    except Exception as e:
+        print(f"Error in bulk label assignment: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/set-parent-item/<guid>', methods=['POST'])
+def set_parent_item(guid):
+    """Set the parent item for an item (place item inside another item)"""
+    if not is_valid_guid(guid):
+        return jsonify({"success": False, "error": "Invalid GUID"}), 400
+    
+    parent_guid = request.form.get('parent_guid', '').strip()
+    
+    # Validate parent_guid if provided
+    if parent_guid and not is_valid_guid(parent_guid):
+        return jsonify({"success": False, "error": "Invalid parent GUID"}), 400
+    
+    # Convert empty string to None for database
+    if not parent_guid:
+        parent_guid = None
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Check for circular reference
+        if parent_guid:
+            # Check if setting this would create a circular reference
+            cursor.execute('''
+                WITH RECURSIVE item_hierarchy AS (
+                    SELECT guid, parent_guid FROM items WHERE guid = %s
+                    UNION ALL
+                    SELECT i.guid, i.parent_guid 
+                    FROM items i 
+                    JOIN item_hierarchy ih ON i.guid = ih.parent_guid
+                )
+                SELECT COUNT(*) FROM item_hierarchy WHERE guid = %s
+            ''', (parent_guid, guid))
+            
+            if cursor.fetchone()[0] > 0:
+                conn.close()
+                return jsonify({"success": False, "error": "Cannot create circular reference"}), 400
+        
+        # Update the parent_guid
+        cursor.execute('UPDATE items SET parent_guid = %s, updated_date = CURRENT_TIMESTAMP WHERE guid = %s', 
+                      (parent_guid, guid))
+        conn.commit()
+        conn.close()
+        
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/remove-parent-item/<guid>', methods=['POST'])
+def remove_parent_item(guid):
+    """Remove the parent relationship (take item out of its container)"""
+    if not is_valid_guid(guid):
+        return jsonify({"success": False, "error": "Invalid GUID"}), 400
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('UPDATE items SET parent_guid = NULL, updated_date = CURRENT_TIMESTAMP WHERE guid = %s', (guid,))
+        conn.commit()
+        conn.close()
+        
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/search-items', methods=['GET'])
+def search_items():
+    """Search items by name and tags for autocomplete"""
+    query = request.args.get('q', '').strip().lower()
+    exclude_guid = request.args.get('exclude', '')  # Exclude current item from results
+    
+    if not query or len(query) < 2:
+        return jsonify([])
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Search items by name AND tags - fixed ORDER BY for DISTINCT
+        cursor.execute('''
+            SELECT DISTINCT i.guid, i.item_name, 
+                   (SELECT COUNT(*) FROM items WHERE parent_guid = i.guid) as contained_count,
+                   (SELECT id FROM images WHERE item_guid = i.guid AND is_primary = TRUE LIMIT 1) as primary_image_id,
+                   (SELECT string_agg(c.category_name, ', ') FROM categories c WHERE c.item_guid = i.guid) as all_tags,
+                   CASE WHEN LOWER(i.item_name) LIKE %s THEN 1 ELSE 2 END as name_priority,
+                   LENGTH(i.item_name) as name_length,
+                   i.label_number
+            FROM items i
+            WHERE (
+                LOWER(i.item_name) LIKE %s
+                OR i.guid IN (
+                    SELECT c.item_guid 
+                    FROM categories c 
+                    WHERE LOWER(c.category_name) LIKE %s
+                )
+            )
+            AND i.guid != %s
+            ORDER BY name_priority, name_length, i.item_name
+            LIMIT 10
+        ''', (f'{query}%', f'%{query}%', f'%{query}%', exclude_guid))
+        
+        results = []
+        for row in cursor.fetchall():
+            guid, name, contained_count, primary_image_id, all_tags, name_priority, name_length, label_number = row
+            results.append({
+                'guid': guid,
+                'name': name,
+                'contained_count': contained_count,
+                'has_image': primary_image_id is not None,
+                'image_id': primary_image_id,
+                'matched_tags': all_tags,
+                'match_priority': name_priority,
+                'label_number': label_number
+            })
+        
+        # Debug: Print results
+        print(f"DEBUG: Query '{query}' returned {len(results)} results")
+        for result in results:
+            print(f"  - {result['name']} (tags: {result['matched_tags']}, priority: {result['match_priority']})")
+        
+        conn.close()
+        return jsonify(results)
+    
+    except Exception as e:
+        print(f"Search error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/semantic-search')
+def semantic_search():
+    """Semantic search using embeddings for comprehensive results"""
+    query = request.args.get('q', '').strip()
+    limit = min(int(request.args.get('limit', 20)), 50)  # Max 50 results
+    exclude_guid = request.args.get('exclude', '')
+    
+    if not query or len(query) < 2:
+        return jsonify([])
+    
+    try:
+        # Generate embedding for the search query
+        print(f"[DEBUG] Generating embedding for query: '{query}'")
+        query_embedding = generate_embedding(query)
+        if not query_embedding:
+            # Fallback to traditional search if embeddings fail
+            print("[DEBUG] Embeddings not available, falling back to traditional search")
+            return search_items()
+        print(f"[DEBUG] Query embedding generated successfully, length: {len(query_embedding)}")
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get all items with embeddings for similarity calculation
+        cursor.execute('''
+            SELECT i.guid, i.item_name, i.description, i.embedding_vector,
+                   (SELECT COUNT(*) FROM items WHERE parent_guid = i.guid) as contained_count,
+                   (SELECT id FROM images WHERE item_guid = i.guid AND is_primary = TRUE LIMIT 1) as primary_image_id,
+                   (SELECT string_agg(c.category_name, ', ') FROM categories c WHERE c.item_guid = i.guid) as all_tags,
+                   i.label_number
+            FROM items i
+            WHERE i.embedding_vector IS NOT NULL
+            AND i.guid != %s
+        ''', (exclude_guid,))
+        
+        items_with_embeddings = cursor.fetchall()
+        print(f"[DEBUG] Found {len(items_with_embeddings)} items with embeddings")
+        
+        results = []
+        for row in items_with_embeddings:
+            guid, name, description, embedding_json, contained_count, primary_image_id, all_tags, label_number = row
+            
+            if not embedding_json:
+                continue
+                
+            try:
+                # Parse the stored embedding
+                item_embedding = json.loads(embedding_json)
+                
+                # Calculate similarity
+                similarity = cosine_similarity(query_embedding, item_embedding)
+                print(f"[DEBUG] Item '{name[:30]}...' similarity: {similarity:.3f}")
+                
+                # Only include items with reasonable similarity (threshold: 0.15)
+                if similarity >= 0.15:
+                    results.append({
+                        'guid': guid,
+                        'name': name,
+                        'description': description or '',
+                        'contained_count': contained_count,
+                        'has_image': primary_image_id is not None,
+                        'image_id': primary_image_id,
+                        'matched_tags': all_tags,
+                        'similarity': round(similarity, 3),
+                        'match_type': 'semantic',
+                        'label_number': label_number
+                    })
+                    
+            except (json.JSONDecodeError, TypeError) as e:
+                print(f"[ERROR] Failed to parse embedding for item {guid}: {e}")
+                continue
+        
+        # Sort by similarity (highest first)
+        results.sort(key=lambda x: x['similarity'], reverse=True)
+        results = results[:limit]
+        
+        # Add traditional text matches for better coverage
+        cursor.execute('''
+            SELECT DISTINCT i.guid, i.item_name, i.description,
+                   (SELECT COUNT(*) FROM items WHERE parent_guid = i.guid) as contained_count,
+                   (SELECT id FROM images WHERE item_guid = i.guid AND is_primary = TRUE LIMIT 1) as primary_image_id,
+                   (SELECT string_agg(c.category_name, ', ') FROM categories c WHERE c.item_guid = i.guid) as all_tags,
+                   i.label_number
+            FROM items i
+            LEFT JOIN categories c ON c.item_guid = i.guid
+            WHERE (
+                LOWER(i.item_name) LIKE %s
+                OR LOWER(i.description) LIKE %s
+                OR LOWER(c.category_name) LIKE %s
+            )
+            AND i.guid != %s
+            LIMIT 5
+        ''', (f'%{query.lower()}%', f'%{query.lower()}%', f'%{query.lower()}%', exclude_guid))
+        
+        # Add traditional matches that aren't already in semantic results
+        existing_guids = {r['guid'] for r in results}
+        for row in cursor.fetchall():
+            guid, name, description, contained_count, primary_image_id, all_tags, label_number = row
+            if guid not in existing_guids:
+                results.append({
+                    'guid': guid,
+                    'name': name,
+                    'description': description or '',
+                    'contained_count': contained_count,
+                    'has_image': primary_image_id is not None,
+                    'image_id': primary_image_id,
+                    'matched_tags': all_tags,
+                    'similarity': 1.0,  # Perfect match for traditional search
+                    'match_type': 'traditional',
+                    'label_number': label_number
+                })
+        
+        # Re-sort with traditional matches at top, then by similarity
+        results.sort(key=lambda x: (x['match_type'] != 'traditional', -x['similarity']))
+        results = results[:limit]
+        
+        print(f"[DEBUG] Semantic search for '{query}' returned {len(results)} results")
+        for result in results[:5]:  # Log first 5
+            print(f"  - {result['name']} (similarity: {result['similarity']}, type: {result['match_type']})")
+        
+        conn.close()
+        return jsonify(results)
+        
+    except Exception as e:
+        print(f"[ERROR] Semantic search failed: {e}")
+        return search_items()  # Fallback to traditional search
+
+
+@app.route('/api/items-for-reindex')
+def get_items_for_reindex():
+    """Get all items that need embedding re-indexing"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get all items, showing which ones have embeddings
+        cursor.execute('''
+            SELECT guid, item_name, description, 
+                   CASE WHEN embedding_vector IS NULL THEN 'missing' ELSE 'present' END as embedding_status
+            FROM items
+            ORDER BY created_date DESC
+        ''')
+        
+        items = []
+        for row in cursor.fetchall():
+            guid, name, description, embedding_status = row
+            items.append({
+                'guid': guid,
+                'name': name or f'Item_{guid[:8]}',
+                'description': description or '',
+                'embedding_status': embedding_status
+            })
+        
+        conn.close()
+        
+        missing_count = sum(1 for item in items if item['embedding_status'] == 'missing')
+        
+        return jsonify({
+            'items': items,
+            'total_items': len(items),
+            'missing_embeddings': missing_count,
+            'has_embeddings': len(items) - missing_count
+        })
+        
+    except Exception as e:
+        print(f"[ERROR] Failed to get items for reindex: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/reindex-all-embeddings', methods=['POST'])
+def reindex_all_embeddings():
+    """Re-index all items to generate missing embeddings"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get all items that need embeddings
+        cursor.execute('''
+            SELECT guid, item_name, description
+            FROM items
+            WHERE embedding_vector IS NULL
+        ''')
+        
+        items_to_update = cursor.fetchall() 
+        updated_count = 0
+        print(f"[DEBUG] Found {len(items_to_update)} items with embeddings")
+        
+        for guid, name, description in items_to_update:
+            try:
+                # Combine name and description for comprehensive embedding
+                combined_text = f"{name or ''} {description or ''}".strip()
+                
+                if combined_text:
+                    # Generate embedding
+                    embedding_vector = generate_embedding(combined_text)
+                    embedding_json = json.dumps(embedding_vector) if embedding_vector else None
+                    
+                    # Update the item with the embedding
+                    cursor.execute('''
+                        UPDATE items 
+                        SET embedding_vector = %s, updated_date = CURRENT_TIMESTAMP 
+                        WHERE guid = %s
+                    ''', (embedding_json, guid))
+                    
+                    updated_count += 1
+                    print(f"[DEBUG] Generated embedding for: {name or guid[:8]}")
+                else:
+                    print(f"[WARNING] Skipping empty item: {guid[:8]}")
+                    
+            except Exception as e:
+                print(f"[ERROR] Failed to generate embedding for {guid}: {e}")
+                continue
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'updated_count': updated_count,
+            'total_processed': len(items_to_update)
+        })
+        
+    except Exception as e:
+        print(f"[ERROR] Reindex failed: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+
+@app.route('/set-primary-image/<int:image_id>', methods=['POST'])
+def set_primary_image(image_id):
+    """Set an image as the primary image for an item"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get the item_guid for this image
+        cursor.execute('SELECT item_guid FROM images WHERE id = %s', (image_id,))
+        result = cursor.fetchone()
+        
+        if not result:
+            conn.close()
+            return jsonify({"success": False, "error": "Image not found"}), 404
+            
+        item_guid = result[0]
+        
+        # First, unset all images for this item as primary
+        cursor.execute('UPDATE images SET is_primary = FALSE WHERE item_guid = %s', (item_guid,))
+        
+        # Then set the selected image as primary
+        cursor.execute('UPDATE images SET is_primary = TRUE WHERE id = %s', (image_id,))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/associate-item/<guid>', methods=['POST'])
+def associate_item(guid):
+    """Associate a QR code with an existing item"""
+    target_guid = request.json.get('target_guid')
+    
+    if not target_guid:
+        return jsonify({"success": False, "error": "Target GUID required"}), 400
+    
+    # Get the original QR code (stored in source_url)
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Get the source URL (original QR code) for this item
+    cursor.execute('SELECT source_url FROM items WHERE guid = %s', (guid,))
+    result = cursor.fetchone()
+    
+    if not result or not result[0]:
+        conn.close()
+        return jsonify({"success": False, "error": "No QR code found for this item"}), 400
+    
+    qr_code = result[0]
+    
+    try:
+        # Insert the alias
+        cursor.execute('INSERT INTO qr_aliases (qr_code, item_guid) VALUES (%s, %s)', 
+                      (qr_code, target_guid))
+        
+        # Delete the temporary item
+        cursor.execute('DELETE FROM items WHERE guid = %s', (guid,))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({"success": True, "redirect": f"/item/{target_guid}"})
+    
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        print(f"Association error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/health')
+def health():
+    """Health check endpoint for HAProxy"""
+    try:
+        # Test database connection
+        conn = get_db_connection()
+        conn.close()
+        return jsonify({"status": "healthy", "database": "connected"}), 200
+    except Exception as e:
+        return jsonify({"status": "unhealthy", "error": str(e)}), 503
+
+@app.route('/system-status')
+def system_status():
+    """Human-friendly system status page"""
+    import time
+    import psutil
+    
+    try:
+        start_time = time.time()
+        
+        # Test database connection and get some stats
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Database connection test
+        db_start = time.time()
+        cursor.execute('SELECT 1')
+        db_response_time = (time.time() - db_start) * 1000  # Convert to ms
+        
+        # Get cache stats
+        cache_stats = {
+            'image_cache_size': len(_image_cache.cache),
+            'thumbnail_cache_size': len(_thumbnail_cache.cache),
+            'image_cache_max': _image_cache.max_size,
+            'thumbnail_cache_max': _thumbnail_cache.max_size
+        }
+        
+        # Get connection pool info
+        pool_stats = {
+            'active_connections': len(_connection_pool),
+            'max_pool_size': _MAX_POOL_SIZE
+        }
+        
+        # Get database size info
+        cursor.execute("""
+            SELECT 
+                pg_size_pretty(pg_database_size(current_database())) as db_size,
+                pg_size_pretty(pg_total_relation_size('images')) as images_table_size
+        """)
+        db_size_info = cursor.fetchone()
+        
+        # Get system info
+        system_info = {
+            'cpu_percent': psutil.cpu_percent(interval=0.1),
+            'memory_percent': psutil.virtual_memory().percent,
+            'disk_percent': psutil.disk_usage('/').percent
+        }
+        
+        conn.close()
+        
+        total_time = (time.time() - start_time) * 1000
+        
+        status_data = {
+            'overall_status': 'healthy',
+            'response_time': round(total_time, 2),
+            'database': {
+                'status': 'connected',
+                'response_time': round(db_response_time, 2),
+                'size': db_size_info[0] if db_size_info else 'unknown',
+                'images_size': db_size_info[1] if db_size_info else 'unknown'
+            },
+            'cache': cache_stats,
+            'connection_pool': pool_stats,
+            'system': system_info,
+            'app_version': APP_VERSION
+        }
+        
+        return render_template('system_status.html', status=status_data)
+        
+    except Exception as e:
+        # If anything fails, show error page
+        error_data = {
+            'overall_status': 'unhealthy',
+            'error': str(e),
+            'app_version': APP_VERSION
+        }
+        return render_template('system_status.html', status=error_data, error=True)
+
+@app.route('/api/health')  
+def api_health():
+    """API health check endpoint"""
+    return jsonify({"status": "healthy", "service": "api"}), 200
+
+@app.route('/db-test')
+def db_test():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get fun database statistics
+        stats = {}
+        
+        # Total items
+        cursor.execute("SELECT COUNT(*) FROM items")
+        stats['total_items'] = cursor.fetchone()[0]
+        
+        # Total images
+        cursor.execute("SELECT COUNT(*) FROM images")
+        stats['total_images'] = cursor.fetchone()[0]
+        
+        # Total categories/tags
+        cursor.execute("SELECT COUNT(*) FROM categories")
+        stats['total_tags'] = cursor.fetchone()[0]
+        
+        # Current highest label number in use
+        cursor.execute("SELECT MAX(label_number) FROM items WHERE label_number IS NOT NULL")
+        max_label = cursor.fetchone()[0]
+        stats['highest_label_in_use'] = max_label or 0
+        
+        # Count unlabeled items
+        cursor.execute("SELECT COUNT(*) FROM items WHERE label_number IS NULL")
+        stats['unlabeled_count'] = cursor.fetchone()[0]
+        
+        # Calculate what the next label number should be
+        # This ensures we don't conflict with manually assigned numbers
+        stats['next_label_number'] = (max_label or 0) + 1
+        
+        # Update the sequence to match reality (so auto-assignment works correctly)
+        if max_label:
+            cursor.execute("SELECT setval('label_number_seq', %s)", (max_label,))
+        
+        # Check sequence current value for debugging
+        cursor.execute("SELECT last_value FROM label_number_seq")
+        current_seq = cursor.fetchone()[0]
+        stats['sequence_value'] = current_seq
+        
+        # Most recent item
+        cursor.execute("SELECT item_name, created_date FROM items ORDER BY created_date DESC LIMIT 1")
+        recent_item = cursor.fetchone()
+        stats['recent_item'] = recent_item
+        
+        # Oldest item
+        cursor.execute("SELECT item_name, created_date FROM items ORDER BY created_date ASC LIMIT 1")
+        oldest_item = cursor.fetchone()
+        stats['oldest_item'] = oldest_item
+        
+        # Items with most images
+        cursor.execute("""
+            SELECT i.item_name, COUNT(img.id) as image_count 
+            FROM items i 
+            LEFT JOIN images img ON i.guid = img.item_guid 
+            GROUP BY i.guid, i.item_name 
+            ORDER BY image_count DESC 
+            LIMIT 1
+        """)
+        most_images = cursor.fetchone()
+        stats['most_images'] = most_images
+        
+        # Most popular tag
+        cursor.execute("""
+            SELECT category_name, COUNT(*) as usage_count 
+            FROM categories 
+            GROUP BY category_name 
+            ORDER BY usage_count DESC 
+            LIMIT 1
+        """)
+        popular_tag = cursor.fetchone()
+        stats['popular_tag'] = popular_tag
+        
+        # Database version
+        cursor.execute("SELECT version();")
+        stats['db_version'] = cursor.fetchone()[0]
+        
+        # HIERARCHY & NESTING STATS - with error handling
+        try:
+            # Top-level items (no parent)
+            cursor.execute("SELECT COUNT(*) FROM items WHERE parent_guid IS NULL")
+            stats['top_level_items'] = cursor.fetchone()[0]
+            
+            # Container items (have children)
+            cursor.execute("""
+                SELECT COUNT(DISTINCT parent_guid) 
+                FROM items 
+                WHERE parent_guid IS NOT NULL
+            """)
+            stats['container_items'] = cursor.fetchone()[0]
+            
+            # Leaf items (no children)
+            cursor.execute("""
+                SELECT COUNT(*) FROM items i
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM items child WHERE child.parent_guid = i.guid
+                )
+            """)
+            stats['leaf_items'] = cursor.fetchone()[0]
+            
+            # Simplified nesting depth calculation
+            stats['max_nesting_depth'] = 0
+            stats['longest_chain_path'] = "No nested items"
+            stats['longest_chain_depth'] = 0
+            
+            # Try to calculate max depth, but don't break if it fails
+            try:
+                cursor.execute("""
+                    WITH RECURSIVE item_depth AS (
+                        SELECT guid, item_name, 0 as depth
+                        FROM items 
+                        WHERE parent_guid IS NULL
+                        
+                        UNION ALL
+                        
+                        SELECT i.guid, i.item_name, id.depth + 1
+                        FROM items i
+                        JOIN item_depth id ON i.parent_guid = id.guid
+                        WHERE id.depth < 10
+                    )
+                    SELECT MAX(depth) FROM item_depth
+                """)
+                max_depth_result = cursor.fetchone()
+                if max_depth_result and max_depth_result[0] is not None:
+                    stats['max_nesting_depth'] = max_depth_result[0]
+            except Exception:
+                pass  # Keep default value
+            
+            # Most populous container (item with most direct children)
+            cursor.execute("""
+                SELECT parent.item_name, COUNT(child.guid) as child_count
+                FROM items parent
+                JOIN items child ON parent.guid = child.parent_guid
+                GROUP BY parent.guid, parent.item_name
+                ORDER BY child_count DESC
+                LIMIT 1
+            """)
+            biggest_container = cursor.fetchone()
+            stats['biggest_container'] = biggest_container
+            
+            # Average items per container
+            cursor.execute("""
+                SELECT AVG(child_count) as avg_children
+                FROM (
+                    SELECT COUNT(child.guid) as child_count
+                    FROM items parent
+                    JOIN items child ON parent.guid = child.parent_guid
+                    GROUP BY parent.guid
+                ) container_stats
+            """)
+            avg_children_result = cursor.fetchone()
+            stats['avg_items_per_container'] = round(avg_children_result[0], 1) if avg_children_result[0] is not None else 0
+            
+        except Exception as e:
+            # Fallback values if hierarchy queries fail
+            print(f"Hierarchy stats error: {e}")
+            stats['top_level_items'] = stats['total_items']
+            stats['container_items'] = 0
+            stats['leaf_items'] = stats['total_items']
+            stats['max_nesting_depth'] = 0
+            stats['longest_chain_path'] = "Stats unavailable"
+            stats['longest_chain_depth'] = 0
+            stats['biggest_container'] = None
+            stats['avg_items_per_container'] = 0
+        
+        # Add embedding statistics
+        try:
+            cursor.execute("SELECT COUNT(*) FROM items WHERE embedding_vector IS NOT NULL")
+            with_embeddings = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM items WHERE embedding_vector IS NULL")  
+            missing_embeddings = cursor.fetchone()[0]
+            
+            stats['embedding_stats'] = {
+                'with_embeddings': with_embeddings,
+                'missing_embeddings': missing_embeddings,
+                'total_items': stats['total_items'],
+                'percentage_indexed': round((with_embeddings / stats['total_items'] * 100) if stats['total_items'] > 0 else 0, 1)
+            }
+        except Exception as e:
+            print(f"Embedding stats error: {e}")
+            stats['embedding_stats'] = {
+                'with_embeddings': 0,
+                'missing_embeddings': stats['total_items'],
+                'total_items': stats['total_items'], 
+                'percentage_indexed': 0
+            }
+        
+        conn.close()
+        
+        return render_template('db_stats.html', stats=stats)
+        
+    except Exception as e:
+        return render_template('error.html',
+            title='Database Error',
+            heading='❌ Database Error',
+            message=str(e),
+            details=f'Error details: {repr(e)}')
+
+# Admin API endpoints
+@app.route('/api/reindex-embeddings', methods=['POST'])
+def api_reindex_embeddings():
+    """Reindex all embeddings for semantic search"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Clear all existing embeddings first
+        print("[DEBUG] Clearing all existing embeddings...")
+        cursor.execute('UPDATE items SET embedding_vector = NULL')
+        conn.commit()
+        print("[DEBUG] All embeddings cleared")
+        
+        # Get all items that need embeddings  
+        cursor.execute('SELECT guid, item_name, description FROM items')
+        items_to_update = cursor.fetchall()
+        print(f"[DEBUG] Found {len(items_to_update)} items to process")
+        
+        updated_count = 0
+        for guid, name, description in items_to_update:
+            try:
+                # Combine name and description
+                combined_text = f"{name or ''} {description or ''}".strip()
+                print(f"[DEBUG] Processing item {guid[:8]}...")
+                print(f"[DEBUG]   Name: '{name}'")
+                print(f"[DEBUG]   Description: '{description}'")
+                print(f"[DEBUG]   Combined: '{combined_text}'")
+                
+                if combined_text:
+                    # Generate embedding
+                    print(f"[DEBUG]   Generating embedding for: '{combined_text[:50]}...'")
+                    embedding = generate_embedding(combined_text)
+                    print(f"[DEBUG]   Embedding generated: {embedding is not None}")
+                    
+                    if embedding is not None:
+                        # Convert to JSON format
+                        if hasattr(embedding, 'tolist'):
+                            embedding_list = embedding.tolist()
+                        else:
+                            embedding_list = list(embedding)
+                        
+                        embedding_json = json.dumps(embedding_list)
+                        
+                        # Update the item
+                        print(f"[DEBUG]   Updating database for {guid[:8]}...")
+                        cursor.execute(
+                            'UPDATE items SET embedding_vector = %s, updated_date = CURRENT_TIMESTAMP WHERE guid = %s',
+                            (embedding_json, guid)
+                        )
+                        updated_count += 1
+                        print(f"[DEBUG]   ✅ Updated! ({updated_count} total)")
+                        
+            except Exception as e:
+                print(f"[DEBUG] ❌ Error processing {name}: {e}")
+                continue
+        
+        conn.commit()
+        conn.close()
+        
+        print(f"[DEBUG] 🎉 Reindex complete: {updated_count}/{len(items_to_update)} items updated")
+        
+        return jsonify({
+            'success': True,
+            'total_processed': len(items_to_update),
+            'updated_count': updated_count
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/validate-database', methods=['POST'])
+def api_validate_database():
+    """Validate database integrity and find issues"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        issues_found = 0
+        issues_fixed = 0
+        checks_performed = 0
+        details = []
+        
+        # Check 1: Orphaned images
+        checks_performed += 1
+        cursor.execute("""
+            SELECT COUNT(*) FROM images i 
+            LEFT JOIN items it ON i.item_guid = it.guid 
+            WHERE it.guid IS NULL
+        """)
+        orphaned_images = cursor.fetchone()[0]
+        if orphaned_images > 0:
+            issues_found += 1
+            details.append(f"Found {orphaned_images} orphaned images")
+        
+        # Check 2: Orphaned categories
+        checks_performed += 1
+        cursor.execute("""
+            SELECT COUNT(*) FROM categories c 
+            LEFT JOIN items it ON c.item_guid = it.guid 
+            WHERE it.guid IS NULL
+        """)
+        orphaned_categories = cursor.fetchone()[0]
+        if orphaned_categories > 0:
+            issues_found += 1
+            details.append(f"Found {orphaned_categories} orphaned categories")
+        
+        # Check 3: Items without primary images but have images
+        checks_performed += 1
+        cursor.execute("""
+            SELECT COUNT(*) FROM items i
+            WHERE EXISTS (SELECT 1 FROM images img WHERE img.item_guid = i.guid)
+            AND NOT EXISTS (SELECT 1 FROM images img WHERE img.item_guid = i.guid AND img.is_primary = true)
+        """)
+        no_primary = cursor.fetchone()[0]
+        if no_primary > 0:
+            issues_found += 1
+            details.append(f"Found {no_primary} items without primary image set")
+            
+            # Auto-fix: Set first image as primary for each item
+            cursor.execute("""
+                UPDATE images SET is_primary = true 
+                WHERE id IN (
+                    SELECT DISTINCT ON (item_guid) id 
+                    FROM images 
+                    WHERE item_guid IN (
+                        SELECT i.guid FROM items i
+                        WHERE EXISTS (SELECT 1 FROM images img WHERE img.item_guid = i.guid)
+                        AND NOT EXISTS (SELECT 1 FROM images img WHERE img.item_guid = i.guid AND img.is_primary = true)
+                    )
+                    ORDER BY item_guid, upload_date ASC
+                )
+            """)
+            issues_fixed += cursor.rowcount
+        
+        # Check 4: Multiple primary images per item
+        checks_performed += 1
+        cursor.execute("""
+            SELECT item_guid, COUNT(*) as primary_count
+            FROM images 
+            WHERE is_primary = true
+            GROUP BY item_guid
+            HAVING COUNT(*) > 1
+        """)
+        multiple_primary = cursor.fetchall()
+        if multiple_primary:
+            issues_found += len(multiple_primary)
+            details.append(f"Found {len(multiple_primary)} items with multiple primary images")
+            
+            # Auto-fix: Keep only the first primary image per item
+            for item_guid, count in multiple_primary:
+                cursor.execute("""
+                    UPDATE images SET is_primary = false 
+                    WHERE item_guid = %s AND is_primary = true
+                    AND id NOT IN (
+                        SELECT id FROM images 
+                        WHERE item_guid = %s AND is_primary = true
+                        ORDER BY upload_date ASC 
+                        LIMIT 1
+                    )
+                """, (item_guid, item_guid))
+                issues_fixed += cursor.rowcount
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'checks_performed': checks_performed,
+            'issues_found': issues_found,
+            'issues_fixed': issues_fixed,
+            'details': details
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/clear-cache', methods=['POST'])
+def api_clear_cache():
+    """Clear image caches"""
+    try:
+        # Clear image caches
+        thumbnail_cache_size = len(thumbnail_cache.cache) if thumbnail_cache else 0
+        image_cache_size = len(image_cache.cache) if image_cache else 0
+        
+        if thumbnail_cache:
+            thumbnail_cache.cache.clear()
+        if image_cache:
+            image_cache.cache.clear()
+        
+        total_cleared = thumbnail_cache_size + image_cache_size
+        
+        return jsonify({
+            'success': True,
+            'items_cleared': total_cleared,
+            'memory_freed': f"~{total_cleared * 50}KB"  # Rough estimate
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/optimize-database', methods=['POST'])
+def api_optimize_database():
+    """Optimize database performance"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get database size before optimization
+        cursor.execute("SELECT pg_size_pretty(pg_database_size(current_database()))")
+        size_before = cursor.fetchone()[0]
+        
+        # Run VACUUM to reclaim space
+        conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+        cursor.execute("VACUUM")
+        
+        # Run ANALYZE to update statistics
+        cursor.execute("ANALYZE")
+        
+        # Get database size after optimization
+        cursor.execute("SELECT pg_size_pretty(pg_database_size(current_database()))")
+        size_after = cursor.fetchone()[0]
+        
+        # Count tables analyzed
+        cursor.execute("""
+            SELECT COUNT(*) FROM information_schema.tables 
+            WHERE table_schema = 'public'
+        """)
+        tables_analyzed = cursor.fetchone()[0]
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'space_reclaimed': f"Optimized from {size_before} to {size_after}",
+            'tables_analyzed': tables_analyzed
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+if __name__ == '__main__':
+    # Initialize database on startup
+    init_database()
+    app.run(host='0.0.0.0', port=5000, debug=True)

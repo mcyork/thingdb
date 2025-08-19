@@ -1,0 +1,125 @@
+# Database data
+config/data/
+
+# SSL certificates (regenerated on each deployment)
+config/ssl-certs/
+
+# Environment configuration (contains secrets)
+config/app-config/app.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.tar
+*.tar.gz
+docker-images.tar.gz
+
+# Deployment packages
+flask-inventory-deploy-*.tar.gz
+
+# Uploads (handled by Docker volumes)
+src/uploads/
+
+# Logs
+*.log
+logs/
+config/data-backup-20250815_122405
+
+# Binary files and images
+*.img
+*.iso
+*.bin
+*.exe
+*.dll
+*.so
+*.dylib
+*.jar
+*.war
+*.ear
+*.apk
+*.deb
+*.rpm
+*.pkg
+*.msi
+*.app
+*.dmg
+
+# Archives and compressed files
+*.tar
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
+*.gz
+*.zip
+*.rar
+*.7z
+*.bz2
+*.xz
+*.zst
+
+# Database files
+*.sqlite
+*.sqlite3
+*.db
+*.sql
+
+# Data and backup files
+*.dat
+*.bak
+*.tmp
+*.pid
+*.lock
+*.sock
+*.fifo
+
+# Build outputs and work directories
+pi-image-builder/output/
+pi-image-builder/work/
+pi-image-builder/pi-gen/work/
+pi-image-builder/CustomPiOS/work/
+
+# System files
+/dev/
+/proc/
+/sys/
+/mnt/
+/media/
+/run/
+/var/
+/tmp/
+/usr/
+/etc/
+/home/
+/root/
+/boot/
+/lib/
+/opt/
+/srv/
+/sbin/
+/bin/
+
+# Backup and temporary directories
+config/data-backup-*/
+pi-deployment/data/
+pi-deployment/logs/
+pi-deployment/uploads/
