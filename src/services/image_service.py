@@ -7,50 +7,9 @@ import uuid
 from PIL import Image
 from config import IMAGE_SETTINGS, IMAGE_DIR
 
-def save_image_to_file(image_data, thumbnail_data, preview_data, original_filename):
-    """
-    Saves image, thumbnail, and preview to the file system.
-    Returns a dictionary with file paths.
-    """
-    if not os.path.exists(IMAGE_DIR):
-        os.makedirs(IMAGE_DIR)
 
-    # Generate a unique filename
-    ext = os.path.splitext(original_filename)[1]
-    unique_filename = f"{uuid.uuid4()}{ext}"
-    image_path = os.path.join(IMAGE_DIR, unique_filename)
-
-    # Save original image
-    with open(image_path, 'wb') as f:
-        f.write(image_data)
-
-    # Save thumbnail and preview (as .webp)
-    thumb_filename = f"{uuid.uuid4()}_thumb.webp"
-    preview_filename = f"{uuid.uuid4()}_preview.webp"
-    thumb_path = os.path.join(IMAGE_DIR, thumb_filename)
-    preview_path = os.path.join(IMAGE_DIR, preview_filename)
-
-    with open(thumb_path, 'wb') as f:
-        f.write(thumbnail_data)
-    with open(preview_path, 'wb') as f:
-        f.write(preview_data)
-
-    return {
-        "image_path": os.path.join('images', unique_filename),
-        "thumbnail_path": os.path.join('images', thumb_filename),
-        "preview_path": os.path.join('images', preview_filename)
-    }
-
-"""
-Image processing service for thumbnail and preview generation
-"""
-import io
-import os
-import uuid
-from PIL import Image
-from config import IMAGE_SETTINGS, IMAGE_DIR
-
-def save_image_to_file(image_data, thumbnail_data, preview_data, original_filename):
+def save_image_to_file(image_data, thumbnail_data, preview_data,
+                      original_filename):
     """
     Saves image, thumbnail, and preview to the file system.
     Returns a dictionary with file paths.
@@ -84,6 +43,7 @@ def save_image_to_file(image_data, thumbnail_data, preview_data, original_filena
         "preview_path": preview_filename
     }
 
+
 def generate_thumbnail(image_data, max_size=None, rotation=0):
     """Generate optimized thumbnail from image data with rotation"""
     if max_size is None:
@@ -108,15 +68,15 @@ def generate_thumbnail(image_data, max_size=None, rotation=0):
         output = io.BytesIO()
         try:
             # Use WebP for much smaller thumbnails
-            image.save(output, 
-                      format='WebP', 
+            image.save(output,
+                      format='WebP',
                       quality=70,           # Lower quality for smaller file
                       optimize=True,        # Optimize for size
                       lossless=False)       # Use lossy compression
         except Exception:
             # Fallback to JPEG if WebP fails
-            image.save(output, 
-                      format='JPEG', 
+            image.save(output,
+                      format='JPEG',
                       quality=75,           # Lower quality for smaller file
                       optimize=True)
         
@@ -125,6 +85,7 @@ def generate_thumbnail(image_data, max_size=None, rotation=0):
     except Exception as e:
         print(f"Thumbnail generation failed: {e}")
         return None
+
 
 def generate_preview(image_data, max_size=None, rotation=0):
     """Generate low-resolution preview from image data"""
@@ -150,7 +111,8 @@ def generate_preview(image_data, max_size=None, rotation=0):
         output = io.BytesIO()
         try:
             # Use WebP for much smaller previews
-            image.save(output, format='WebP', quality=75, optimize=True, lossless=False)
+            image.save(output, format='WebP', quality=75, optimize=True,
+                      lossless=False)
         except Exception:
             # Fallback to JPEG if WebP fails
             image.save(output, format='JPEG', quality=60, optimize=True)
@@ -160,6 +122,7 @@ def generate_preview(image_data, max_size=None, rotation=0):
     except Exception as e:
         print(f"Preview generation failed: {e}")
         return None
+
 
 def apply_rotation_to_image(image_data, rotation_degrees):
     """Apply rotation to image data and return modified image"""
@@ -183,6 +146,7 @@ def apply_rotation_to_image(image_data, rotation_degrees):
         print(f"Image rotation failed: {e}")
         return image_data  # Return original if rotation fails
 
+
 def get_image_info(image_data):
     """Get basic information about an image"""
     try:
@@ -197,35 +161,12 @@ def get_image_info(image_data):
         print(f"Failed to get image info: {e}")
         return None
 
+
 def is_valid_image(image_data):
-    """Check if image data is a valid image"""
+    """Check if the provided data is a valid image"""
     try:
         image = Image.open(io.BytesIO(image_data))
-        image.verify()  # Verify the image
+        image.verify()
         return True
     except Exception:
         return False
-
-def optimize_image_for_storage(image_data, max_quality=85):
-    """Optimize image for database storage while maintaining quality"""
-    try:
-        image = Image.open(io.BytesIO(image_data))
-        
-        # Convert to RGB if necessary
-        if image.mode not in ('RGB', 'L'):
-            image = image.convert('RGB')
-        
-        # Save with optimization
-        output = io.BytesIO()
-        if image.format == 'PNG' and image.mode == 'RGBA':
-            # Keep PNG format for transparency
-            image.save(output, format='PNG', optimize=True)
-        else:
-            # Use JPEG for better compression
-            image.save(output, format='JPEG', quality=max_quality, optimize=True)
-        
-        output.seek(0)
-        return output.getvalue()
-    except Exception as e:
-        print(f"Image optimization failed: {e}")
-        return image_data  # Return original if optimization fails

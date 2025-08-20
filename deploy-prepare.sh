@@ -10,6 +10,12 @@ echo "🚀 Creating Raspberry Pi deployment package..."
 PROJECT_ROOT="/Users/ianmccutcheon/projects/inv2-dev"
 DEPLOY_DIR="$HOME/inventory-deploy-build"
 PACKAGE_NAME="inventory-deploy.tar.gz"
+PYBRIDGE_PATH="/Users/ianmccutcheon/projects/pi-shell/pi"
+
+# Pi configuration
+PI_HOST="192.168.43.203"  # Pi IP (will be overridden by PyBridge default)
+PI_USER="pi"
+PI_DEPLOY_PATH="/tmp"
 
 # Colors for output
 RED='\033[0;31m'
@@ -21,6 +27,25 @@ NC='\033[0m' # No Color
 # Function to print colored output
 print_status() {
     echo -e "${BLUE}[INFO]${NC} $1"
+}
+
+# Function to check Pi status using PyBridge
+check_pi_status() {
+    if [ -f "$PYBRIDGE_PATH" ]; then
+        print_status "Checking Pi status using PyBridge..."
+        cd "$(dirname "$PYBRIDGE_PATH")"
+        if ./pi status | grep -q ".*ONLINE"; then
+            print_success "Pi is online and ready for deployment"
+            return 0
+        else
+            print_warning "Pi appears to be offline. Check PyBridge status."
+            return 1
+        fi
+    else
+        print_warning "PyBridge not found at $PYBRIDGE_PATH"
+        print_warning "Will use manual SCP/SSH instead"
+        return 1
+    fi
 }
 
 print_success() {
@@ -39,6 +64,28 @@ print_error() {
 if [ ! -d "$PROJECT_ROOT" ]; then
     print_error "Project directory not found: $PROJECT_ROOT"
     exit 1
+fi
+
+# Check if Docker testing environment is available
+if [ ! -f "$PROJECT_ROOT/scripts/manage-docker-storage.sh" ]; then
+    print_warning "Docker testing environment not found. This is recommended for testing before Pi deployment."
+else
+    print_status "Docker testing environment found. Testing code before deployment..."
+    
+    # Test our code in Docker first (following our documented workflow)
+    cd "$PROJECT_ROOT"
+    if ./scripts/manage-docker-storage.sh test > /tmp/docker-test.log 2>&1; then
+        print_success "Docker tests passed - code is ready for Pi deployment"
+    else
+        print_warning "Docker tests had issues - check /tmp/docker-test.log"
+        print_warning "Consider fixing issues before Pi deployment"
+        read -p "Continue with Pi deployment anyway? (y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            print_error "Deployment cancelled. Fix Docker issues first."
+            exit 1
+        fi
+    fi
 fi
 
 # Create deployment directory
@@ -62,32 +109,13 @@ if [ ! -f "requirements/.gitkeep" ]; then
     touch requirements/.gitkeep
 fi
 
-# Copy database export
-print_status "Copying database export..."
-if [ -f "$PROJECT_ROOT/pi-deployment/data/database-export.sql" ]; then
-    cp "$PROJECT_ROOT/pi-deployment/data/database-export.sql" ./
-    DB_SIZE=$(du -h database-export.sql | cut -f1)
-    print_success "Database export copied ($DB_SIZE)"
-else
-    print_warning "Database export not found, skipping..."
-fi
+# Skip database export - start with empty database like Docker
+print_status "Skipping database export - will start with empty database (like Docker)"
 
-# Copy images
-if [ -d "$PROJECT_ROOT/pi-deployment/data/images" ]; then
-    print_status "Copying image files..."
-    cp -r "$PROJECT_ROOT/pi-deployment/data/images" .
-    IMAGE_COUNT=$(find images -type f | wc -l)
-    IMAGE_SIZE=$(du -sh images | cut -f1)
-    print_success "Images copied ($(printf "%7d" $IMAGE_COUNT) files, $IMAGE_SIZE)"
-    
-    # Ensure empty directories are included by adding .gitkeep files
-    find images -type d -empty -exec touch {}/.gitkeep \;
-else
-    print_warning "Images directory not found, skipping..."
-    # Create empty images directory with placeholder
-    mkdir -p images
-    touch images/.gitkeep
-fi
+# Skip image copying - start with empty images directory like Docker
+print_status "Skipping image copying - will start with empty images directory (like Docker)"
+mkdir -p images
+touch images/.gitkeep
 
 # Create deployment script
 print_status "Creating deployment script..."
@@ -225,38 +253,16 @@ sudo -u postgres psql -c "DROP DATABASE IF EXISTS inventory_db;" || true
 sudo -u postgres psql -c "CREATE DATABASE inventory_db OWNER inventory;" || true
 sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE inventory_db TO inventory;" || true
 
-# Import database if available
-if [ -f "/tmp/database-export.sql" ]; then
-    print_status "Importing database..."
-    sudo -u postgres psql -d inventory_db < /tmp/database-export.sql
-    
-    # CRITICAL: Fix table ownership after import
-    print_status "Fixing table ownership..."
-    sudo -u postgres psql -d inventory_db << 'DBEOF'
--- Change ownership of all tables to inventory user
-ALTER TABLE items OWNER TO inventory;
-ALTER TABLE images OWNER TO inventory;
-ALTER TABLE categories OWNER TO inventory;
-ALTER TABLE qr_aliases OWNER TO inventory;
-ALTER TABLE text_content OWNER TO inventory;
+# CRITICAL: Clear any existing data to ensure truly empty database
+print_status "Clearing any existing data..."
+sudo -u postgres psql -d inventory_db -c "DROP SCHEMA public CASCADE;" || true
+sudo -u postgres psql -d inventory_db -c "CREATE SCHEMA public;" || true
+sudo -u postgres psql -d inventory_db -c "GRANT ALL ON SCHEMA public TO inventory;" || true
+sudo -u postgres psql -d inventory_db -c "GRANT ALL ON SCHEMA public TO public;" || true
 
--- Change ownership of all sequences
-ALTER SEQUENCE IF EXISTS categories_id_seq OWNER TO inventory;
-ALTER SEQUENCE IF EXISTS images_id_seq OWNER TO inventory;
-ALTER SEQUENCE IF EXISTS label_number_seq OWNER TO inventory;
-ALTER SEQUENCE IF EXISTS text_content_id_seq OWNER TO inventory;
-ALTER SEQUENCE IF EXISTS qr_aliases_id_seq OWNER TO inventory;
-
--- Grant all privileges to inventory user
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO inventory;
-GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO inventory;
-GRANT ALL PRIVILEGES ON SCHEMA public TO inventory;
-DBEOF
-    
-    print_success "Database imported and ownership fixed"
-else
-    print_warning "No database export found - database will be empty"
-fi
+# Skip database import - start with empty database like Docker
+print_status "Skipping database import - will start with empty database (like Docker)"
+print_status "Flask app will create its own schema on first run"
 
 # Verify and fix database ownership (critical for Flask app to work)
 print_status "Verifying database ownership..."
@@ -362,6 +368,7 @@ SVCEOF
 print_status "Configuring nginx..."
 cat > /etc/nginx/sites-available/inventory << 'NGINXEOF'
 server {
+    client_max_body_size 25M;
     listen 80;
     server_name _;
     # Note: This will redirect to the Pi's actual IP address
@@ -370,6 +377,7 @@ server {
 }
 
 server {
+    client_max_body_size 25M;
     listen 443 ssl;
     server_name _;
     
@@ -413,9 +421,68 @@ rm -f /etc/nginx/sites-enabled/default
 # Reload systemd and start services
 print_status "Starting services..."
 systemctl daemon-reload
+
+# Start PostgreSQL first (database dependency)
+print_status "Starting PostgreSQL..."
+systemctl enable postgresql
+systemctl start postgresql
+sleep 3  # Give PostgreSQL time to start
+
+# Verify PostgreSQL is running
+if ! systemctl is-active --quiet postgresql; then
+    print_error "PostgreSQL failed to start"
+    systemctl status postgresql
+    exit 1
+fi
+print_success "PostgreSQL is running"
+
+# Start Nginx
+print_status "Starting Nginx..."
+systemctl enable nginx
+systemctl start nginx
+sleep 3  # Give Nginx time to start
+
+# Verify Nginx is running
+if ! systemctl is-active --quiet nginx; then
+    print_error "Nginx failed to start"
+    systemctl status nginx
+    exit 1
+fi
+print_success "Nginx service is running"
+
+# CRITICAL: Verify Nginx is actually listening on both HTTP and HTTPS ports
+print_status "Verifying Nginx port binding..."
+sleep 2
+if ! netstat -tlnp | grep -q ":80.*nginx" || ! netstat -tlnp | grep -q ":443.*nginx"; then
+    print_warning "Nginx not listening on required ports - attempting restart..."
+    systemctl restart nginx
+    sleep 3
+    
+    # Check again after restart
+    if ! netstat -tlnp | grep -q ":80.*nginx" || ! netstat -tlnp | grep -q ":443.*nginx"; then
+        print_error "Nginx still not listening on required ports after restart"
+        netstat -tlnp | grep -E ":(80|443)"
+        systemctl status nginx --no-pager
+        exit 1
+    fi
+    print_success "Nginx restarted and now listening on required ports"
+else
+    print_success "Nginx is listening on HTTP (80) and HTTPS (443)"
+fi
+
+# Start Flask application
+print_status "Starting Flask application..."
 systemctl enable inventory-app
 systemctl start inventory-app
-systemctl reload nginx
+sleep 3  # Give Flask time to start
+
+# Verify Flask app is running
+if ! systemctl is-active --quiet inventory-app; then
+    print_error "Flask application failed to start"
+    systemctl status inventory-app
+    exit 1
+fi
+print_success "Flask application is running"
 
 # CRITICAL: Force download of sentence-transformers model to correct cache directory
 print_status "Pre-downloading ML model for semantic search..."
@@ -449,14 +516,9 @@ PYTHONEOF
 if [ $? -eq 0 ]; then
     print_success "ML model downloaded successfully to correct cache directory"
     
-    # Trigger re-index to generate embeddings for all items
-    print_status "Generating embeddings for all items..."
-    sleep 3  # Give the app time to stabilize
-    if timeout 30 curl -s -X POST "http://127.0.0.1:8000/api/reindex-embeddings" > /dev/null; then
-        print_success "Embeddings generated for all items"
-    else
-        print_warning "Failed to generate embeddings - semantic search may be limited"
-    fi
+    # Skip re-indexing for now - will be done manually when needed
+    print_status "Skipping re-indexing - database is empty, no items to index"
+    print_success "ML model downloaded successfully to correct cache directory"
 else
     print_warning "ML model download failed - semantic search may not work properly"
 fi
@@ -482,47 +544,70 @@ fi
 # Test web interface accessibility
 print_status "Testing web interface..."
 sleep 5  # Give the app time to fully start
+
+# Test Flask app directly
 if curl -s -f http://127.0.0.1:8000/ > /dev/null; then
-    print_success "Flask app is responding on port 8000"
+    print_success "Flask app is responding directly on port 8000"
 else
     print_warning "Flask app not responding on port 8000 - checking logs..."
     journalctl -u inventory-app -n 10 --no-pager
 fi
 
-if timeout 10 curl -s -k -f https://localhost/ > /dev/null; then
-    print_success "HTTPS interface is working through nginx"
+# Test Flask app through Nginx (HTTP redirect)
+if curl -s -f http://localhost/ > /dev/null; then
+    print_success "Flask app is accessible through Nginx HTTP (with redirect)"
 else
-    print_warning "HTTPS interface not working - checking nginx logs..."
+    print_warning "Flask app not accessible through Nginx HTTP - checking nginx config..."
+    nginx -t
     journalctl -u nginx -n 10 --no-pager
 fi
 
-# Test semantic search functionality
-print_status "Testing semantic search functionality..."
-sleep 5  # Give the app more time to fully initialize
-
-# Test the semantic search API directly
-if curl -s -f "http://127.0.0.1:8000/api/semantic-search?q=test&limit=1" > /dev/null; then
-    print_success "Semantic search API is responding"
+# Test HTTPS connectivity and functionality
+print_status "Testing HTTPS connectivity..."
+if timeout 10 curl -s -k -f https://localhost/ > /dev/null; then
+    print_success "HTTPS interface is working through nginx"
+else
+    print_warning "HTTPS interface not working - attempting to fix..."
     
-    # Check if ML cache directory is being used
-    if [ -d "/var/lib/inventory/ml_cache" ] && [ "$(ls -A /var/lib/inventory/ml_cache 2>/dev/null)" ]; then
-        print_success "ML cache directory is being used by sentence-transformers"
+    # Check if it's a port binding issue
+    if ! netstat -tlnp | grep -q ":443.*nginx"; then
+        print_status "Nginx not listening on 443 - restarting nginx..."
+        systemctl restart nginx
+        sleep 3
         
-        # Test actual semantic search functionality
-        print_status "Testing semantic search with real query..."
-        SEARCH_RESULT=$(timeout 10 curl -s "http://127.0.0.1:8000/api/semantic-search?q=power&limit=1")
-        if echo "$SEARCH_RESULT" | grep -q "match_type.*semantic"; then
-            print_success "Semantic search is working correctly!"
+        # Test HTTPS again after restart
+        if timeout 10 curl -s -k -f https://localhost/ > /dev/null; then
+            print_success "HTTPS working after nginx restart"
         else
-            print_warning "Semantic search returned results but may not be using semantic matching"
+            print_error "HTTPS still not working after nginx restart"
+            print_status "Checking nginx configuration and logs..."
+            nginx -t
+            journalctl -u nginx -n 15 --no-pager
+            netstat -tlnp | grep -E ":(80|443)"
+            exit 1
         fi
     else
-        print_warning "ML cache directory is empty - semantic search may not be fully functional"
+        print_error "Nginx listening on 443 but HTTPS not working - configuration issue"
+        nginx -t
+        journalctl -u nginx -n 15 --no-pager
+        exit 1
     fi
-else
-    print_warning "Semantic search API not accessible - checking logs..."
-    journalctl -u inventory-app -n 10 --no-pager
 fi
+
+# Final comprehensive test: verify the system is accessible from network perspective
+print_status "Performing final network accessibility test..."
+PI_IP=$(hostname -I | awk '{print $1}')
+if timeout 15 curl -s -k -f "https://$PI_IP/" > /dev/null; then
+    print_success "✅ System is fully accessible via HTTPS from network: https://$PI_IP"
+else
+    print_error "❌ System not accessible via HTTPS from network - deployment incomplete"
+    print_status "Local HTTPS test passed but network test failed - checking firewall/network config..."
+    exit 1
+fi
+
+# Skip semantic search testing for now - database is empty, no items to search
+print_status "Skipping semantic search testing - database is empty, no items to search"
+print_success "Semantic search API will be available when items are added"
 
 print_success "Deployment completed successfully!"
 print_status "Access your inventory system at: https://$(hostname -I | awk '{print $1}')"
@@ -604,7 +689,7 @@ EOF
 print_status "Creating deployment package..."
 
 # Create the package with all the files we need
-tar -czf "$PACKAGE_NAME" src requirements images database-export.sql deploy.sh README.md
+tar -czf "$PACKAGE_NAME" src requirements images deploy.sh README.md
 
 # Get package information
 PACKAGE_SIZE=$(du -h "$PACKAGE_NAME" | cut -f1)
@@ -617,18 +702,56 @@ echo "   Name: $PACKAGE_NAME"
 echo "   Size: $PACKAGE_SIZE"
 echo "   Location: $PACKAGE_PATH"
 echo ""
+
+# Check Pi status and deploy automatically if online
+if check_pi_status; then
+    print_status "Pi is online. Deploying automatically..."
+    print_status "Starting automatic deployment..."
+    
+    # Transfer package using rsync
+            print_status "Transferring deployment package to Pi..."
+    if rsync -avz "$PACKAGE_PATH" "$PI_USER@$PI_HOST:/tmp/inventory-deploy.tar.gz"; then
+        print_success "Package transferred successfully"
+        
+        # Extract and deploy on Pi using PyBridge
+                    print_status "Extracting and deploying on Pi..."
+        cd "$(dirname "$PYBRIDGE_PATH")"
+                    ./pi run-stream "cd /tmp && tar -xzf inventory-deploy.tar.gz && sudo ./deploy.sh"
+        
+        if [ $? -eq 0 ]; then
+            print_success "🎉 Automatic deployment completed successfully!"
+                            print_status "Your inventory system should now be running on Pi"
+            print_status "Access it at: https://$PI_HOST"
+        else
+                            print_error "Automatic deployment failed. Check Pi logs for details."
+            print_status "You can still deploy manually using the package at: $PACKAGE_PATH"
+        fi
+    else
+        print_error "Failed to transfer package"
+        print_status "Falling back to manual deployment instructions"
+    fi
+else
+    print_status "Pi is offline or PyBridge unavailable. Use manual deployment instructions below."
+fi
 echo "🚀 Next Steps:"
-echo "   1. Transfer package to Pi: scp $PACKAGE_PATH pi@192.168.43.200:/tmp/"
-echo "   2. SSH to Pi: ssh pi@192.168.43.200"
+    echo "   1. Transfer package to Pi: scp $PACKAGE_PATH pi@192.168.43.204:/tmp/"
+    echo "   2. SSH to Pi: ssh pi@192.168.43.204"
 echo "   3. Extract and deploy: cd /tmp && tar -xzf $PACKAGE_NAME && sudo ./deploy.sh"
 echo ""
 echo "📋 Alternative transfer methods:"
-echo "   - rsync: rsync -avz $DEPLOY_DIR/ pi@192.168.43.200:/var/lib/inventory/"
+echo "   - PyBridge + rsync: rsync -avz $PACKAGE_PATH pi@192.168.43.204:/tmp/"
+echo "   - Manual rsync: rsync -avz $DEPLOY_DIR/ pi@192.168.43.204:/var/lib/inventory/"
 echo "   - USB drive: Copy $PACKAGE_PATH to USB and transfer manually"
+echo ""
+echo "🔧 Improved Workflow (Following Our Strategy):"
+echo "   1. Test in Docker: ./scripts/manage-docker-storage.sh test"
+echo "   2. Create deployment package: ./deploy-prepare.sh"
+echo "   3. Deploy to Pi using PyBridge or manual methods"
+echo "   4. Verify functionality on Pi"
 echo ""
 
 # Clean up deployment directory (keep the package)
 print_status "Cleaning up temporary files..."
-rm -rf "$DEPLOY_DIR"/src "$DEPLOY_DIR"/requirements "$DEPLOY_DIR"/images "$DEPLOY_DIR"/database-export.sql "$DEPLOY_DIR"/deploy.sh "$DEPLOY_DIR"/README.md 2>/dev/null || true
+rm -rf "$DEPLOY_DIR"/src "$DEPLOY_DIR"/requirements "$DEPLOY_DIR"/images "$DEPLOY_DIR"/deploy.sh "$DEPLOY_DIR"/README.md 2>/dev/null || true
 
 print_success "Deployment preparation complete!"

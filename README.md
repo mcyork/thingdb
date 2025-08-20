@@ -11,6 +11,17 @@ This is a fully self-contained development and production environment for the Fl
 
 ## 🚀 Quick Start
 
+### 🎯 **Deploy to Pi (Most Common)**
+```bash
+# 1. Set target Pi
+cd /Users/ianmccutcheon/projects/pi-shell
+./pi set-default pi1  # or pi2, pi3, etc.
+
+# 2. Deploy
+cd /Users/ianmccutcheon/projects/inv2-dev
+./deploy-prepare.sh
+```
+
 ### Development Mode
 ```bash
 # Build development images
@@ -77,22 +88,87 @@ The system builds two main images:
 - **Flask Application**: Python app with all dependencies
 - **Nginx Proxy**: SSL termination and reverse proxy
 
-## 📦 Deployment to New Hardware
+## 📦 Deployment to Raspberry Pi
 
-### Method 1: Package and Deploy
+### Prerequisites
+- **Pi Shell/PyBridge** installed and configured
+- **Target Pi** accessible via SSH
+- **Fresh Pi installation** (or Pi you want to redeploy to)
+
+### 🚀 Complete Deployment Workflow
+
+#### Step 1: Set Target Pi
 ```bash
-# Create deployment package
-./scripts/package-deploy.sh
+# Go to pi-shell directory
+cd /Users/ianmccutcheon/projects/pi-shell
 
-# Copy the generated .tar.gz file to new machine
-# Extract and run deploy.sh on target machine
+# Set the Pi you want to deploy to as default
+./pi set-default pi1    # or pi2, pi3, etc.
+
+# Verify connection
+./pi status
 ```
 
-### Method 2: Direct Copy
-1. Copy entire `inv2-dev` folder to new machine
-2. Install Docker and Docker Compose
-3. Run `./scripts/build-prod.sh`
-4. Run `./scripts/start-prod.sh`
+#### Step 2: Fix SSH Keys (if fresh Pi)
+```bash
+# If this is a fresh Pi installation, clear old SSH keys
+ssh-keygen -R [PI_IP_ADDRESS]
+
+# Test SSH connection (accept new key when prompted)
+ssh -o StrictHostKeyChecking=no pi@[PI_IP_ADDRESS] "echo 'SSH working'"
+```
+
+#### Step 3: Deploy
+```bash
+# Go to inventory project directory
+cd /Users/ianmccutcheon/projects/inv2-dev
+
+# Run deployment (automatically handles SSH keys, SSL issues, etc.)
+./deploy-prepare.sh
+```
+
+### 🎯 What the Deployment Script Does
+
+1. **Tests Docker environment** to ensure code is working
+2. **Creates deployment package** with all necessary files
+3. **Transfers package to Pi** using PyBridge
+4. **Installs system dependencies** (Python, PostgreSQL, Nginx)
+5. **Sets up Python environment** with all required packages
+6. **Configures PostgreSQL** with clean, empty database
+7. **Sets up Nginx** with SSL certificates
+8. **Deploys Flask application** as systemd service
+9. **Automatically detects and fixes** common issues:
+   - Nginx SSL startup problems
+   - Port binding issues
+   - Service startup failures
+10. **Verifies deployment** with comprehensive testing
+11. **Tests network accessibility** to ensure your phone can connect
+
+### 🔧 Manual Deployment (if needed)
+
+If automatic deployment fails, the script provides manual instructions:
+```bash
+# Transfer package manually
+scp /Users/ianmccutcheon/inventory-deploy-build/inventory-deploy.tar.gz pi@[PI_IP]:/tmp/
+
+# SSH to Pi and deploy
+ssh pi@[PI_IP]
+cd /tmp && tar -xzf inventory-deploy.tar.gz && sudo ./deploy.sh
+```
+
+### 📱 Access Your System
+
+After successful deployment:
+- **HTTPS**: `https://[PI_IP_ADDRESS]`
+- **Local**: `https://localhost` (from Pi)
+- **Network**: Accessible from any device on your network
+
+### 🚨 Troubleshooting
+
+- **SSH Key Issues**: Use `ssh-keygen -R [PI_IP]` to clear old keys
+- **Deployment Failures**: Check Pi logs with `./pi run-stream "sudo journalctl -u inventory-app --no-pager"`
+- **SSL Issues**: Script automatically detects and fixes Nginx problems
+- **Database Issues**: Script ensures clean, empty database on fresh deployment
 
 ## 🛠️ Development Workflow
 
@@ -165,6 +241,12 @@ scripts/
 ├── manage-docker-storage.sh  # Manage dual-storage testing environment
 └── test-inventory.sh         # Test any Flask inventory system
 ```
+
+### Documentation
+- **README.md** - Main project overview and setup
+- **DOCKER-STORAGE-QUICK-REF.md** - Quick reference for Docker testing
+- **PI-DEPLOYMENT-STRATEGY.md** - Raspberry Pi deployment roadmap and strategy
+- **PYBRIDGE-README.md** - PyBridge tool documentation and Pi management
 
 ### Development
 ```bash

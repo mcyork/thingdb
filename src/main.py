@@ -4,13 +4,15 @@ Coordinates all modules and blueprints for the Inventory Management System
 """
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 # Load environment variables BEFORE any other imports
 def load_env_file():
-    """Load environment variables from .env file"""
+    """Load environment variables from .env file using python-dotenv"""
     # Try multiple possible locations for .env file
     possible_paths = [
         Path('.env'),  # Current directory
+        Path('/var/lib/inventory/app/.env'),  # Pi deployment (absolute)
         Path('/var/lib/inventory/config/.env'),  # Pi deployment
         Path('/var/lib/inventory/config/environment.env'),  # Pi deployment (fallback)
         Path('../config/.env'),  # Relative to src/
@@ -20,12 +22,7 @@ def load_env_file():
     for env_path in possible_paths:
         if env_path.exists():
             print(f"Loading environment from: {env_path}")
-            with open(env_path, 'r') as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith('#') and '=' in line:
-                        key, value = line.split('=', 1)
-                        os.environ[key] = value
+            load_dotenv(env_path, override=True)
             return True
     
     print("No .env file found, using system environment variables")
