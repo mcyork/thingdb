@@ -33,6 +33,17 @@ This is a fully self-contained development and production environment for the Fl
 # Access at https://localhost
 ```
 
+### Dual-Storage Testing (Recommended for Development)
+```bash
+# Start both database and filesystem storage configurations
+./scripts/manage-docker-storage.sh start
+
+# Test both configurations
+./scripts/manage-docker-storage.sh test
+
+# Access at https://localhost:8444 (database) and https://localhost:8443 (filesystem)
+```
+
 ## 📁 Directory Structure
 
 ```
@@ -90,7 +101,70 @@ The system builds two main images:
 3. **Database Changes**: Handled automatically by the application
 4. **Production Build**: Run `./scripts/build-prod.sh` to create production images
 
+## 🧪 Dual-Storage Testing Environment
+
+For testing both database and filesystem image storage methods simultaneously:
+
+### Quick Start
+```bash
+# Start both storage configurations
+./scripts/manage-docker-storage.sh start
+
+# Test both configurations
+./scripts/manage-docker-storage.sh test
+
+# Stop everything cleanly
+./scripts/manage-docker-storage.sh stop
+```
+
+### Complete Workflow
+```bash
+# 1. Start both configurations (database + filesystem)
+./scripts/manage-docker-storage.sh start
+
+# 2. Test both configurations
+./scripts/manage-docker-storage.sh test
+
+# 3. Stop everything
+./scripts/manage-docker-storage.sh stop
+
+# 4. Check status anytime
+./scripts/manage-docker-storage.sh status
+
+# 5. Restart with latest code changes
+./scripts/manage-docker-storage.sh restart
+
+# 6. Clean everything (containers, volumes, networks)
+./scripts/manage-docker-storage.sh clean
+```
+
+### What This Tests
+- **Database Storage**: Images stored as BLOB in PostgreSQL (port 8444)
+- **Filesystem Storage**: Images stored on local filesystem (port 8443)
+- **Environment Variables**: Both use isolated configurations
+- **Source Code**: Always tests latest changes from `src/` directory
+- **Container Isolation**: No conflicts between storage methods
+
+### Access URLs
+- **Database Storage**: https://localhost:8444
+- **Filesystem Storage**: https://localhost:8443
+- **Local Image Directory**: `/tmp/inventory-images`
+
+### Why This Setup
+This environment ensures code changes work consistently across both storage methods before deploying to Raspberry Pi or production environments.
+
 ## 📋 Management Commands
+
+### Available Scripts
+```bash
+scripts/
+├── build-dev.sh              # Build development Docker images
+├── build-prod.sh             # Build production Docker images
+├── start-dev.sh              # Start development environment
+├── start-prod.sh             # Start production environment
+├── manage-docker-storage.sh  # Manage dual-storage testing environment
+└── test-inventory.sh         # Test any Flask inventory system
+```
 
 ### Development
 ```bash

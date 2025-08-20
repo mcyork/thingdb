@@ -319,7 +319,8 @@ mkdir -p /var/lib/inventory/config
 cat > /var/lib/inventory/config/environment.env << 'ENVEOF'
 DEPLOYMENT_TYPE=raspberry_pi
 SERVE_IMAGES_FROM_FILES=true
-IMAGE_FILE_PATH=/var/lib/inventory/images
+IMAGE_STORAGE_METHOD=filesystem
+IMAGE_DIR=/var/lib/inventory/images
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
 POSTGRES_USER=inventory

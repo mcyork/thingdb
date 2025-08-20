@@ -13,7 +13,9 @@ def should_serve_images_from_files():
 
 def get_image_file_path():
     """Get the path where image files are stored on Pi"""
-    return os.environ.get('IMAGE_FILE_PATH', '/var/lib/inventory/images')
+    # Try new variable first, fall back to legacy for backward compatibility
+    return (os.environ.get('IMAGE_DIR') or 
+            os.environ.get('IMAGE_FILE_PATH', '/var/lib/inventory/images'))
 
 def get_image_file_url(image_id, image_type='image'):
     """
@@ -46,11 +48,11 @@ def setup_pi_image_serving(app):
             return get_image_file_url(image_id, image_type)
         
         @app.template_global()
-        def is_pi():
+        def is_pi_deployment_flag():
             return True
     else:
         app.logger.info("🐳 Standard deployment (Docker/development)")
         
         @app.template_global()
-        def is_pi():
+        def is_pi_deployment_flag():
             return False

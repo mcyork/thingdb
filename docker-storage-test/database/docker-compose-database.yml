@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile.nginx
+    image: flask-database-nginx:latest
+    container_name: flask-database-nginx
+    ports:
+      - "8081:80"      # HTTP (redirects to HTTPS)
+      - "8444:443"     # HTTPS (different ports to avoid conflicts)
+      - "8406:8404"    # Nginx stats
+    volumes:
+      - ../config/ssl-certs:/ssl-certs  # SSL certificates
+    depends_on:
+      - flask-app
+    restart: unless-stopped
+    networks:
+      - flask-database-network
+
+  flask-app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.flask-prod
+    image: flask-database:latest
+    container_name: flask-database-app
+    volumes:
+      - ../config:/config                    # All configuration
+      - ../config/ssl-certs:/ssl-certs      # SSL certificates
+      - flask-database-uploads:/app/uploads          # Persistent image uploads
+    environment:
+      - FLASK_ENV=${FLASK_ENV:-production}
+      - FLASK_DEBUG=${FLASK_DEBUG:-0}
+      - SSL_ENABLED=${SSL_ENABLED:-true}
+      
+      # Image Storage Configuration
+      - IMAGE_STORAGE_METHOD=database
+      - IMAGE_DIR=/app/uploads
+      - SERVE_IMAGES_FROM_FILES=false
+      
+      # Internal PostgreSQL settings (default)
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-flask_prod_pass}
+      
+      # External PostgreSQL settings (optional)
+      - EXTERNAL_POSTGRES_HOST=${EXTERNAL_POSTGRES_HOST:-flask-database-postgres}
+      - EXTERNAL_POSTGRES_PORT=${EXTERNAL_POSTGRES_PORT:-5432}
+      - EXTERNAL_POSTGRES_USER=${EXTERNAL_POSTGRES_USER:-inventory}
+      - EXTERNAL_POSTGRES_PASSWORD=${EXTERNAL_POSTGRES_PASSWORD:-inventory_database_pass}
+      - EXTERNAL_POSTGRES_DB=${EXTERNAL_POSTGRES_DB:-inventory_database}
+    restart: unless-stopped
+    expose:
+      - "5000"
+    networks:
+      - flask-database-network
+
+  # PostgreSQL for database storage version
+  postgres:
+    image: postgres:15
+    container_name: flask-database-postgres
+    ports:
+      - "5433:5432"  # Different port to avoid conflicts
+    environment:
+      - POSTGRES_DB=inventory_database
+      - POSTGRES_USER=inventory
+      - POSTGRES_PASSWORD=inventory_database_pass
+    volumes:
+      - postgres-database-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - flask-database-network
+
+volumes:
+  flask-database-uploads:
+    driver: local
+  postgres-database-data:
+    driver: local
+
+networks:
+  flask-database-network:
+    driver: bridge

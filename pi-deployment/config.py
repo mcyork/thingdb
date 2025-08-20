@@ -40,6 +40,9 @@ CACHE_SETTINGS = {
 }
 
 # Image processing settings
+IMAGE_STORAGE_METHOD = os.environ.get('IMAGE_STORAGE_METHOD', 'database') # 'database' or 'filesystem'
+IMAGE_DIR = os.environ.get('IMAGE_DIR', '/var/lib/inventory/images')
+
 IMAGE_SETTINGS = {
     'thumbnail_size': (200, 200),
     'preview_size': (800, 800),

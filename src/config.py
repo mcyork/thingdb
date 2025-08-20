@@ -7,25 +7,43 @@ import os
 APP_VERSION = "1.3.0"
 MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
 
-# Database configuration - force production database when SKIP_DB_INIT is true
-if os.environ.get('SKIP_DB_INIT') == 'true':
-    # Use production database configuration
-    DB_CONFIG = {
-        'host': 'localhost',
-        'database': 'docker_dev',
-        'user': 'docker',
-        'password': 'docker',
-        'port': 5432
-    }
-else:
-    # Use environment variables set by startup script
-    DB_CONFIG = {
-        'host': os.environ.get('POSTGRES_HOST', 'localhost'),
-        'database': os.environ.get('POSTGRES_DB', 'docker_dev'),
-        'user': os.environ.get('POSTGRES_USER', 'docker'),
-        'password': os.environ.get('POSTGRES_PASSWORD', 'docker'),
-        'port': int(os.environ.get('POSTGRES_PORT', '5432'))
-    }
+# Database configuration - prioritize external PostgreSQL settings
+def get_db_config():
+    """Get database configuration with fallbacks"""
+    # Check for external PostgreSQL settings first
+    external_host = os.environ.get('EXTERNAL_POSTGRES_HOST')
+    if external_host:
+        return {
+            'host': external_host,
+            'database': os.environ.get('EXTERNAL_POSTGRES_DB', 
+                                     'inventory_db'),
+            'user': os.environ.get('EXTERNAL_POSTGRES_USER', 
+                                 'inventory'),
+            'password': os.environ.get('EXTERNAL_POSTGRES_PASSWORD', 
+                                    'inventory_pass'),
+            'port': int(os.environ.get('EXTERNAL_POSTGRES_PORT', '5432'))
+        }
+    
+    # Fallback to internal PostgreSQL settings
+    if os.environ.get('SKIP_DB_INIT') == 'true':
+        return {
+            'host': 'localhost',
+            'database': 'docker_dev',
+            'user': 'docker',
+            'password': 'docker',
+            'port': 5432
+        }
+    else:
+        return {
+            'host': os.environ.get('POSTGRES_HOST', 'localhost'),
+            'database': os.environ.get('POSTGRES_DB', 'docker_dev'),
+            'user': os.environ.get('POSTGRES_USER', 'docker'),
+            'password': os.environ.get('POSTGRES_PASSWORD', 'docker'),
+            'port': int(os.environ.get('POSTGRES_PORT', '5432'))
+        }
+
+# Initialize DB_CONFIG
+DB_CONFIG = get_db_config()
 
 # Cache configuration
 CACHE_SETTINGS = {
@@ -40,6 +58,9 @@ CACHE_SETTINGS = {
 }
 
 # Image processing settings
+IMAGE_STORAGE_METHOD = os.environ.get('IMAGE_STORAGE_METHOD', 'database') # 'database' or 'filesystem'
+IMAGE_DIR = os.environ.get('IMAGE_DIR', '/var/lib/inventory/images')
+
 IMAGE_SETTINGS = {
     'thumbnail_size': (200, 200),
     'preview_size': (800, 800),

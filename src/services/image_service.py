@@ -2,8 +2,87 @@
 Image processing service for thumbnail and preview generation
 """
 import io
+import os
+import uuid
 from PIL import Image
-from config import IMAGE_SETTINGS
+from config import IMAGE_SETTINGS, IMAGE_DIR
+
+def save_image_to_file(image_data, thumbnail_data, preview_data, original_filename):
+    """
+    Saves image, thumbnail, and preview to the file system.
+    Returns a dictionary with file paths.
+    """
+    if not os.path.exists(IMAGE_DIR):
+        os.makedirs(IMAGE_DIR)
+
+    # Generate a unique filename
+    ext = os.path.splitext(original_filename)[1]
+    unique_filename = f"{uuid.uuid4()}{ext}"
+    image_path = os.path.join(IMAGE_DIR, unique_filename)
+
+    # Save original image
+    with open(image_path, 'wb') as f:
+        f.write(image_data)
+
+    # Save thumbnail and preview (as .webp)
+    thumb_filename = f"{uuid.uuid4()}_thumb.webp"
+    preview_filename = f"{uuid.uuid4()}_preview.webp"
+    thumb_path = os.path.join(IMAGE_DIR, thumb_filename)
+    preview_path = os.path.join(IMAGE_DIR, preview_filename)
+
+    with open(thumb_path, 'wb') as f:
+        f.write(thumbnail_data)
+    with open(preview_path, 'wb') as f:
+        f.write(preview_data)
+
+    return {
+        "image_path": os.path.join('images', unique_filename),
+        "thumbnail_path": os.path.join('images', thumb_filename),
+        "preview_path": os.path.join('images', preview_filename)
+    }
+
+"""
+Image processing service for thumbnail and preview generation
+"""
+import io
+import os
+import uuid
+from PIL import Image
+from config import IMAGE_SETTINGS, IMAGE_DIR
+
+def save_image_to_file(image_data, thumbnail_data, preview_data, original_filename):
+    """
+    Saves image, thumbnail, and preview to the file system.
+    Returns a dictionary with file paths.
+    """
+    if not os.path.exists(IMAGE_DIR):
+        os.makedirs(IMAGE_DIR)
+
+    # Generate a unique filename
+    ext = os.path.splitext(original_filename)[1]
+    unique_filename = f"{uuid.uuid4()}{ext}"
+    image_path = os.path.join(IMAGE_DIR, unique_filename)
+
+    # Save original image
+    with open(image_path, 'wb') as f:
+        f.write(image_data)
+
+    # Save thumbnail and preview (as .webp)
+    thumb_filename = f"{uuid.uuid4()}_thumb.webp"
+    preview_filename = f"{uuid.uuid4()}_preview.webp"
+    thumb_path = os.path.join(IMAGE_DIR, thumb_filename)
+    preview_path = os.path.join(IMAGE_DIR, preview_filename)
+
+    with open(thumb_path, 'wb') as f:
+        f.write(thumbnail_data)
+    with open(preview_path, 'wb') as f:
+        f.write(preview_data)
+
+    return {
+        "image_path": unique_filename,
+        "thumbnail_path": thumb_filename,
+        "preview_path": preview_filename
+    }
 
 def generate_thumbnail(image_data, max_size=None, rotation=0):
     """Generate optimized thumbnail from image data with rotation"""

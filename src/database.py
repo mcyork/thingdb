@@ -2,7 +2,7 @@
 Database connection and initialization for Flask Inventory Management System
 """
 import psycopg2
-from config import DB_CONFIG
+from config import DB_CONFIG, IMAGE_STORAGE_METHOD
 
 # Connection pool for database connections
 _connection_pool = []
@@ -63,15 +63,18 @@ def init_database():
         START WITH 1 INCREMENT BY 1 NO CYCLE
     ''')
     
+    # Determine the data type for image storage
+    image_column_type = 'TEXT' if IMAGE_STORAGE_METHOD == 'filesystem' else 'BYTEA'
+
     # Create images table
-    cursor.execute('''
+    cursor.execute(f'''
         CREATE TABLE IF NOT EXISTS images (
             id SERIAL PRIMARY KEY,
             item_guid VARCHAR(36) REFERENCES items(guid) ON DELETE CASCADE,
             filename VARCHAR(255) NOT NULL,
-            image_data BYTEA NOT NULL,
-            thumbnail_data BYTEA,
-            preview_data BYTEA,
+            image_data {image_column_type} NOT NULL,
+            thumbnail_data {image_column_type},
+            preview_data {image_column_type},
             content_type VARCHAR(100) NOT NULL,
             rotation_degrees INTEGER DEFAULT 0,
             is_primary BOOLEAN DEFAULT FALSE,
@@ -83,11 +86,15 @@ def init_database():
     ''')
     
     # Add image columns if they don't exist
+    # Add image columns if they don't exist
     _add_column_if_not_exists(cursor, 'images', 'preview_data', 'BYTEA')
     _add_column_if_not_exists(cursor, 'images', 'is_primary', 'BOOLEAN DEFAULT FALSE')
     _add_column_if_not_exists(cursor, 'images', 'description', 'TEXT')
     _add_column_if_not_exists(cursor, 'images', 'ocr_text', 'TEXT')
     _add_column_if_not_exists(cursor, 'images', 'ai_description', 'TEXT')
+    _add_column_if_not_exists(cursor, 'images', 'image_path', 'TEXT')
+    _add_column_if_not_exists(cursor, 'images', 'thumbnail_path', 'TEXT')
+    _add_column_if_not_exists(cursor, 'images', 'preview_path', 'TEXT')
     
     # Create text_content table (legacy)
     cursor.execute('''
