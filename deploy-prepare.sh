@@ -703,50 +703,30 @@ echo "   Size: $PACKAGE_SIZE"
 echo "   Location: $PACKAGE_PATH"
 echo ""
 
-# Check Pi status and deploy automatically if online
+# Check Pi status for informational purposes
 if check_pi_status; then
-    print_status "Pi is online. Deploying automatically..."
-    print_status "Starting automatic deployment..."
-    
-    # Transfer package using rsync
-            print_status "Transferring deployment package to Pi..."
-    if rsync -avz "$PACKAGE_PATH" "$PI_USER@$PI_HOST:/tmp/inventory-deploy.tar.gz"; then
-        print_success "Package transferred successfully"
-        
-        # Extract and deploy on Pi using PyBridge
-                    print_status "Extracting and deploying on Pi..."
-        cd "$(dirname "$PYBRIDGE_PATH")"
-                    ./pi run-stream "cd /tmp && tar -xzf inventory-deploy.tar.gz && sudo ./deploy.sh"
-        
-        if [ $? -eq 0 ]; then
-            print_success "🎉 Automatic deployment completed successfully!"
-                            print_status "Your inventory system should now be running on Pi"
-            print_status "Access it at: https://$PI_HOST"
-        else
-                            print_error "Automatic deployment failed. Check Pi logs for details."
-            print_status "You can still deploy manually using the package at: $PACKAGE_PATH"
-        fi
-    else
-        print_error "Failed to transfer package"
-        print_status "Falling back to manual deployment instructions"
-    fi
+    print_status "Pi is online and ready for deployment"
+    print_status "Use ./scripts/deploy-remote.sh to deploy automatically"
 else
-    print_status "Pi is offline or PyBridge unavailable. Use manual deployment instructions below."
+    print_status "Pi appears to be offline or PyBridge unavailable"
+    print_status "Use manual deployment instructions below"
 fi
 echo "🚀 Next Steps:"
-    echo "   1. Transfer package to Pi: scp $PACKAGE_PATH pi@192.168.43.204:/tmp/"
-    echo "   2. SSH to Pi: ssh pi@192.168.43.204"
-echo "   3. Extract and deploy: cd /tmp && tar -xzf $PACKAGE_NAME && sudo ./deploy.sh"
+echo "   1. Deploy automatically: ./scripts/deploy-remote.sh"
+echo "   2. Or deploy manually:"
+echo "      - Transfer: scp $PACKAGE_PATH $PI_USER@$PI_HOST:/tmp/"
+echo "      - SSH: ssh $PI_USER@$PI_HOST"
+echo "      - Deploy: cd /tmp && tar -xzf $PACKAGE_NAME && sudo ./deploy.sh"
 echo ""
 echo "📋 Alternative transfer methods:"
-echo "   - PyBridge + rsync: rsync -avz $PACKAGE_PATH pi@192.168.43.204:/tmp/"
-echo "   - Manual rsync: rsync -avz $DEPLOY_DIR/ pi@192.168.43.204:/var/lib/inventory/"
+echo "   - Automatic: ./scripts/deploy-remote.sh (recommended)"
+echo "   - Manual rsync: rsync -avz $PACKAGE_PATH $PI_USER@$PI_HOST:/tmp/"
 echo "   - USB drive: Copy $PACKAGE_PATH to USB and transfer manually"
 echo ""
 echo "🔧 Improved Workflow (Following Our Strategy):"
 echo "   1. Test in Docker: ./scripts/manage-docker-storage.sh test"
 echo "   2. Create deployment package: ./deploy-prepare.sh"
-echo "   3. Deploy to Pi using PyBridge or manual methods"
+echo "   3. Deploy automatically: ./scripts/deploy-remote.sh"
 echo "   4. Verify functionality on Pi"
 echo ""
 
