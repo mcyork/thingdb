@@ -1,0 +1,16 @@
+body {
+    background-color: #f0f2f5;
+}
+
+.container {
+    max-width: 500px;
+}
+
+.card {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+#status-messages {
+    white-space: pre-wrap; /* Allows line breaks */
+    font-family: monospace;
+}

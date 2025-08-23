@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory Pi Setup</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="card">
+            <div class="card-body">
+                <h2 class="card-title">Inventory Pi Setup</h2>
+                <p class="card-text">Power on your Pi and place your phone near it. Press the connect button below to begin setup.</p>
+                
+                <button id="connect-button" class="btn btn-primary w-100 mb-3">Connect to Pi</button>
+
+                <div id="status-messages" class="alert alert-info">Awaiting connection...</div>
+
+                <div id="config-form" class="d-none">
+                    <hr>
+                    <h5>Wi-Fi Configuration</h5>
+                    <div class="mb-3">
+                        <label for="wifi-ssid" class="form-label">Wi-Fi Name (SSID)</label>
+                        <input type="text" class="form-control" id="wifi-ssid" placeholder="Enter your Wi-Fi name">
+                    </div>
+                    <div class="mb-3">
+                        <label for="wifi-password" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="wifi-password">
+                    </div>
+                    <button id="submit-wifi-button" class="btn btn-success w-100">Apply Wi-Fi Settings</button>
+                    
+                    <hr>
+                    <h5>Device Name</h5>
+                     <div class="mb-3">
+                        <label for="device-name" class="form-label">Pi Hostname</label>
+                        <input type="text" class="form-control" id="device-name" placeholder="e.g., inventory-pi-kitchen">
+                    </div>
+                    <button id="submit-name-button" class="btn btn-secondary w-100">Set Device Name</button>
+
+                    <hr>
+                    <h5>System Actions</h5>
+                    <button id="reboot-button" class="btn btn-danger w-100">Reboot Pi</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

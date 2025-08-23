@@ -109,6 +109,13 @@ if [ ! -f "requirements/.gitkeep" ]; then
     touch requirements/.gitkeep
 fi
 
+# If --provision flag is set, copy the pi-setup directory
+if [[ "$1" == "--provision" ]]; then
+    print_status "Including pi-setup for provisioning..."
+    cp -r "$PROJECT_ROOT/pi-setup" ./
+    print_success "pi-setup directory copied"
+fi
+
 # Skip database export - start with empty database like Docker
 print_status "Skipping database export - will start with empty database (like Docker)"
 
@@ -474,15 +481,40 @@ fi
 print_status "Starting Flask application..."
 systemctl enable inventory-app
 systemctl start inventory-app
-sleep 3  # Give Flask time to start
 
-# Verify Flask app is running
-if ! systemctl is-active --quiet inventory-app; then
-    print_error "Flask application failed to start"
-    systemctl status inventory-app
+# Wait for service to stabilize with retry logic
+print_status "Waiting for Flask application to stabilize..."
+MAX_RETRIES=10
+RETRY_COUNT=0
+SERVICE_STABLE=false
+
+while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$SERVICE_STABLE" = false ]; do
+    sleep 3
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    
+    if systemctl is-active --quiet inventory-app; then
+        # Service is running, now check if it's actually responding
+        if curl -s -f --max-time 5 http://127.0.0.1:8000/ > /dev/null 2>&1; then
+            SERVICE_STABLE=true
+            print_success "Flask application is running and responding (attempt $RETRY_COUNT)"
+        else
+            print_status "Service running but not responding yet, waiting... (attempt $RETRY_COUNT/$MAX_RETRIES)"
+        fi
+    else
+        print_status "Service not yet active, waiting... (attempt $RETRY_COUNT/$MAX_RETRIES)"
+    fi
+done
+
+# Final verification
+if [ "$SERVICE_STABLE" = true ]; then
+    print_success "Flask application is running and stable"
+else
+    print_error "Flask application failed to stabilize after $MAX_RETRIES attempts"
+    print_status "Checking service status and logs..."
+    systemctl status inventory-app --no-pager
+    journalctl -u inventory-app -n 20 --no-pager
     exit 1
 fi
-print_success "Flask application is running"
 
 # CRITICAL: Force download of sentence-transformers model to correct cache directory
 print_status "Pre-downloading ML model for semantic search..."
@@ -529,7 +561,7 @@ if systemctl is-active --quiet inventory-app; then
     print_success "Inventory app service is running"
 else
     print_error "Inventory app service failed to start"
-    systemctl status inventory-app
+    systemctl status inventory-app --no-pager
     exit 1
 fi
 
@@ -688,8 +720,14 @@ EOF
 # Create final package
 print_status "Creating deployment package..."
 
+# Add pi-setup to tar if it exists
+TAR_EXTRAS=""
+if [ -d "pi-setup" ]; then
+    TAR_EXTRAS="pi-setup"
+fi
+
 # Create the package with all the files we need
-tar -czf "$PACKAGE_NAME" src requirements images deploy.sh README.md
+tar -czf "$PACKAGE_NAME" src requirements images deploy.sh README.md $TAR_EXTRAS
 
 # Get package information
 PACKAGE_SIZE=$(du -h "$PACKAGE_NAME" | cut -f1)

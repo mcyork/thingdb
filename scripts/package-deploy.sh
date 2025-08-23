@@ -40,6 +40,12 @@ cp -r startup /tmp/${PACKAGE_NAME}/
 cp -r config/app-config /tmp/${PACKAGE_NAME}/config-app-config
 cp PROJECT_STRUCTURE.md /tmp/${PACKAGE_NAME}/
 
+# If --provision flag is set, copy the pi-setup directory
+if [[ "$1" == "--provision" ]]; then
+    echo "    ➕ Including pi-setup for provisioning..."
+    cp -r pi-setup /tmp/${PACKAGE_NAME}/
+fi
+
 # Export Docker images
 echo "🐳 Exporting Docker images..."
 docker save flask-source:latest flask-source-nginx:latest | gzip > /tmp/${PACKAGE_NAME}/docker-images.tar.gz

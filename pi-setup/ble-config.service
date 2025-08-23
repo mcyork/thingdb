@@ -1,0 +1,13 @@
+[Unit]
+Description=Bluetooth LE Configuration Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 /usr/local/bin/ble_config_service.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

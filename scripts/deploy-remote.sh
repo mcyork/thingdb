@@ -99,7 +99,17 @@ print_warning "This will extract and run the deployment script on the Pi"
 
 # Run deployment commands remotely using pi CLI
 print_status "Running deployment commands remotely..."
-if "$PI_CLI" run-stream --pi "$DEFAULT_PI" "cd /tmp && tar -xzf inventory-deploy.tar.gz && sudo ./deploy.sh"; then
+
+# Base command
+REMOTE_COMMAND="cd /tmp && tar -xzf inventory-deploy.tar.gz && sudo ./deploy.sh"
+
+# Check for a --provision flag
+if [[ "$1" == "--provision" ]]; then
+    print_warning "Adding provisioning step to remote deployment..."
+    REMOTE_COMMAND+=" && sudo bash pi-setup/install.sh"
+fi
+
+if "$PI_CLI" run-stream --pi "$DEFAULT_PI" "$REMOTE_COMMAND"; then
     print_success "Remote deployment completed successfully!"
     print_status "Your application should now be running on $PI_HOST"
 else
