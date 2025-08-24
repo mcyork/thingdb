@@ -3,51 +3,260 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Inventory Pi Setup</title>
+    <title>Inventory Pi Setup - BTBerryWifi</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="description" content="Setup your Pi using BTBerryWifi mobile app">
+    <meta name="theme-color" content="#007bff">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Pi Setup">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- Icons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="icons/icon-16x16.png">
+    <link rel="apple-touch-icon" href="icons/icon-192x192.png">
+    
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container mt-5">
-        <div class="card">
-            <div class="card-body">
-                <h2 class="card-title">Inventory Pi Setup</h2>
-                <p class="card-text">Power on your Pi and place your phone near it. Press the connect button below to begin setup.</p>
+    <!-- PWA Install Prompt -->
+    <div id="pwa-install-prompt" class="alert alert-info alert-dismissible fade show" style="display: none;">
+        <i class="bi bi-download"></i>
+        <strong>Install Pi Setup</strong> - Add this to your home screen for easier access
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        <button id="install-pwa-btn" class="btn btn-sm btn-primary ms-2">Install</button>
+    </div>
+
+    <div class="container mt-4">
+        <!-- Header -->
+        <div class="text-center mb-4">
+            <h1 class="display-6">
+                <i class="bi bi-bluetooth text-primary"></i>
+                Inventory Pi Setup
+            </h1>
+            <p class="text-muted">Configure your Pi's WiFi using BTBerryWifi mobile app</p>
+        </div>
+
+        <!-- Main Setup Card -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-phone"></i>
+                    Setup Your Pi
+                </h5>
+            </div>
+            <div class="card-body text-center">
+                <div class="mb-4">
+                    <i class="bi bi-bluetooth display-1 text-primary"></i>
+                    <h4 class="mt-3">Bluetooth WiFi Setup</h4>
+                    <p class="text-muted">Use the BTBerryWifi mobile app to configure your Pi's WiFi network</p>
+                </div>
                 
-                <button id="connect-button" class="btn btn-primary w-100 mb-3">Connect to Pi</button>
-
-                <div id="status-messages" class="alert alert-info">Awaiting connection...</div>
-
-                <div id="config-form" class="d-none">
-                    <hr>
-                    <h5>Wi-Fi Configuration</h5>
-                    <div class="mb-3">
-                        <label for="wifi-ssid" class="form-label">Wi-Fi Name (SSID)</label>
-                        <input type="text" class="form-control" id="wifi-ssid" placeholder="Enter your Wi-Fi name">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <a href="https://play.google.com/store/apps/details?id=com.nksan.btwifiset" target="_blank" class="btn btn-primary btn-lg w-100">
+                            <i class="bi bi-google-play"></i>
+                            Get BTBerryWifi (Android)
+                        </a>
                     </div>
-                    <div class="mb-3">
-                        <label for="wifi-password" class="form-label">Password</label>
-                        <input type="password" class="form-control" id="wifi-password">
+                    <div class="col-md-6 mb-3">
+                        <a href="https://apps.apple.com/app/btberrywifi/id6443601193" target="_blank" class="btn btn-primary btn-lg w-100">
+                            <i class="bi bi-apple"></i>
+                            Get BTBerryWifi (iOS)
+                        </a>
                     </div>
-                    <button id="submit-wifi-button" class="btn btn-success w-100">Apply Wi-Fi Settings</button>
-                    
-                    <hr>
-                    <h5>Device Name</h5>
-                     <div class="mb-3">
-                        <label for="device-name" class="form-label">Pi Hostname</label>
-                        <input type="text" class="form-control" id="device-name" placeholder="e.g., inventory-pi-kitchen">
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <button id="open-btberrywifi-btn" class="btn btn-success btn-lg w-100">
+                            <i class="bi bi-arrow-up-right"></i>
+                            Open BTBerryWifi
+                        </button>
+                        <small class="text-muted d-block mt-2">If already installed</small>
                     </div>
-                    <button id="submit-name-button" class="btn btn-secondary w-100">Set Device Name</button>
-
-                    <hr>
-                    <h5>System Actions</h5>
-                    <button id="reboot-button" class="btn btn-danger w-100">Reboot Pi</button>
+                    <div class="col-md-6 mb-3">
+                        <button id="check-status-btn" class="btn btn-info btn-lg w-100">
+                            <i class="bi bi-info-circle"></i>
+                            Service Info
+                        </button>
+                        <small class="text-muted d-block mt-2">Get service status info</small>
+                    </div>
                 </div>
             </div>
         </div>
+
+        <!-- How It Works -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-info-circle"></i>
+                    How It Works
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 text-center mb-3">
+                        <div class="step-number">1</div>
+                        <h6>Install App</h6>
+                        <p class="small text-muted">Get BTBerryWifi from app store</p>
+                    </div>
+                    <div class="col-md-3 text-center mb-3">
+                        <div class="step-number">2</div>
+                        <h6>Open App</h6>
+                        <p class="small text-muted">Launch BTBerryWifi</p>
+                    </div>
+                    <div class="col-md-3 text-center mb-3">
+                        <div class="step-number">3</div>
+                        <h6>Find Pi</h6>
+                        <p class="small text-muted">Scan for your Pi device</p>
+                    </div>
+                    <div class="col-md-3 text-center mb-3">
+                        <div class="step-number">4</div>
+                        <h6>Configure WiFi</h6>
+                        <p class="small text-muted">Enter network credentials</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Setup Instructions -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-list-check"></i>
+                    Setup Instructions
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="accordion" id="setupAccordion">
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#step1">
+                                Step 1: Install BTBerryWifi
+                            </button>
+                        </h2>
+                        <div id="step1" class="accordion-collapse collapse show" data-bs-parent="#setupAccordion">
+                            <div class="accordion-body">
+                                <ol>
+                                    <li>Download <strong>BTBerryWifi</strong> from your app store</li>
+                                    <li>Android: Google Play Store</li>
+                                    <li>iOS: Apple App Store</li>
+                                    <li>The app is free and specifically designed for Pi WiFi setup</li>
+                                </ol>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#step2">
+                                Step 2: Open BTBerryWifi
+                            </button>
+                        </h2>
+                        <div id="step2" class="accordion-collapse collapse" data-bs-parent="#setupAccordion">
+                            <div class="accordion-body">
+                                <ol>
+                                    <li>Launch the <strong>BTBerryWifi</strong> app</li>
+                                    <li>Grant Bluetooth permissions when prompted</li>
+                                    <li>Make sure your Pi is powered on and in setup mode</li>
+                                    <li>The app will automatically scan for nearby Pi devices</li>
+                                </ol>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#step3">
+                                Step 3: Connect to Your Pi
+                            </button>
+                        </h2>
+                        <div id="step3" class="accordion-collapse collapse" data-bs-parent="#setupAccordion">
+                            <div class="accordion-body">
+                                <ol>
+                                    <li>Look for a device named something like "Rpi-BTWiFi" or "Inventory-Pi"</li>
+                                    <li>Tap on your Pi to connect</li>
+                                    <li>The app will automatically discover the WiFi setup service</li>
+                                    <li>You should see available WiFi networks that the Pi can detect</li>
+                                </ol>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#step4">
+                                Step 4: Configure WiFi
+                            </button>
+                        </h2>
+                        <div id="step4" class="accordion-collapse collapse" data-bs-parent="#setupAccordion">
+                            <div class="accordion-body">
+                                <ol>
+                                    <li>Select your WiFi network from the list</li>
+                                    <li>Enter your WiFi password</li>
+                                    <li>Tap "Connect" or "Apply"</li>
+                                    <li>The Pi will attempt to connect to your WiFi network</li>
+                                    <li>You'll see a success/failure message</li>
+                                    <li>Your Pi is now configured and online!</li>
+                                </ol>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Troubleshooting -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-question-circle"></i>
+                    Troubleshooting
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6><i class="bi bi-exclamation-triangle text-warning"></i> Can't see your Pi?</h6>
+                        <ul class="small">
+                            <li>Make sure Pi is powered on</li>
+                            <li>Check that Bluetooth is enabled on your phone</li>
+                            <li>Try moving closer to the Pi</li>
+                            <li>Restart Bluetooth on your phone</li>
+                            <li>Verify the btwifiset service is running on Pi</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="bi bi-exclamation-triangle text-warning"></i> Connection issues?</h6>
+                        <ul class="small">
+                            <li>Ensure Pi is in setup mode</li>
+                            <li>Try disconnecting and reconnecting</li>
+                            <li>Check that your WiFi credentials are correct</li>
+                            <li>Verify your WiFi network is 2.4GHz (some Pis don't support 5GHz)</li>
+                            <li>Check Pi logs: <code>journalctl -u btwifiset.service</code></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status Messages -->
+        <div id="status-messages" class="alert alert-info" style="display: none;">
+            <i class="bi bi-info-circle"></i>
+            <span id="status-content">Ready to help you setup your Pi...</span>
+        </div>
     </div>
 
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Service Worker Registration -->
+    <script src="sw.js"></script>
+    <!-- Main App -->
     <script src="app.js"></script>
 </body>
 </html>

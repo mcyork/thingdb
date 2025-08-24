@@ -176,19 +176,31 @@ apt install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-
 print_status "Installing Python development packages..."
 apt install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" python3-dev libpq-dev python3-psycopg2
 
-# Create application directory
-print_status "Creating application directory..."
-mkdir -p /var/lib/inventory
-chown pi:pi /var/lib/inventory
+# Note: Vector extension should be available in base PostgreSQL installation
+# If not available, the extension creation will fail gracefully
 
-# Move application files
-print_status "Setting up application files..."
-mv src /var/lib/inventory/app/
+# Create inventory user if it doesn't exist
+if id -u "inventory" &>/dev/null; then
+    print_success "User 'inventory' already exists."
+else
+    print_status "Creating inventory user..."
+    useradd -r -s /bin/false inventory
+    print_success "User 'inventory' created."
+fi
+
+# Setup application directory
+print_status "Setting up application directory..."
+# Cleanly replace the app directory to ensure a fresh install
+rm -rf /var/lib/inventory/app
+mkdir -p /var/lib/inventory
+
+# Move the new src directory and rename it to 'app'
+mv src /var/lib/inventory/app
+
+# Move the new requirements directory inside the 'app' directory
 mv requirements /var/lib/inventory/app/
 
-# Create inventory user
-print_status "Creating inventory user..."
-useradd -r -s /bin/false inventory || true
+chown -R pi:pi /var/lib/inventory
 
 # Create proper home directory for inventory user (needed for ML model caching)
 print_status "Setting up inventory user home directory..."
@@ -247,73 +259,61 @@ pip install psutil 2>/dev/null || {
     print_warning "psutil installation failed - some features may be limited"
 }
 
-# Setup PostgreSQL - ALWAYS create user and database first
+# Setup PostgreSQL
 print_status "Setting up PostgreSQL database..."
 
-# Create database user and database (always do this first)
-print_status "Creating PostgreSQL user and database..."
-sudo -u postgres psql -c "CREATE USER inventory WITH PASSWORD 'inventory_pi_2024';" || true
-
-# Drop and recreate database to ensure clean slate
-print_status "Ensuring clean database..."
-sudo -u postgres psql -c "DROP DATABASE IF EXISTS inventory_db;" || true
-sudo -u postgres psql -c "CREATE DATABASE inventory_db OWNER inventory;" || true
-sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE inventory_db TO inventory;" || true
-
-# CRITICAL: Clear any existing data to ensure truly empty database
-print_status "Clearing any existing data..."
-sudo -u postgres psql -d inventory_db -c "DROP SCHEMA public CASCADE;" || true
-sudo -u postgres psql -d inventory_db -c "CREATE SCHEMA public;" || true
-sudo -u postgres psql -d inventory_db -c "GRANT ALL ON SCHEMA public TO inventory;" || true
-sudo -u postgres psql -d inventory_db -c "GRANT ALL ON SCHEMA public TO public;" || true
-
-# Skip database import - start with empty database like Docker
-print_status "Skipping database import - will start with empty database (like Docker)"
-print_status "Flask app will create its own schema on first run"
-
-# Verify and fix database ownership (critical for Flask app to work)
-print_status "Verifying database ownership..."
-sudo -u postgres psql -d inventory_db << 'DBOWNEOF' 2>/dev/null || true
--- Change ownership of all tables to inventory user (if they exist)
-DO \$\$
-DECLARE
-    r RECORD;
-BEGIN
-    FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
-        EXECUTE 'ALTER TABLE ' || quote_ident(r.tablename) || ' OWNER TO inventory;';
-    END LOOP;
-    
-    FOR r IN (SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = 'public') LOOP
-        EXECUTE 'ALTER SEQUENCE ' || quote_ident(r.sequence_name) || ' OWNER TO inventory;';
-    END LOOP;
-    
-    -- Grant all privileges
-    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO inventory;
-    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO inventory;
-    GRANT ALL PRIVILEGES ON SCHEMA public TO inventory;
-END \$\$;
-DBOWNEOF
-
-print_success "Database ownership verified and fixed"
-
-# Additional database setup for semantic search
-print_status "Setting up database for semantic search..."
-sudo -u postgres psql -d inventory_db << 'SEMANTICEOF' 2>/dev/null || true
--- Ensure the database has the necessary extensions for semantic search
-CREATE EXTENSION IF NOT EXISTS vector;
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
-
--- Verify extensions are installed
-SELECT extname FROM pg_extension WHERE extname IN ('vector', 'pg_trgm');
-SEMANTICEOF
-
-# Verify extensions were created
-print_status "Verifying database extensions..."
-if sudo -u postgres psql -d inventory_db -t -c "SELECT extname FROM pg_extension WHERE extname IN ('vector', 'pg_trgm');" | grep -q "vector\|pg_trgm"; then
-    print_success "Database extensions for semantic search are installed"
+# Create inventory user if it doesn't exist
+print_status "Checking for inventory database user..."
+if sudo -u postgres psql -t -c "SELECT 1 FROM pg_roles WHERE rolname='inventory'" | grep -q 1; then
+    print_success "PostgreSQL user 'inventory' already exists."
 else
-    print_warning "Database extensions may not be properly installed"
+    print_status "Creating PostgreSQL user 'inventory'..."
+    sudo -u postgres psql -c "CREATE USER inventory WITH PASSWORD 'inventory_pi_2024';"
+    print_success "User 'inventory' created."
 fi
+
+# Check if database exists
+print_status "Checking for inventory_db database..."
+if sudo -u postgres psql -lqt | cut -d '|' -f 1 | grep -qw "inventory_db"; then
+    print_success "Database 'inventory_db' already exists."
+else
+    print_status "Database 'inventory_db' not found. Creating new database..."
+    sudo -u postgres psql -c "CREATE DATABASE inventory_db OWNER inventory;"
+    sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE inventory_db TO inventory;"
+    print_success "Database 'inventory_db' created and privileges granted."
+fi
+
+# ALWAYS ensure database extensions exist (critical for semantic search)
+print_status "Setting up database extensions for semantic search..."
+sudo -u postgres psql -d inventory_db -c "CREATE EXTENSION IF NOT EXISTS vector;" || {
+    print_warning "Vector extension creation failed - checking if it exists..."
+    sudo -u postgres psql -d inventory_db -c "SELECT extname FROM pg_extension WHERE extname = 'vector';" || {
+        print_error "Vector extension not available - semantic search will not work"
+        print_status "You may need to install postgresql-vector package"
+    }
+}
+
+sudo -u postgres psql -d inventory_db -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;" || {
+    print_warning "pg_trgm extension creation failed"
+}
+
+# Verify extensions are actually available
+print_status "Verifying database extensions..."
+VECTOR_EXT=$(sudo -u postgres psql -d inventory_db -t -c "SELECT extname FROM pg_extension WHERE extname = 'vector';" 2>/dev/null | tr -d ' ')
+TRGM_EXT=$(sudo -u postgres psql -d inventory_db -t -c "SELECT extname FROM pg_extension WHERE extname = 'pg_trgm';" 2>/dev/null | tr -d ' ')
+
+if [ "$VECTOR_EXT" = "vector" ]; then
+    print_success "Vector extension is available for semantic search"
+else
+    print_error "Vector extension not available - semantic search will fail"
+fi
+
+if [ "$TRGM_EXT" = "pg_trgm" ]; then
+    print_success "pg_trgm extension is available for text search"
+else
+    print_warning "pg_trgm extension not available - text search may be limited"
+fi
+
 
 # Setup images directory
 if [ -d "images" ]; then
@@ -403,6 +403,12 @@ server {
         alias /var/lib/inventory/images/;
         expires 30d;
         add_header Cache-Control "public, immutable";
+    }
+
+    location /setup/ {
+        alias /var/www/inventory-setup/;
+        index index.html;
+        try_files $uri $uri/ =404;
     }
 }
 NGINXEOF
@@ -519,8 +525,17 @@ fi
 # CRITICAL: Force download of sentence-transformers model to correct cache directory
 print_status "Pre-downloading ML model for semantic search..."
 sleep 5  # Give the app time to start
+
+MAX_RETRIES=3
+RETRY_COUNT=0
+DOWNLOAD_SUCCESS=false
 cd /var/lib/inventory/app
-sudo -u inventory ./venv/bin/python3 << 'PYTHONEOF'
+
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    RETRY_COUNT=$((RETRY_COUNT+1))
+    print_status "Attempting to download ML model (Attempt $RETRY_COUNT/$MAX_RETRIES)..."
+
+    if sudo -u inventory ./venv/bin/python3 << 'PYTHONEOF'
 import os
 import sys
 
@@ -539,20 +554,28 @@ try:
     # Test embedding generation
     test_embedding = model.encode("test text")
     print(f"Test embedding generated: {len(test_embedding)} dimensions")
+    sys.exit(0)
     
 except Exception as e:
     print(f"Error downloading model: {e}")
     sys.exit(1)
 PYTHONEOF
+    then
+        DOWNLOAD_SUCCESS=true
+        break
+    fi
 
-if [ $? -eq 0 ]; then
+    if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+        print_warning "ML model download failed. Retrying in 10 seconds..."
+        sleep 10
+    fi
+done
+
+if [ "$DOWNLOAD_SUCCESS" = "true" ]; then
     print_success "ML model downloaded successfully to correct cache directory"
-    
-    # Skip re-indexing for now - will be done manually when needed
     print_status "Skipping re-indexing - database is empty, no items to index"
-    print_success "ML model downloaded successfully to correct cache directory"
 else
-    print_warning "ML model download failed - semantic search may not work properly"
+    print_error "ML model download failed after $MAX_RETRIES attempts. Semantic search may not work properly."
 fi
 
 # Verify installation

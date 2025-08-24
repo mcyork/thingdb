@@ -106,7 +106,7 @@ REMOTE_COMMAND="cd /tmp && tar -xzf inventory-deploy.tar.gz && sudo ./deploy.sh"
 # Check for a --provision flag
 if [[ "$1" == "--provision" ]]; then
     print_warning "Adding provisioning step to remote deployment..."
-    REMOTE_COMMAND+=" && sudo bash pi-setup/install.sh"
+    REMOTE_COMMAND+=" && sudo bash /tmp/pi-setup/install.sh"
 fi
 
 if "$PI_CLI" run-stream --pi "$DEFAULT_PI" "$REMOTE_COMMAND"; then

@@ -10,7 +10,8 @@ from bleak import BleakServer, BleakGATTService, BleakGATTCharacteristic, Advert
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# --- Configuration ---
+# ---
+# Configuration ---
 # Use `uuidgen` or a similar tool to generate your own unique UUIDs
 SERVICE_UUID = "a1a1a1a1-0000-1000-8000-00805f9b34fb"
 WIFI_SSID_CHAR_UUID = "a1a1a1a1-0001-1000-8000-00805f9b34fb"
@@ -36,8 +37,6 @@ class InventoryPiBLEService:
     async def write_char(self, characteristic: BleakGATTCharacteristic, value: bytearray):
         """General purpose write handler."""
         logging.info(f"Write to {characteristic.uuid}: {value.decode('utf-8', 'ignore')}")
-        # Here you can add logic based on which characteristic is written to.
-        # This is a simplified approach. A more robust one is shown in the full server setup.
 
     def _update_status(self, message: str):
         """Updates the status characteristic."""
@@ -45,8 +44,6 @@ class InventoryPiBLEService:
             logging.info(f"Updating status: {message}")
             try:
                 self.server.get_service(SERVICE_UUID).get_characteristic(STATUS_CHAR_UUID).value = message.encode("utf-8")
-                # If you want to notify the client, you'd do:
-                # await self.server.notify(self.status_char, message.encode("utf-8"))
             except Exception as e:
                 logging.error(f"Could not update status: {e}")
 
@@ -89,7 +86,6 @@ class InventoryPiBLEService:
         self._update_status(f"Configuring Wi-Fi for {ssid_str}...")
 
         try:
-            # Get existing network blocks
             if self._run_command(["wpa_passphrase", ssid_str, password_str]):
                 network_config = subprocess.check_output(["wpa_passphrase", ssid_str, password_str]).decode('utf-8')
                 
@@ -109,7 +105,6 @@ class InventoryPiBLEService:
             self._update_status(f"Error: Wi-Fi configuration failed.")
 
     async def handle_command(self, characteristic: BleakGATTCharacteristic, value: bytearray):
-        """Handles commands sent to the command characteristic."""
         command = value.decode('utf-8').lower()
         logging.info(f"Received command: {command}")
 
@@ -152,10 +147,12 @@ async def main():
     app.add_characteristic(status_char)
     service_handler.status_char = status_char
 
-    # The advertisement name is what shows up in the BLE scan
-    advertisement = Advertisement(local_name="Inventory Pi Setup", service_uuids=[SERVICE_UUID])
+    advertisement = Advertisement(
+        local_name="Inventory Pi Setup",
+        service_uuids=[SERVICE_UUID],
+    )
 
-    async with BleakServer(advertisement, services=[app]) as server:
+    async with BleakServer(app, advertisement_data=advertisement) as server:
         service_handler.server = server
         service_handler._update_status("BLE Service Started. Waiting for connection...")
         logging.info("BLE Server started. Advertising as 'Inventory Pi Setup'.")

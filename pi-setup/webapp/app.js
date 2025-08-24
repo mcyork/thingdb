@@ -1,129 +1,145 @@
-document.addEventListener('DOMContentLoaded', () => {
-    // --- DOM Elements ---
-    const connectButton = document.getElementById('connect-button');
-    const statusMessages = document.getElementById('status-messages');
-    const configForm = document.getElementById('config-form');
-    const wifiSsidInput = document.getElementById('wifi-ssid');
-    const wifiPasswordInput = document.getElementById('wifi-password');
-    const submitWifiButton = document.getElementById('submit-wifi-button');
-    const deviceNameInput = document.getElementById('device-name');
-    const submitNameButton = document.getElementById('submit-name-button');
-    const rebootButton = document.getElementById('reboot-button');
-
-    // --- BLE UUIDs (must match Python script) ---
-    const SERVICE_UUID = "a1a1a1a1-0000-1000-8000-00805f9b34fb";
-    const WIFI_SSID_CHAR_UUID = "a1a1a1a1-0001-1000-8000-00805f9b34fb";
-    const WIFI_PASSWORD_CHAR_UUID = "a1a1a1a1-0002-1000-8000-00805f9b34fb";
-    const DEVICE_NAME_CHAR_UUID = "a1a1a1a1-0003-1000-8000-00805f9b34fb";
-    const STATUS_CHAR_UUID = "a1a1a1a1-0004-1000-8000-00805f9b34fb";
-    const COMMAND_CHAR_UUID = "a1a1a1a1-0005-1000-8000-00805f9b34fb";
-
-    // --- State ---
-    let bleDevice;
-    let gattServer;
-    let bleService;
-    const characteristics = {};
-    const textEncoder = new TextEncoder();
-
-    const logStatus = (message) => {
-        console.log(message);
-        statusMessages.textContent = message;
-    };
-
-    const handleStatusNotifications = (event) => {
-        const value = event.target.value;
-        const message = new TextDecoder().decode(value);
-        logStatus(`PI SAYS: ${message}`);
-    };
-
-    const connectToDevice = async () => {
+class PiSetupApp {
+    constructor() {
+        this.init();
+    }
+    
+    init() {
+        this.setupEventListeners();
+        this.setupPWA();
+        this.detectPlatform();
+    }
+    
+    detectPlatform() {
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        const isAndroid = /Android/.test(navigator.userAgent);
+        
+        // Update app store links based on platform
+        if (isIOS) {
+            document.querySelector('a[href*="play.google.com"]').style.display = 'none';
+        } else if (isAndroid) {
+            document.querySelector('a[href*="apps.apple.com"]').style.display = 'none';
+        }
+    }
+    
+    setupEventListeners() {
+        document.getElementById('open-btberrywifi-btn').addEventListener('click', () => this.openBTBerryWifi());
+        document.getElementById('check-status-btn').addEventListener('click', () => this.showServiceInfo());
+        document.getElementById('install-pwa-btn').addEventListener('click', () => this.installPWA());
+    }
+    
+    setupPWA() {
+        // Check if PWA is already installed
+        if (window.matchMedia('(display-mode: standalone)').matches) {
+            console.log('PWA is running in standalone mode');
+        }
+        
+        // Listen for beforeinstallprompt event
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            this.deferredPrompt = e;
+            this.showInstallPrompt();
+        });
+        
+        // Listen for appinstalled event
+        window.addEventListener('appinstalled', () => {
+            console.log('PWA was installed');
+            this.hideInstallPrompt();
+        });
+    }
+    
+    showInstallPrompt() {
+        const prompt = document.getElementById('pwa-install-prompt');
+        prompt.style.display = 'block';
+    }
+    
+    hideInstallPrompt() {
+        const prompt = document.getElementById('pwa-install-prompt');
+        prompt.style.display = 'none';
+    }
+    
+    async installPWA() {
+        if (this.deferredPrompt) {
+            this.deferredPrompt.prompt();
+            const { outcome } = await this.deferredPrompt.userChoice;
+            if (outcome === 'accepted') {
+                console.log('User accepted PWA installation');
+            }
+            this.deferredPrompt = null;
+        }
+    }
+    
+    openBTBerryWifi() {
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        const isAndroid = /Android/.test(navigator.userAgent);
+        
+        let url;
+        
+        if (isIOS) {
+            // Try to open BTBerryWifi app on iOS
+            url = 'btwifiset://';
+        } else if (isAndroid) {
+            // Android intent for BTBerryWifi
+            url = 'intent://btwifiset/#Intent;scheme=btwifiset;package=com.nksan.btwifiset;end';
+        } else {
+            // Desktop - open app store
+            url = 'https://play.google.com/store/apps/details?id=com.nksan.btwifiset';
+        }
+        
         try {
-            logStatus('Requesting Bluetooth device...');
-            bleDevice = await navigator.bluetooth.requestDevice({
-                filters: [{ services: [SERVICE_UUID] }],
-                optionalServices: [SERVICE_UUID]
-            });
-
-            logStatus('Connecting to GATT server...');
-            gattServer = await bleDevice.gatt.connect();
-
-            logStatus('Getting service...');
-            bleService = await gattServer.getPrimaryService(SERVICE_UUID);
-
-            logStatus('Getting characteristics...');
-            const allChars = await bleService.getCharacteristics();
+            // Try to open the app
+            window.location.href = url;
             
-            for (const char of allChars) {
-                characteristics[char.uuid] = char;
-            }
-
-            // Subscribe to status notifications
-            const statusChar = characteristics[STATUS_CHAR_UUID];
-            if (statusChar) {
-                await statusChar.startNotifications();
-                statusChar.addEventListener('characteristicvaluechanged', handleStatusNotifications);
-                logStatus('Subscribed to status notifications.');
-            }
-
-            logStatus('Connected successfully!');
-            connectButton.classList.add('d-none');
-            configForm.classList.remove('d-none');
-
+            // Fallback: try alternative schemes after a delay
+            setTimeout(() => {
+                if (isIOS) {
+                    // Try alternative iOS schemes
+                    const alternativeSchemes = [
+                        'btwifiset://',
+                        'btberrywifi://',
+                        'nksan://'
+                    ];
+                    
+                    alternativeSchemes.forEach((scheme, index) => {
+                        setTimeout(() => {
+                            console.log(`Trying alternative scheme: ${scheme}`);
+                            window.location.href = scheme;
+                        }, index * 500);
+                    });
+                }
+            }, 1000);
+            
+            // Show fallback message
+            setTimeout(() => {
+                this.showStatus('If BTBerryWifi didn\'t open automatically, please open it manually from your app drawer.', 'info');
+            }, 3000);
+            
         } catch (error) {
-            logStatus(`Error: ${error.message}`);
-            console.error(error);
+            console.error('Error opening BTBerryWifi:', error);
+            this.showStatus('Please open BTBerryWifi manually from your app drawer.', 'info');
         }
-    };
+    }
+    
+    showServiceInfo() {
+        this.showStatus('BTBerryWifi service should be running on your Pi. To check status, run: systemctl status btwifiset.service', 'info');
+    }
+    
+    showStatus(message, type = 'info') {
+        const statusDiv = document.getElementById('status-messages');
+        const statusContent = document.getElementById('status-content');
+        
+        statusContent.textContent = message;
+        statusDiv.className = `alert alert-${type}`;
+        statusDiv.style.display = 'block';
+        
+        // Auto-hide after 8 seconds for success/info, 12 seconds for warnings
+        const hideDelay = type === 'warning' ? 12000 : 8000;
+        setTimeout(() => {
+            statusDiv.style.display = 'none';
+        }, hideDelay);
+    }
+}
 
-    const writeCharacteristic = async (uuid, value) => {
-        try {
-            const char = characteristics[uuid];
-            if (!char) {
-                throw new Error(`Characteristic ${uuid} not found.`);
-            }
-            const data = typeof value === 'string' ? textEncoder.encode(value) : value;
-            await char.writeValue(data);
-            logStatus(`Wrote to ${uuid}: ${value}`);
-        } catch (error) {
-            logStatus(`Write Error: ${error.message}`);
-            console.error(error);
-        }
-    };
-
-    const handleWifiSubmit = async () => {
-        const ssid = wifiSsidInput.value;
-        const password = wifiPasswordInput.value;
-
-        if (!ssid) {
-            logStatus('SSID cannot be empty.');
-            return;
-        }
-
-        logStatus('Sending Wi-Fi credentials...');
-        await writeCharacteristic(WIFI_SSID_CHAR_UUID, ssid);
-        await writeCharacteristic(WIFI_PASSWORD_CHAR_UUID, password);
-        // Tell the Pi to process the credentials
-        await writeCharacteristic(COMMAND_CHAR_UUID, 'apply_wifi');
-    };
-
-    const handleNameSubmit = async () => {
-        const name = deviceNameInput.value;
-        if (!name) {
-            logStatus('Device name cannot be empty.');
-            return;
-        }
-        logStatus(`Setting device name to ${name}...`);
-        await writeCharacteristic(DEVICE_NAME_CHAR_UUID, name);
-    };
-
-    const handleReboot = async () => {
-        logStatus('Sending reboot command...');
-        await writeCharacteristic(COMMAND_CHAR_UUID, 'reboot');
-    };
-
-    // --- Event Listeners ---
-    connectButton.addEventListener('click', connectToDevice);
-    submitWifiButton.addEventListener('click', handleWifiSubmit);
-    submitNameButton.addEventListener('click', handleNameSubmit);
-    rebootButton.addEventListener('click', handleReboot);
+// Initialize the app when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    new PiSetupApp();
 });

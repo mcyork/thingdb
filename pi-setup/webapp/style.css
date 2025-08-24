@@ -1,16 +1,340 @@
+/* Modern PWA-friendly styling for Pi Setup */
+:root {
+    --primary-color: #007bff;
+    --success-color: #28a745;
+    --warning-color: #ffc107;
+    --danger-color: #dc3545;
+    --info-color: #17a2b8;
+    --light-color: #f8f9fa;
+    --dark-color: #343a40;
+    --border-radius: 8px;
+    --shadow: 0 2px 10px rgba(0,0,0,0.1);
+    --transition: all 0.3s ease;
+}
+
 body {
-    background-color: #f0f2f5;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    padding-bottom: 2rem;
 }
 
 .container {
-    max-width: 500px;
+    max-width: 800px;
 }
 
+/* Card styling */
 .card {
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    border: none;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    transition: var(--transition);
+    margin-bottom: 1.5rem;
 }
 
-#status-messages {
-    white-space: pre-wrap; /* Allows line breaks */
-    font-family: monospace;
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+}
+
+.card-header {
+    background: linear-gradient(135deg, var(--primary-color), #0056b3);
+    color: white;
+    border-radius: var(--border-radius) var(--border-radius) 0 0 !important;
+    border: none;
+    padding: 1rem 1.5rem;
+}
+
+.card-header h5 {
+    margin: 0;
+    font-weight: 600;
+}
+
+/* Step numbers */
+.step-number {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary-color), #0056b3);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin: 0 auto 1rem;
+    box-shadow: var(--shadow);
+}
+
+/* Status indicators */
+.status-indicator {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid #dee2e6;
+    transition: var(--transition);
+}
+
+.status-indicator.connected {
+    background-color: var(--success-color);
+    border-color: var(--success-color);
+    box-shadow: 0 0 10px rgba(40, 167, 69, 0.5);
+}
+
+.status-indicator.connecting {
+    background-color: var(--warning-color);
+    border-color: var(--warning-color);
+    animation: pulse 1.5s infinite;
+}
+
+.status-indicator.disconnected {
+    background-color: var(--danger-color);
+    border-color: var(--danger-color);
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+/* Button styling */
+.btn {
+    border-radius: var(--border-radius);
+    font-weight: 500;
+    transition: var(--transition);
+    border: none;
+    padding: 0.75rem 1.5rem;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--primary-color), #0056b3);
+}
+
+.btn-success {
+    background: linear-gradient(135deg, var(--success-color), #1e7e34);
+}
+
+.btn-warning {
+    background: linear-gradient(135deg, var(--warning-color), #e0a800);
+    color: var(--dark-color);
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, var(--danger-color), #c82333);
+}
+
+.btn-secondary {
+    background: linear-gradient(135deg, #6c757d, #545b62);
+}
+
+.btn-outline-secondary {
+    border: 2px solid #6c757d;
+    color: #6c757d;
+    background: transparent;
+}
+
+.btn-outline-secondary:hover {
+    background: #6c757d;
+    color: white;
+}
+
+/* Form styling */
+.form-control {
+    border-radius: var(--border-radius);
+    border: 2px solid #e9ecef;
+    transition: var(--transition);
+    padding: 0.75rem 1rem;
+}
+
+.form-control:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.form-label {
+    font-weight: 600;
+    color: var(--dark-color);
+    margin-bottom: 0.5rem;
+}
+
+.form-text {
+    font-size: 0.875rem;
+    color: #6c757d;
+}
+
+/* Alert styling */
+.alert {
+    border: none;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+}
+
+.alert-info {
+    background: linear-gradient(135deg, var(--info-color), #138496);
+    color: white;
+}
+
+.alert-success {
+    background: linear-gradient(135deg, var(--success-color), #1e7e34);
+    color: white;
+}
+
+.alert-warning {
+    background: linear-gradient(135deg, var(--warning-color), #e0a800);
+    color: var(--dark-color);
+}
+
+.alert-danger {
+    background: linear-gradient(135deg, var(--danger-color), #c82333);
+    color: white;
+}
+
+/* Header styling */
+.display-6 {
+    font-weight: 700;
+    color: white;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+}
+
+.display-1 {
+    font-size: 4rem;
+    color: var(--primary-color);
+}
+
+.text-muted {
+    color: rgba(255,255,255,0.8) !important;
+    text-shadow: 0 1px 5px rgba(0,0,0,0.2);
+}
+
+/* PWA install prompt */
+#pwa-install-prompt {
+    position: sticky;
+    top: 1rem;
+    z-index: 1000;
+    margin-bottom: 1rem;
+}
+
+/* Platform alert */
+#platform-alert {
+    border-left: 4px solid var(--warning-color);
+}
+
+/* Connection status */
+#connection-status {
+    padding: 1rem;
+    background: var(--light-color);
+    border-radius: var(--border-radius);
+    border: 1px solid #dee2e6;
+}
+
+/* Help section */
+.accordion-button {
+    background: var(--light-color);
+    border: none;
+    font-weight: 600;
+}
+
+.accordion-button:not(.collapsed) {
+    background: var(--primary-color);
+    color: white;
+}
+
+.accordion-button:focus {
+    box-shadow: none;
+    border-color: var(--primary-color);
+}
+
+.accordion-body {
+    background: white;
+    border-top: 1px solid #dee2e6;
+}
+
+/* Troubleshooting section */
+.troubleshooting h6 {
+    color: var(--dark-color);
+    margin-bottom: 0.5rem;
+}
+
+.troubleshooting ul {
+    margin-bottom: 0;
+}
+
+.troubleshooting li {
+    margin-bottom: 0.25rem;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .container {
+        padding: 0 1rem;
+    }
+    
+    .card-header {
+        padding: 0.75rem 1rem;
+    }
+    
+    .btn {
+        padding: 0.5rem 1rem;
+        font-size: 0.9rem;
+    }
+    
+    .display-6 {
+        font-size: 2rem;
+    }
+    
+    .display-1 {
+        font-size: 3rem;
+    }
+    
+    .step-number {
+        width: 50px;
+        height: 50px;
+        font-size: 1.25rem;
+    }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --light-color: #2d3748;
+        --dark-color: #f7fafc;
+    }
+    
+    .card {
+        background: #2d3748;
+        color: #f7fafc;
+    }
+    
+    .form-control {
+        background: #4a5568;
+        border-color: #718096;
+        color: #f7fafc;
+    }
+    
+    .form-control:focus {
+        background: #4a5568;
+    }
+}
+
+/* Print styles */
+@media print {
+    body {
+        background: white;
+        color: black;
+    }
+    
+    .card {
+        box-shadow: none;
+        border: 1px solid #dee2e6;
+    }
+    
+    .btn {
+        display: none;
+    }
 }

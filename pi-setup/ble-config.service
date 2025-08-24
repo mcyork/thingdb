@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 User=root
-ExecStart=/usr/bin/python3 /usr/local/bin/ble_config_service.py
+ExecStart=/var/lib/inventory/app/venv/bin/python /usr/local/bin/ble_config_service.py
 Restart=always
 RestartSec=5
 
