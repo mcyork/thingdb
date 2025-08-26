@@ -1,0 +1,119 @@
+#!/bin/bash
+# deploy-network.sh - Deploy and test BTBerryWifi network installation
+
+set -e
+
+echo "🚀 Deploying BTBerryWifi Network Installation"
+echo "==========================================="
+
+# Show pre-installation status
+echo "📊 PRE-INSTALLATION STATUS:"
+pi run --pi epi1 --pi epi1 "
+echo 'Network services:'
+systemctl is-enabled NetworkManager 2>/dev/null | head -1 || echo 'NetworkManager: not found'
+systemctl is-enabled systemd-networkd.service 2>/dev/null | head -1 || echo 'systemd-networkd: disabled'  
+systemctl is-enabled dhcpcd.service 2>/dev/null | head -1 || echo 'dhcpcd: not found'
+echo ''
+echo 'Network interfaces:'
+ip addr show | grep -E 'eth0|wlan0' -A 1 | grep -E 'eth0|wlan0|inet ' || echo 'No interfaces with IPs'
+echo ''
+echo 'Network processes:'
+ps aux | grep -E '(NetworkManager|dhcp|networkd)' | grep -v grep | head -3 || echo 'None'
+"
+
+echo ""
+echo "🛠️ RUNNING INSTALLATION..."
+pi run --pi epi1 "cd /tmp && sudo ./network-install.sh"
+
+echo ""
+echo "📊 POST-INSTALLATION STATUS:"
+pi run --pi epi1 "
+echo 'Service status:'
+echo '  NetworkManager:' \$(systemctl is-active NetworkManager 2>/dev/null)
+echo '  systemd-networkd:' \$(systemctl is-active systemd-networkd.service 2>/dev/null || echo 'masked')
+echo '  dhcpcd:' \$(systemctl is-active dhcpcd.service 2>/dev/null || echo 'masked')  
+echo '  BTBerryWifi:' \$(systemctl is-active btwifiset.service 2>/dev/null)
+echo ''
+echo 'Network interfaces:'
+ip addr show | grep -E 'eth0|wlan0' -A 1 | grep -E 'eth0|wlan0|inet ' || echo 'No IPs assigned'
+echo ''
+echo 'WiFi scan test:'
+timeout 10 nmcli device wifi list 2>/dev/null | head -3 || echo 'WiFi scan failed'
+echo ''
+echo 'BTBerryWifi mode check:'
+journalctl -u btwifiset.service -n 5 --no-pager | grep -E '(version|NetworkManager)' || echo 'No version info'
+"
+
+echo ""
+echo "🔄 CRITICAL REBOOT TEST"
+echo "======================="
+echo "Testing network stability after reboot..."
+
+# Using default Pi for reboot test
+
+echo "Initiating reboot..."
+pi run --pi epi1 "sudo reboot" || echo "Reboot command sent"
+
+echo "⏰ Waiting for reboot to complete..."
+sleep 60
+
+echo "🧪 Testing post-reboot connectivity..."
+for attempt in {1..10}; do
+    echo "Attempt $attempt/10..."
+    if pi run --pi epi1 "echo 'Pi is back online!'" 2>/dev/null; then
+        echo "✅ REBOOT TEST PASSED - Pi is accessible!"
+        break
+    elif [ $attempt -eq 10 ]; then
+        echo "🚨 REBOOT TEST FAILED - Pi not accessible after reboot"
+        echo "This indicates network stability issues persist"
+        exit 1
+    else
+        sleep 10
+    fi
+done
+
+echo ""
+echo "📊 POST-REBOOT NETWORK STATUS:"
+pi run --pi epi1 "
+echo 'Interface status:'
+echo '  Ethernet:' \$(ip addr show eth0 | grep 'inet ' | awk '{print \$2}' || echo 'No IP')
+echo '  WiFi:' \$(ip addr show wlan0 | grep 'inet ' | awk '{print \$2}' || echo 'No IP')
+echo ''
+echo 'Service status:'
+echo '  NetworkManager:' \$(systemctl is-active NetworkManager)
+echo '  BTBerryWifi:' \$(systemctl is-active btwifiset.service)
+echo ''
+echo 'BTBerryWifi scanning mode:'
+journalctl -u btwifiset.service --since='2 minutes ago' --no-pager | grep -E '(version|NetworkManager|nmcli)' | head -3 || echo 'No recent logs'
+echo ''
+echo 'WiFi networks found:'
+timeout 10 nmcli device wifi list 2>/dev/null | wc -l || echo 'Scan failed'
+"
+
+echo ""
+echo "🎯 SSID SCANNING INVESTIGATION:"
+echo "==============================="
+pi run --pi epi1 "
+echo 'Testing direct NetworkManager scan:'
+nmcli -t device wifi list 2>/dev/null | head -5 | while IFS=':' read -r bssid freq rate signal bars security active ssid mode; do
+    echo \"  SSID: \$ssid (Signal: \$signal)\"
+done
+echo ''
+echo 'BTBerryWifi service logs for scanning behavior:'
+journalctl -u btwifiset.service --since='5 minutes ago' --no-pager | grep -E '(scan|SSID|AP|network)' | tail -10 || echo 'No scanning logs found'
+"
+
+echo ""
+echo "✅ NETWORK DEPLOYMENT COMPLETE!"
+echo "==============================="
+echo ""
+echo "🧪 Test Results Summary:"
+echo "• Ethernet connectivity: $(pi run --pi epi1 "ip addr show eth0 | grep 'inet ' >/dev/null 2>&1 && echo 'WORKING' || echo 'FAILED')"
+echo "• NetworkManager active: $(pi run --pi epi1 "systemctl is-active NetworkManager 2>/dev/null")"
+echo "• BTBerryWifi service: $(pi run --pi epi1 "systemctl is-active btwifiset.service 2>/dev/null")"
+echo "• Reboot stability: PASSED"
+echo ""
+echo "📱 Next Steps:"
+echo "• Test BTBerryWifi with mobile app"
+echo "• Check for single vs duplicate SSIDs"
+echo "• Verify NetworkManager mode is being used"

@@ -114,6 +114,8 @@ if [[ "$1" == "--provision" ]]; then
     print_status "Including pi-setup for provisioning..."
     cp -r "$PROJECT_ROOT/pi-setup" ./
     print_success "pi-setup directory copied"
+    cp "$PROJECT_ROOT/pi-setup/btwifiset.py" ./
+    print_success "btwifiset.py copied"
 fi
 
 # Skip database export - start with empty database like Docker
@@ -750,7 +752,7 @@ if [ -d "pi-setup" ]; then
 fi
 
 # Create the package with all the files we need
-tar -czf "$PACKAGE_NAME" src requirements images deploy.sh README.md $TAR_EXTRAS
+tar -czf "$PACKAGE_NAME" src requirements images deploy.sh README.md $TAR_EXTRAS btwifiset.py
 
 # Get package information
 PACKAGE_SIZE=$(du -h "$PACKAGE_NAME" | cut -f1)

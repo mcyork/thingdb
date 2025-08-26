@@ -1,0 +1,13 @@
+[Unit]
+Description=btwifiset Wi-Fi Configuration over Bluetooth
+After=bluetooth.target
+Wants=bluetooth.service
+
+[Service]
+Type=simple
+ExecStart=python3 /usr/local/btwifiset/btwifiset.py --syslog
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

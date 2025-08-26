@@ -1,0 +1,22 @@
+--- btwifiset.py.orig	2025-08-24 13:00:00.000000000 -0700
++++ btwifiset.py	2025-08-24 13:00:00.000000000 -0700
+@@ -1092,7 +1092,8 @@
+                     out = subprocess.run(f'wpa_cli -i wlan0 set_network {ssid_num} key_mgmt WPA-PSK', 
+                             shell=True,capture_output=True,encoding='utf-8',text=True).stdout
+                     mLOG.log('set key_mgmt to WPA_PSK',out)
+-                    out = subprocess.run(f'wpa_cli -i wlan0 set_network {ssid_num} psk {psk[4:]}', 
++                    # FIX: Properly quote the PSK value to handle special characters
++                    out = subprocess.run(f'wpa_cli -i wlan0 set_network {ssid_num} psk "{psk[4:]}"', 
+                             shell=True,capture_output=True,encoding='utf-8',text=True).stdout
+                     mLOG.log('set psk',out)
+                 if hidden:
+@@ -1144,7 +1145,8 @@
+                             shell=True,capture_output=True,encoding='utf-8',text=True).stdout
+                 mLOG.log(f'set network to Open {out}')
+             else:
+-                out = subprocess.run(f'wpa_cli -i wlan0 set_network {network_num} psk {psk[4:]}', 
++                # FIX: Properly quote the PSK value to handle special characters
++                out = subprocess.run(f'wpa_cli -i wlan0 set_network {network_num} psk "{psk[4:]}"', 
+                             shell=True,capture_output=True,encoding='utf-8',text=True).stdout
+                 mLOG.log(f' set psk: {out}')
+             if hidden:
