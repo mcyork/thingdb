@@ -1,6 +1,6 @@
 #!/bin/bash
-# deploy-prepare.sh
-# Creates a deployment package for Raspberry Pi
+# deploy-prepare-clean.sh
+# Creates a deployment package for Raspberry Pi (clean version without network provisioning)
 
 set -e
 
@@ -107,16 +107,6 @@ print_success "Requirements copied"
 # Ensure requirements directory is included even if empty
 if [ ! -f "requirements/.gitkeep" ]; then
     touch requirements/.gitkeep
-fi
-
-# If --provision flag is set, copy the network deployment script
-if [[ "$1" == "--provision" ]]; then
-    print_status "Including network provisioning (BTBerryWifi + serial agent)..."
-    cp "$PROJECT_ROOT/pi-setup/deploy-network-on-pi.sh" ./
-    print_success "Network deployment script copied"
-    # Mark that we want network provisioning
-    echo "PROVISION_NETWORK=true" > ./provision.flag
-    print_success "Provisioning flag set"
 fi
 
 # Skip database export - start with empty database like Docker
@@ -713,7 +703,6 @@ This package contains everything needed to deploy the Flask Inventory Management
 - `src/` - Application source code
 - `requirements/` - Python dependencies
 - `deploy.sh` - Automated deployment script
-- `database-export.sql` - Database backup (if present)
 - `images/` - Image files (if present)
 
 ## Deployment Instructions
@@ -746,14 +735,8 @@ EOF
 # Create final package
 print_status "Creating deployment package..."
 
-# Add pi-setup to tar if it exists
-TAR_EXTRAS=""
-if [ -d "pi-setup" ]; then
-    TAR_EXTRAS="pi-setup"
-fi
-
-# Create the package with all the files we need
-tar -czf "$PACKAGE_NAME" src requirements images deploy.sh README.md $TAR_EXTRAS btwifiset.py
+# Create the package with core files only
+tar -czf "$PACKAGE_NAME" src requirements images deploy.sh README.md
 
 # Get package information
 PACKAGE_SIZE=$(du -h "$PACKAGE_NAME" | cut -f1)

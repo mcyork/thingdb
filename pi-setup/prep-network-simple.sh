@@ -3,10 +3,51 @@
 
 set -e
 
-echo "🚀 Preparing BTBerryWifi network installation on Pi..."
+# Show usage if help is requested
+if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+    echo "Usage: $0 [PI_TARGET]"
+    echo ""
+    echo "Deploy BTBerryWifi network installation to specified Raspberry Pi"
+    echo ""
+    echo "Arguments:"
+    echo "  PI_TARGET    Name of the Pi to target (default: pi2)"
+    echo ""
+    echo "Examples:"
+    echo "  $0           # Use default pi2"
+    echo "  $0 pi1      # Target pi1"
+    echo "  $0 pi2      # Target pi2"
+    echo "  $0 epi1     # Target epi1"
+    echo ""
+    echo "Available Pis:"
+    pi list
+    exit 0
+fi
+
+# Get Pi target from command line argument, default to pi2
+PI_TARGET=${1:-pi2}
+
+echo "🚀 Preparing BTBerryWifi network installation on Pi: $PI_TARGET"
+
+# Validate Pi target
+if ! pi list | grep -q "^$PI_TARGET"; then
+    echo "❌ Error: Pi '$PI_TARGET' not found in configuration"
+    echo "Available Pis:"
+    pi list
+    exit 1
+fi
+
+# Check if Pi is online
+if ! pi status "$PI_TARGET" | grep -q "ONLINE"; then
+    echo "❌ Error: Pi '$PI_TARGET' is not online"
+    echo "Current status:"
+    pi status "$PI_TARGET"
+    exit 1
+fi
+
+echo "✅ Pi '$PI_TARGET' is online and ready"
 
 # Just create the installation script remotely instead of sending files
-pi run --pi epi1 "
+pi run --pi "$PI_TARGET" "
 cd /tmp
 cat > network-install.sh << 'INSTALL_EOF'
 #!/bin/bash
@@ -101,6 +142,19 @@ nmcli radio wifi on 2>/dev/null || true
 nmcli device set wlan0 managed yes 2>/dev/null || true
 nmcli device set eth0 managed yes 2>/dev/null || true
 
+# CRITICAL: Connect eth0 to restore Ethernet connectivity
+echo \"🔌 Connecting Ethernet interface...\"
+if [ -e /sys/class/net/eth0 ]; then
+    nmcli device connect eth0 2>/dev/null || true
+    sleep 3
+    # Verify eth0 has an IP
+    if ! ip addr show eth0 | grep -q \"inet \"; then
+        echo \"⚠️  Warning: eth0 still has no IP, attempting manual connection...\"
+        nmcli device connect eth0
+        sleep 5
+    fi
+fi
+
 # Start BTBerryWifi
 echo \"🚀 Starting BTBerryWifi...\"
 systemctl daemon-reload
@@ -112,6 +166,7 @@ echo \"📊 Status:\"
 echo \"  NetworkManager: \$(systemctl is-active NetworkManager)\"
 echo \"  BTBerryWifi: \$(systemctl is-active btwifiset.service)\" 
 echo \"  systemd-networkd: \$(systemctl is-active systemd-networkd.service 2>/dev/null || echo 'masked')\"
+echo \"  eth0 IP: \$(ip addr show eth0 | grep 'inet ' | awk '{print \$2}' || echo 'No IP')\"
 echo \"\"
 echo \"🧪 CRITICAL: Reboot test required to verify Ethernet stability\"
 INSTALL_EOF
@@ -120,5 +175,5 @@ chmod +x network-install.sh
 echo \"Installation script created at /tmp/network-install.sh\"
 "
 
-echo "✅ Network installation script prepared on Pi"
-echo "🚀 Ready to run: ./deploy-network.sh"
+echo "✅ Network installation script prepared on Pi: $PI_TARGET"
+echo "🚀 Ready to run: ./deploy-network.sh $PI_TARGET"

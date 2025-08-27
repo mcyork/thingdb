@@ -105,9 +105,49 @@ REMOTE_COMMAND="cd /tmp && tar -xzf inventory-deploy.tar.gz && sudo ./deploy.sh"
 
 # Check for a --provision flag
 if [[ "$1" == "--provision" ]]; then
-    print_warning "Adding provisioning step to remote deployment..."
-    REMOTE_COMMAND+=" && sudo bash /tmp/pi-setup/install.sh"
+    print_warning "Network provisioning requested (BTBerryWifi + serial agent)..."
+    # First run the main deployment
+    if "$PI_CLI" run-stream --pi "$DEFAULT_PI" "$REMOTE_COMMAND"; then
+        print_success "Main deployment completed"
+    else
+        print_error "Main deployment failed"
+        exit 1
+    fi
+    
+    # Then run the network provisioning separately
+    print_status "Running network provisioning (BTBerryWifi + fixes)..."
+    print_warning "Network may briefly disconnect during installation"
+    
+    # Copy the on-pi deployment script
+    NETWORK_SCRIPT="$HOME/inventory-deploy-build/deploy-network-on-pi.sh"
+    if [ ! -f "$NETWORK_SCRIPT" ]; then
+        # If not in build dir, try to find it in pi-setup
+        NETWORK_SCRIPT="/Users/ianmccutcheon/projects/inv2-dev/pi-setup/deploy-network-on-pi.sh"
+    fi
+    
+    if [ -f "$NETWORK_SCRIPT" ]; then
+        print_status "Copying network deployment script to Pi..."
+        scp "$NETWORK_SCRIPT" "$PI_USER@$PI_HOST:/tmp/deploy-network-on-pi.sh"
+        
+        print_status "Running network installation (this may take a few minutes)..."
+        if "$PI_CLI" run-stream --pi "$DEFAULT_PI" "sudo bash /tmp/deploy-network-on-pi.sh"; then
+            print_success "Network provisioning completed!"
+            print_warning "The Pi needs to be rebooted for all changes to take effect"
+            print_status "Run: pi run --pi $DEFAULT_PI 'sudo reboot'"
+            print_status "After reboot, BTBerryWifi will be available as the Pi's hostname"
+        else
+            print_error "Network provisioning may have partially completed"
+            print_warning "The Pi may have lost network during installation"
+            print_warning "Try: pi status"
+            print_warning "If offline, use serial console to check status"
+        fi
+    else
+        print_warning "Network deployment script not found, skipping provisioning"
+    fi
+    exit 0
 fi
+
+# Run the main deployment (without provisioning)
 
 if "$PI_CLI" run-stream --pi "$DEFAULT_PI" "$REMOTE_COMMAND"; then
     print_success "Remote deployment completed successfully!"
