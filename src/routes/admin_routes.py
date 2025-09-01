@@ -552,3 +552,25 @@ def cleanup_orphaned_images():
             'error': str(e)
         }), 500
 
+
+@admin_bp.route('/model-cache-status', methods=['GET'])
+def model_cache_status():
+    """Check the status of the embedding model cache"""
+    try:
+        from services.embedding_service import get_cache_info, is_embedding_model_available
+        
+        cache_info = get_cache_info()
+        model_available = is_embedding_model_available()
+        
+        return jsonify({
+            'success': True,
+            'cache_info': cache_info,
+            'model_available': model_available
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+

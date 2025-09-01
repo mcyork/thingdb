@@ -124,10 +124,9 @@ def validate_item_data(data):
     """Validate item data for creation/update"""
     errors = []
     
-    if not data.get('item_name', '').strip():
-        errors.append("Item name is required")
-    
-    if len(data.get('item_name', '')) > 255:
+    # Item name is now optional (will be auto-generated if not provided)
+    item_name = data.get('item_name', '').strip()
+    if item_name and len(item_name) > 255:
         errors.append("Item name must be less than 255 characters")
     
     if data.get('description') and len(data['description']) > 10000:

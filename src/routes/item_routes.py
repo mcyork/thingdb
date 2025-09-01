@@ -418,7 +418,10 @@ def create_item():
         cursor.execute('SELECT nextval(%s)', ('label_number_seq',))
         label_number = cursor.fetchone()[0]
         
-        item_name = data['item_name']
+        # Generate item name based on label number if not provided
+        item_name = data.get('item_name')
+        if not item_name:
+            item_name = f"Item_{label_number}"
         description = data.get('description', '')
         source_url = data.get('source_url', '')
         parent_guid = data.get('parent_guid')

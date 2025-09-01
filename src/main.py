@@ -38,6 +38,7 @@ from flask import Flask, render_template
 from config import APP_VERSION, FLASK_CONFIG
 from database import init_database
 from models import image_cache, thumbnail_cache
+from services.embedding_service import initialize_embedding_model
 
 # Import all blueprints
 from routes.core_routes import core_bp
@@ -58,6 +59,10 @@ def create_app():
     
     # Initialize database
     init_database()
+    
+    # Pre-load embedding model to avoid cold start delays
+    print("Pre-loading embedding model...")
+    initialize_embedding_model()
     
     # Register blueprints
     app.register_blueprint(core_bp)

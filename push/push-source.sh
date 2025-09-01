@@ -72,10 +72,12 @@ tar -czf "$TEMP_ARCHIVE" \
     -C "$LOCAL_SRC_DIR" .
 
 print_success "Created source archive: $TEMP_ARCHIVE"
+print_status "Archive size: $(du -h "$TEMP_ARCHIVE" | cut -f1)"
+print_status "Archive contents: $(tar -tzf "$TEMP_ARCHIVE" | wc -l) files"
 
 # Stop the application service
 print_status "Stopping $SERVICE_NAME service..."
-pi run-stream --pi "$PI_NAME" "sudo systemctl stop $SERVICE_NAME" || {
+timeout 30 pi run-stream --pi "$PI_NAME" "sudo systemctl stop $SERVICE_NAME" || {
     print_warning "Service was not running or failed to stop"
 }
 
@@ -83,28 +85,28 @@ pi run-stream --pi "$PI_NAME" "sudo systemctl stop $SERVICE_NAME" || {
 print_status "Pushing source code to Pi..."
 pi send --pi "$PI_NAME" "$TEMP_ARCHIVE" "/tmp/inventory-source.tar.gz"
 
-# Extract and deploy on the Pi
+# Extract and deploy on the Pi (simplified for rapid development)
 print_status "Deploying source code on Pi..."
-pi run-stream --pi "$PI_NAME" "
-    cd $PI_APP_DIR
-    sudo rm -rf backup-$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
-    sudo cp -r . backup-$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
-    sudo tar -xzf /tmp/inventory-source.tar.gz
-    sudo chown -R inventory:inventory .
-    sudo chmod -R 755 .
-    rm /tmp/inventory-source.tar.gz
-"
+
+print_status "Step 1: Extracting source archive..."
+timeout 60 pi run-stream --pi "$PI_NAME" "cd $PI_APP_DIR && echo 'Extracting archive...' && sudo tar -xzf /tmp/inventory-source.tar.gz && echo 'Archive extracted successfully'"
+
+print_status "Step 2: Setting permissions..."
+timeout 60 pi run-stream --pi "$PI_NAME" "cd $PI_APP_DIR && echo 'Setting permissions...' && sudo chown -R inventory:inventory . && sudo chmod -R 755 . && echo 'Permissions set successfully'"
+
+print_status "Step 3: Cleaning up..."
+timeout 30 pi run-stream --pi "$PI_NAME" "rm /tmp/inventory-source.tar.gz && echo 'Cleanup completed'"
 
 # Start the application service
 print_status "Starting $SERVICE_NAME service..."
-pi run-stream --pi "$PI_NAME" "sudo systemctl start $SERVICE_NAME"
+timeout 30 pi run-stream --pi "$PI_NAME" "sudo systemctl start $SERVICE_NAME"
 
 # Wait a moment for the service to start
 sleep 2
 
 # Check service status
 print_status "Checking service status..."
-pi run-stream --pi "$PI_NAME" "sudo systemctl status $SERVICE_NAME --no-pager"
+timeout 30 pi run-stream --pi "$PI_NAME" "sudo systemctl status $SERVICE_NAME --no-pager"
 
 # Clean up local archive
 rm -f "$TEMP_ARCHIVE"

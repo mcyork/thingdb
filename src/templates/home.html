@@ -484,11 +484,110 @@
         background: #f8f9fa;
     }
     
+    /* Quick Start Guide Modal */
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 2000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(5px);
+    }
+    
+    .modal-content {
+        background-color: white;
+        margin: 5% auto;
+        padding: 0;
+        border-radius: 16px;
+        width: 90%;
+        max-width: 600px;
+        max-height: 80vh;
+        overflow-y: auto;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    }
+    
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px 24px;
+        border-bottom: 1px solid #eee;
+        background: #f8f9fa;
+        border-radius: 16px 16px 0 0;
+    }
+    
+    .modal-header h2 {
+        margin: 0;
+        color: #333;
+        font-size: 20px;
+    }
+    
+    .modal-close {
+        background: none;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        color: #666;
+        padding: 4px;
+        border-radius: 4px;
+        transition: background 0.2s;
+    }
+    
+    .modal-close:hover {
+        background: #e9ecef;
+    }
+    
+    .modal-body {
+        padding: 24px;
+    }
+    
+    .quick-start-section {
+        margin-bottom: 24px;
+    }
+    
+    .quick-start-section:last-child {
+        margin-bottom: 0;
+    }
+    
+    .quick-start-section h3 {
+        color: #333;
+        margin-bottom: 12px;
+        font-size: 18px;
+    }
+    
+    .quick-start-section p {
+        color: #666;
+        line-height: 1.6;
+        margin-bottom: 12px;
+    }
+    
+    .quick-start-section ol,
+    .quick-start-section ul {
+        color: #666;
+        line-height: 1.6;
+        padding-left: 20px;
+    }
+    
+    .quick-start-section li {
+        margin-bottom: 8px;
+    }
+    
+    .quick-start-section strong {
+        color: #333;
+    }
+    
     .dev-links a {
         color: #007bff;
         text-decoration: none;
         font-size: 14px;
         margin: 0 8px;
+        white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
     }
     
     /* Tree View Styles */
@@ -720,6 +819,7 @@
         <a href="/system-status">🚀 System Status</a>
         <a href="/db-stats">📊 Inventory Stats</a>
         <a href="/backup">💾 Admin</a>
+        <a href="#" onclick="showQuickStartGuide()">📖 Quick Start</a>
     </div>
 </div>
 
@@ -737,6 +837,53 @@
     <div class="scanner-content">
         <video id="scanner-video" class="scanner-video"></video>
         <div class="scanner-info">Position QR code within the frame</div>
+    </div>
+</div>
+
+<!-- Quick Start Guide Modal -->
+<div id="quick-start-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>📖 Quick Start Guide</h2>
+            <button onclick="closeQuickStartGuide()" class="modal-close">✕</button>
+        </div>
+        <div class="modal-body">
+            <div class="quick-start-section">
+                <h3>🚀 Getting Started</h3>
+                <p>Welcome to your Inventory Management System! Here's how to get started:</p>
+            </div>
+            
+            <div class="quick-start-section">
+                <h3>➕ Adding Items</h3>
+                <ol>
+                    <li><strong>Click the + button</strong> in the top right corner to add a new item</li>
+                    <li><strong>Edit the title</strong> if you wish (items are automatically named "Item_1", "Item_2", etc.)</li>
+                    <li><strong>Add a description</strong> using the pencil icon</li>
+                    <li><strong>Take a photo</strong> by clicking "Add photo" to capture what you're inventorying</li>
+                </ol>
+            </div>
+            
+            <div class="quick-start-section">
+                <h3>💡 Pro Tips</h3>
+                <ul>
+                    <li><strong>Voice-to-Text:</strong> We recommend using <strong>Whisper Flow</strong> as a tool to add text to descriptions without typing</li>
+                    <li><strong>Smart Search:</strong> The system includes comprehensive semantic search - try searching for "camping items" to find tents, sleeping bags, and related gear</li>
+                    <li><strong>Organize:</strong> Use the tree view to organize items into categories and subcategories</li>
+                    <li><strong>QR Codes:</strong> Generate QR codes for items to quickly access them later</li>
+                </ul>
+            </div>
+            
+            <div class="quick-start-section">
+                <h3>🔍 Search Examples</h3>
+                <p>Try these search terms to see semantic search in action:</p>
+                <ul>
+                    <li>"electronics" → finds phones, laptops, chargers</li>
+                    <li>"outdoor gear" → finds tents, hiking boots, camping equipment</li>
+                    <li>"kitchen items" → finds pots, pans, utensils</li>
+                    <li>"tools" → finds hammers, screwdrivers, power tools</li>
+                </ul>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}
@@ -1354,6 +1501,27 @@ function navigateToTreeItem(guid) {
     window.location.href = `/item/${guid}`;
 }
 
+// Quick Start Guide functions
+function showQuickStartGuide() {
+    const modal = document.getElementById('quick-start-modal');
+    modal.style.display = 'block';
+    document.body.style.overflow = 'hidden'; // Prevent background scrolling
+}
+
+function closeQuickStartGuide() {
+    const modal = document.getElementById('quick-start-modal');
+    modal.style.display = 'none';
+    document.body.style.overflow = 'auto'; // Restore scrolling
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+    const modal = document.getElementById('quick-start-modal');
+    if (event.target === modal) {
+        closeQuickStartGuide();
+    }
+}
+
 // Create new item function
 function createNewItem() {
     // Call the backend to create a new item
@@ -1363,7 +1531,6 @@ function createNewItem() {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-            item_name: `Item_${new Date().getTime()}`, // Temporary name with timestamp
             description: ''
         })
     })

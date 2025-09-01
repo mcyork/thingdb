@@ -5,21 +5,54 @@ import json
 import numpy as np
 from config import SEMANTIC_SEARCH
 
-# Global embedding model instance (lazy loaded)
+# Global embedding model instance (pre-loaded)
 _embedding_model = None
 
-def get_embedding_model():
-    """Lazy load the embedding model to avoid startup delays"""
+def initialize_embedding_model():
+    """Initialize the embedding model at startup with proper caching"""
     global _embedding_model
     if _embedding_model is None:
         try:
+            import os
             from sentence_transformers import SentenceTransformer
-            print("[DEBUG] Loading embedding model (first use only)...")
-            _embedding_model = SentenceTransformer(SEMANTIC_SEARCH['model_name'])
+            
+            # Set up proper cache directory for Hugging Face models
+            cache_dir = "/var/lib/inventory/cache/models"
+            os.environ['HF_HOME'] = cache_dir
+            os.environ['TRANSFORMERS_CACHE'] = cache_dir
+            
+            # Ensure cache directory exists
+            os.makedirs(cache_dir, exist_ok=True)
+            
+            print(f"[DEBUG] Loading embedding model at startup (cache: {cache_dir})...")
+            _embedding_model = SentenceTransformer(
+                SEMANTIC_SEARCH['model_name'],
+                cache_folder=cache_dir
+            )
             print("[DEBUG] Embedding model loaded successfully")
+            
+            # Verify model is cached
+            model_path1 = os.path.join(cache_dir, "sentence-transformers", SEMANTIC_SEARCH['model_name'])
+            model_path2 = os.path.join(cache_dir, f"models--sentence-transformers--{SEMANTIC_SEARCH['model_name']}")
+            
+            if os.path.exists(model_path1):
+                print(f"[DEBUG] Model cached at: {model_path1}")
+            elif os.path.exists(model_path2):
+                print(f"[DEBUG] Model cached at: {model_path2}")
+            else:
+                print("[WARNING] Model may not be properly cached")
+                
         except Exception as e:
             print(f"[ERROR] Failed to load embedding model: {e}")
             _embedding_model = False  # Mark as failed to avoid retries
+    return _embedding_model if _embedding_model is not False else None
+
+def get_embedding_model():
+    """Get the pre-loaded embedding model"""
+    global _embedding_model
+    if _embedding_model is None:
+        # Fallback to lazy loading if not pre-initialized
+        return initialize_embedding_model()
     return _embedding_model if _embedding_model is not False else None
 
 def generate_embedding(text):
@@ -91,3 +124,54 @@ def clear_embedding_model():
     """Clear the cached embedding model (for testing/memory management)"""
     global _embedding_model
     _embedding_model = None
+
+
+def is_model_cached():
+    """Check if the embedding model is cached locally"""
+    try:
+        import os
+        cache_dir = "/var/lib/inventory/cache/models"
+        # Check both possible cache directory structures
+        model_path1 = os.path.join(cache_dir, "sentence-transformers", SEMANTIC_SEARCH['model_name'])
+        model_path2 = os.path.join(cache_dir, f"models--sentence-transformers--{SEMANTIC_SEARCH['model_name']}")
+        return os.path.exists(model_path1) or os.path.exists(model_path2)
+    except Exception:
+        return False
+
+
+def get_cache_info():
+    """Get information about model caching"""
+    try:
+        import os
+        cache_dir = "/var/lib/inventory/cache/models"
+        # Check both possible cache directory structures
+        model_path1 = os.path.join(cache_dir, "sentence-transformers", SEMANTIC_SEARCH['model_name'])
+        model_path2 = os.path.join(cache_dir, f"models--sentence-transformers--{SEMANTIC_SEARCH['model_name']}")
+        
+        # Determine which path exists
+        if os.path.exists(model_path1):
+            model_path = model_path1
+        elif os.path.exists(model_path2):
+            model_path = model_path2
+        else:
+            return {
+                'cached': False,
+                'path': model_path1,
+                'size_mb': 0
+            }
+        
+        # Calculate size
+        size = sum(os.path.getsize(os.path.join(dirpath, filename))
+                  for dirpath, dirnames, filenames in os.walk(model_path)
+                  for filename in filenames)
+        
+        return {
+            'cached': True,
+            'path': model_path,
+            'size_mb': round(size / (1024 * 1024), 2)
+        }
+    except Exception as e:
+        return {
+            'cached': False,
+            'error': str(e)
+        }
