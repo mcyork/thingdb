@@ -6,14 +6,34 @@ set -e
 
 echo "🚀 Creating Raspberry Pi deployment package..."
 
-# Configuration
-PROJECT_ROOT="/Users/ianmccutcheon/projects/inv2-dev"
+# =============================================================================
+# CONFIGURATION - Edit these paths as needed
+# =============================================================================
+# 
+# This script automatically detects its location and sets paths relative to it.
+# If you move this script to a different directory, update these paths:
+#
+# PROJECT_ROOT: Path to your inv2-dev project (relative to script location)
+# PI_CLI: Path to your pi CLI tool (or leave as "pi" if it's in PATH)
+# DEPLOY_DIR: Where to create the deployment package (default: $HOME/inventory-deploy-build)
+# =============================================================================
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Project paths (relative to script location)
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"  # Goes up one level from deploy/ to inv2-dev/
 DEPLOY_DIR="$HOME/inventory-deploy-build"
 PACKAGE_NAME="inventory-deploy.tar.gz"
-PYBRIDGE_PATH="/Users/ianmccutcheon/projects/pi-shell/pi"
 
-# Pi configuration
-PI_HOST="192.168.43.203"  # Pi IP (will be overridden by PyBridge default)
+# Pi CLI tool path (try PATH first, then fallback)
+PI_CLI="pi"  # Assumes 'pi' is in PATH
+if ! command -v "$PI_CLI" &> /dev/null; then
+    # Fallback to common locations
+    PI_CLI="/Users/ianmccutcheon/projects/pi-shell/pi"
+fi
+
+# Pi configuration (these are informational, actual values come from pi CLI)
 PI_USER="pi"
 PI_DEPLOY_PATH="/tmp"
 
@@ -29,20 +49,19 @@ print_status() {
     echo -e "${BLUE}[INFO]${NC} $1"
 }
 
-# Function to check Pi status using PyBridge
+# Function to check Pi status using pi CLI
 check_pi_status() {
-    if [ -f "$PYBRIDGE_PATH" ]; then
-        print_status "Checking Pi status using PyBridge..."
-        cd "$(dirname "$PYBRIDGE_PATH")"
-        if ./pi status | grep -q ".*ONLINE"; then
+    if command -v "$PI_CLI" &> /dev/null; then
+        print_status "Checking Pi status using pi CLI..."
+        if "$PI_CLI" status | grep -q ".*ONLINE"; then
             print_success "Pi is online and ready for deployment"
             return 0
         else
-            print_warning "Pi appears to be offline. Check PyBridge status."
+            print_warning "Pi appears to be offline. Check pi CLI status."
             return 1
         fi
     else
-        print_warning "PyBridge not found at $PYBRIDGE_PATH"
+        print_warning "pi CLI not found at $PI_CLI"
         print_warning "Will use manual SCP/SSH instead"
         return 1
     fi
@@ -66,27 +85,13 @@ if [ ! -d "$PROJECT_ROOT" ]; then
     exit 1
 fi
 
-# Check if Docker testing environment is available
-if [ ! -f "$PROJECT_ROOT/scripts/manage-docker-storage.sh" ]; then
-    print_warning "Docker testing environment not found. This is recommended for testing before Pi deployment."
-else
-    print_status "Docker testing environment found. Testing code before deployment..."
-    
-    # Test our code in Docker first (following our documented workflow)
-    cd "$PROJECT_ROOT"
-    if ./scripts/manage-docker-storage.sh test > /tmp/docker-test.log 2>&1; then
-        print_success "Docker tests passed - code is ready for Pi deployment"
-    else
-        print_warning "Docker tests had issues - check /tmp/docker-test.log"
-        print_warning "Consider fixing issues before Pi deployment"
-        read -p "Continue with Pi deployment anyway? (y/N): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            print_error "Deployment cancelled. Fix Docker issues first."
-            exit 1
-        fi
-    fi
+# Check if pi CLI tool is available
+if [ ! -f "$PI_CLI" ] && ! command -v "$PI_CLI" &> /dev/null; then
+    print_error "Pi CLI tool not found. Please ensure 'pi' is in PATH or update PI_CLI path above."
+    exit 1
 fi
+
+print_status "Pi CLI tool found: $PI_CLI"
 
 # Create deployment directory
 print_status "Creating deployment directory..."
@@ -753,28 +758,27 @@ echo ""
 # Check Pi status for informational purposes
 if check_pi_status; then
     print_status "Pi is online and ready for deployment"
-    print_status "Use ./scripts/deploy-remote.sh to deploy automatically"
+    print_status "Use ../deploy/deploy-remote-clean.sh to deploy automatically"
 else
-    print_status "Pi appears to be offline or PyBridge unavailable"
+    print_status "Pi appears to be offline or pi CLI unavailable"
     print_status "Use manual deployment instructions below"
 fi
 echo "🚀 Next Steps:"
-echo "   1. Deploy automatically: ./scripts/deploy-remote.sh"
+echo "   1. Deploy automatically: ../deploy/deploy-remote-clean.sh"
 echo "   2. Or deploy manually:"
-echo "      - Transfer: scp $PACKAGE_PATH $PI_USER@$PI_HOST:/tmp/"
-echo "      - SSH: ssh $PI_USER@$PI_HOST"
+echo "      - Transfer: scp $PACKAGE_PATH pi@[PI_IP]:/tmp/"
+echo "      - SSH: ssh pi@[PI_IP]"
 echo "      - Deploy: cd /tmp && tar -xzf $PACKAGE_NAME && sudo ./deploy.sh"
 echo ""
 echo "📋 Alternative transfer methods:"
-echo "   - Automatic: ./scripts/deploy-remote.sh (recommended)"
-echo "   - Manual rsync: rsync -avz $PACKAGE_PATH $PI_USER@$PI_HOST:/tmp/"
+echo "   - Automatic: ../deploy/deploy-remote-clean.sh (recommended)"
+echo "   - Manual rsync: rsync -avz $PACKAGE_PATH pi@[PI_IP]:/tmp/"
 echo "   - USB drive: Copy $PACKAGE_PATH to USB and transfer manually"
 echo ""
-echo "🔧 Improved Workflow (Following Our Strategy):"
-echo "   1. Test in Docker: ./scripts/manage-docker-storage.sh test"
-echo "   2. Create deployment package: ./deploy-prepare.sh"
-echo "   3. Deploy automatically: ./scripts/deploy-remote.sh"
-echo "   4. Verify functionality on Pi"
+echo "🔧 Deployment Workflow:"
+echo "   1. Create deployment package: ./deploy-prepare-clean.sh"
+echo "   2. Deploy automatically: ../deploy/deploy-remote-clean.sh"
+echo "   3. Verify functionality on Pi"
 echo ""
 
 # Clean up deployment directory (keep the package)
