@@ -163,12 +163,20 @@ fi
 # Update system packages
 print_status "Updating system packages..."
 export DEBIAN_FRONTEND=noninteractive
-apt update
-apt upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"
+# apt update
+#apt upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"
 
 # Install system dependencies
 print_status "Installing system dependencies..."
-apt install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" python3 python3-pip python3-venv postgresql postgresql-contrib nginx git curl wget
+apt install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" python3 python3-pip python3-venv postgresql postgresql-contrib nginx git curl wget avahi-daemon
+
+# Install printing system dependencies (COMMENTED OUT - BROKE NETWORK)
+# print_status "Installing printing system dependencies..."
+# apt install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" cups cups-client cups-daemon hplip fonts-dejavu-core fonts-liberation avahi-daemon
+
+# Install cloud utilities (includes partition growth functionality)
+print_status "Installing cloud utilities..."
+apt install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" cloud-guest-utils
 
 # Install additional Python packages
 print_status "Installing Python development packages..."
@@ -185,6 +193,21 @@ else
     useradd -r -s /bin/false inventory
     print_success "User 'inventory' created."
 fi
+
+# Setup printing system (COMMENTED OUT - BROKE NETWORK)
+# print_status "Setting up printing system..."
+# # Add pi user to lpadmin group for printer management
+# usermod -a -G lpadmin pi 2>/dev/null || {
+#     print_warning "Could not add pi user to lpadmin group - printing may be limited"
+# }
+
+# # Start and enable CUPS service
+# systemctl start cups
+# systemctl enable cups
+# systemctl start avahi-daemon
+# systemctl enable avahi-daemon
+
+# print_success "Printing system configured"
 
 # Setup application directory
 print_status "Setting up application directory..."
@@ -256,6 +279,12 @@ print_status "Installing additional required packages..."
 pip install psutil 2>/dev/null || {
     print_warning "psutil installation failed - some features may be limited"
 }
+
+# Install printing dependencies (COMMENTED OUT - BROKE NETWORK)
+# print_status "Installing printing dependencies..."
+# pip install qrcode[pil] 2>/dev/null || {
+#     print_warning "QR code generation installation failed - printing may be limited"
+# }
 
 # Setup PostgreSQL
 print_status "Setting up PostgreSQL database..."
@@ -453,6 +482,12 @@ systemctl enable nginx
 systemctl start nginx
 sleep 3  # Give Nginx time to start
 
+# Start Avahi-daemon (mDNS)
+print_status "Starting Avahi-daemon (mDNS)..."
+systemctl enable avahi-daemon
+systemctl start avahi-daemon
+sleep 2  # Give Avahi time to start
+
 # Verify Nginx is running
 if ! systemctl is-active --quiet nginx; then
     print_error "Nginx failed to start"
@@ -460,6 +495,14 @@ if ! systemctl is-active --quiet nginx; then
     exit 1
 fi
 print_success "Nginx service is running"
+
+# Verify Avahi-daemon is running
+if ! systemctl is-active --quiet avahi-daemon; then
+    print_error "Avahi-daemon failed to start"
+    systemctl status avahi-daemon
+    exit 1
+fi
+print_success "Avahi-daemon service is running"
 
 # CRITICAL: Verify Nginx is actually listening on both HTTP and HTTPS ports
 print_status "Verifying Nginx port binding..."
@@ -664,7 +707,7 @@ print_success "Semantic search API will be available when items are added"
 
 print_success "Deployment completed successfully!"
 print_status "Access your inventory system at: https://$(hostname -I | awk '{print $1}')"
-print_status "Or use: https://raspberrypi.local (if mDNS is enabled)"
+print_status "Or use: https://inventory.local (mDNS enabled)"
 
 # Final comprehensive verification
 print_status "Performing final system verification..."
@@ -673,13 +716,14 @@ echo "🔍 System Status Check:"
 echo "   • Inventory App Service: $(systemctl is-active inventory-app 2>/dev/null || echo 'FAILED')"
 echo "   • Nginx Service: $(systemctl is-active nginx 2>/dev/null || echo 'FAILED')"
 echo "   • PostgreSQL Service: $(systemctl is-active postgresql 2>/dev/null || echo 'FAILED')"
+echo "   • Avahi-daemon (mDNS): $(systemctl is-active avahi-daemon 2>/dev/null || echo 'FAILED')"
 echo "   • ML Cache Directory: $(ls -A /var/lib/inventory/ml_cache >/dev/null 2>&1 && echo 'READY' || echo 'EMPTY')"
 echo "   • Database Connection: $(timeout 5 sudo -u inventory psql -h localhost -U inventory -d inventory_db -c 'SELECT 1;' >/dev/null 2>&1 && echo 'OK' || echo 'FAILED')"
 echo "   • Flask App Response: $(timeout 5 curl -s -f http://127.0.0.1:8000/ >/dev/null 2>&1 && echo 'OK' || echo 'FAILED')"
 echo "   • HTTPS Interface: $(timeout 5 curl -s -k -f https://localhost/ >/dev/null 2>&1 && echo 'OK' || echo 'FAILED')"
 echo ""
 
-if systemctl is-active --quiet inventory-app && systemctl is-active --quiet nginx && systemctl is-active --quiet postgresql; then
+if systemctl is-active --quiet inventory-app && systemctl is-active --quiet nginx && systemctl is-active --quiet postgresql && systemctl is-active --quiet avahi-daemon; then
     print_success "🎉 All core services are running successfully!"
     print_status "Your inventory system is ready for use!"
 else

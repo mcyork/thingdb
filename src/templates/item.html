@@ -738,6 +738,7 @@
         <div style="display: flex; gap: 4px;">
             <button onclick="editHeaderName()" class="header-edit-btn" id="header-edit-btn" title="Edit Name">✏️</button>
             <button onclick="editHeaderLabel()" class="header-edit-btn" id="header-label-edit-btn" title="Edit Label">#</button>
+            <!-- <button onclick="printItemDetails()" class="header-edit-btn" title="Print Item Details">🖨️</button>  COMMENTED OUT - BROKE NETWORK -->
         </div>
     </div>
 </header>
@@ -2000,6 +2001,27 @@ function associateWithItem(targetGuid, targetName) {
         });
     }
 }
+
+// Print item details function (COMMENTED OUT - BROKE NETWORK)
+/*
+async function printItemDetails() {
+    try {
+        const response = await fetch('/print/item/{{ guid }}', {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Print job sent successfully!');
+        } else {
+            alert('Print failed: ' + data.error);
+        }
+    } catch (error) {
+        alert('Print failed: ' + error.message);
+    }
+}
+*/
 {% endif %}
 </script>
 {% endblock %}
