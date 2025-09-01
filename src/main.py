@@ -46,6 +46,7 @@ from routes.item_routes import item_bp
 from routes.search_routes import search_bp
 from routes.relationship_routes import relationship_bp
 from routes.admin_routes import admin_bp
+from routes.backup_routes import backup_bp
 
 
 def create_app():
@@ -65,6 +66,7 @@ def create_app():
     app.register_blueprint(search_bp)
     app.register_blueprint(relationship_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(backup_bp)
     
     # Error handlers
     @app.errorhandler(404)

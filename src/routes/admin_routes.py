@@ -470,3 +470,85 @@ def api_reindex_embeddings():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+@admin_bp.route('/cleanup-orphaned-images', methods=['POST'])
+def cleanup_orphaned_images():
+    """Clean up orphaned image files from filesystem"""
+    try:
+        from config import IMAGE_STORAGE_METHOD, IMAGE_DIR
+        import os
+        
+        if IMAGE_STORAGE_METHOD != 'filesystem':
+            return jsonify({
+                'success': False,
+                'error': 'Cleanup only available for filesystem storage'
+            }), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get all image file paths from database
+        cursor.execute('SELECT image_path, thumbnail_path, preview_path FROM images')
+        db_files = cursor.fetchall()
+        conn.close()
+        
+        # Create set of all files that should exist
+        expected_files = set()
+        for image_path, thumbnail_path, preview_path in db_files:
+            if image_path:
+                expected_files.add(image_path)
+            if thumbnail_path:
+                expected_files.add(thumbnail_path)
+            if preview_path:
+                expected_files.add(preview_path)
+        
+        # Get all files in the images directory
+        if not os.path.exists(IMAGE_DIR):
+            return jsonify({
+                'success': True,
+                'message': 'No images directory found',
+                'cleaned_files': 0
+            })
+        
+        actual_files = set()
+        for filename in os.listdir(IMAGE_DIR):
+            if os.path.isfile(os.path.join(IMAGE_DIR, filename)):
+                actual_files.add(filename)
+        
+        # Find orphaned files
+        orphaned_files = actual_files - expected_files
+        
+        # Delete orphaned files
+        cleaned_count = 0
+        total_size_freed = 0
+        
+        for filename in orphaned_files:
+            try:
+                file_path = os.path.join(IMAGE_DIR, filename)
+                file_size = os.path.getsize(file_path)
+                os.remove(file_path)
+                cleaned_count += 1
+                total_size_freed += file_size
+            except Exception as e:
+                print(f"Failed to delete orphaned file {filename}: {e}")
+        
+        # Format size for display
+        if total_size_freed > 1024 * 1024:
+            size_str = f"{total_size_freed / (1024 * 1024):.1f}MB"
+        elif total_size_freed > 1024:
+            size_str = f"{total_size_freed / 1024:.1f}KB"
+        else:
+            size_str = f"{total_size_freed}B"
+        
+        return jsonify({
+            'success': True,
+            'message': f'Cleaned up {cleaned_count} orphaned files ({size_str} freed)',
+            'cleaned_files': cleaned_count,
+            'size_freed': size_str
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+

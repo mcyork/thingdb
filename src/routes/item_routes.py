@@ -3,12 +3,58 @@ Item CRUD routes for Flask Inventory Management System
 Handles item creation, editing, deletion, and relationship management
 """
 import json
+import os
 from flask import Blueprint, request, jsonify, redirect, url_for
 from database import get_db_connection
 from utils.helpers import is_valid_guid, validate_item_data
 from services.embedding_service import generate_embedding
+from config import IMAGE_STORAGE_METHOD, IMAGE_DIR
 
 item_bp = Blueprint('item', __name__)
+
+
+def cleanup_item_images(item_guid):
+    """Clean up image files from filesystem when item is deleted"""
+    if IMAGE_STORAGE_METHOD != 'filesystem':
+        return
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get all image file paths for this item
+        cursor.execute('''
+            SELECT image_path, thumbnail_path, preview_path 
+            FROM images 
+            WHERE item_guid = %s
+        ''', (item_guid,))
+        
+        image_files = cursor.fetchall()
+        conn.close()
+        
+        # Delete each image file from filesystem
+        for image_path, thumbnail_path, preview_path in image_files:
+            if image_path and os.path.exists(os.path.join(IMAGE_DIR, image_path)):
+                try:
+                    os.remove(os.path.join(IMAGE_DIR, image_path))
+                except Exception as e:
+                    print(f"Failed to delete image file {image_path}: {e}")
+            
+            if thumbnail_path and os.path.exists(os.path.join(IMAGE_DIR, thumbnail_path)):
+                try:
+                    os.remove(os.path.join(IMAGE_DIR, thumbnail_path))
+                except Exception as e:
+                    print(f"Failed to delete thumbnail file {thumbnail_path}: {e}")
+            
+            if preview_path and os.path.exists(os.path.join(IMAGE_DIR, preview_path)):
+                try:
+                    os.remove(os.path.join(IMAGE_DIR, preview_path))
+                except Exception as e:
+                    print(f"Failed to delete preview file {preview_path}: {e}")
+                    
+    except Exception as e:
+        print(f"Error cleaning up images for item {item_guid}: {e}")
+
 
 @item_bp.route('/update-item-name/<guid>', methods=['POST'])
 def update_item_name(guid):
@@ -143,6 +189,9 @@ def delete_item(guid):
                 "success": False, 
                 "error": f"Cannot delete item with {child_count} contained items. Move or delete contained items first."
             }), 400
+        
+        # Clean up image files from filesystem before deleting database records
+        cleanup_item_images(guid)
         
         # Delete associated data (images, categories, text_content will cascade)
         cursor.execute('DELETE FROM qr_aliases WHERE item_guid = %s', (guid,))
