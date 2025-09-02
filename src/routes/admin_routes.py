@@ -2,16 +2,22 @@
 Admin routes for Flask Inventory Management System
 Handles health checks, system monitoring, and administration functions
 """
-import json
 import psutil
-from datetime import datetime, timedelta
+from datetime import datetime
 from flask import Blueprint, jsonify, render_template
 from database import get_db_connection, get_connection_pool_info
 from models import image_cache, thumbnail_cache
 from services.embedding_service import is_embedding_model_available
+from services.qr_pdf_service import qr_pdf_service
 from config import APP_VERSION
 
 admin_bp = Blueprint('admin', __name__)
+
+@admin_bp.route('/admin')
+def admin_panel():
+    """Main admin panel page with consolidated admin functions"""
+    return render_template('admin.html')
+
 
 @admin_bp.route('/health')
 def health_check():
@@ -574,3 +580,164 @@ def model_cache_status():
             'error': str(e)
         }), 500
 
+
+@admin_bp.route('/api/validate-database', methods=['POST'])
+def api_validate_database():
+    """Validate database integrity and find issues"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        issues_found = 0
+        issues_fixed = 0
+        checks_performed = 0
+        details = []
+        
+        # Check 1: Orphaned images
+        checks_performed += 1
+        cursor.execute("""
+            SELECT COUNT(*) FROM images i 
+            LEFT JOIN items it ON i.item_guid = it.guid 
+            WHERE it.guid IS NULL
+        """)
+        orphaned_images = cursor.fetchone()[0]
+        if orphaned_images > 0:
+            issues_found += 1
+            details.append(f"Found {orphaned_images} orphaned images")
+        
+        # Check 2: Orphaned categories
+        checks_performed += 1
+        cursor.execute("""
+            SELECT COUNT(*) FROM categories c 
+            LEFT JOIN items it ON c.item_guid = it.guid 
+            WHERE it.guid IS NULL
+        """)
+        orphaned_categories = cursor.fetchone()[0]
+        if orphaned_categories > 0:
+            issues_found += 1
+            details.append(f"Found {orphaned_categories} orphaned categories")
+        
+        # Check 3: Items without primary images but have images
+        checks_performed += 1
+        cursor.execute("""
+            SELECT COUNT(*) FROM items i
+            WHERE EXISTS (SELECT 1 FROM images img WHERE img.item_guid = i.guid)
+            AND NOT EXISTS (SELECT 1 FROM images img WHERE img.item_guid = i.guid AND img.is_primary = true)
+        """)
+        no_primary = cursor.fetchone()[0]
+        if no_primary > 0:
+            issues_found += 1
+            details.append(f"Found {no_primary} items with images but no primary image")
+        
+        # Check 4: Items with invalid parent references
+        checks_performed += 1
+        cursor.execute("""
+            SELECT COUNT(*) FROM items i
+            WHERE i.parent_guid IS NOT NULL 
+            AND NOT EXISTS (SELECT 1 FROM items p WHERE p.guid = i.parent_guid)
+        """)
+        invalid_parents = cursor.fetchone()[0]
+        if invalid_parents > 0:
+            issues_found += 1
+            details.append(f"Found {invalid_parents} items with invalid parent references")
+        
+        # Check 5: Duplicate label numbers
+        checks_performed += 1
+        cursor.execute("""
+            SELECT label_number, COUNT(*) as count 
+            FROM items 
+            WHERE label_number IS NOT NULL 
+            GROUP BY label_number 
+            HAVING COUNT(*) > 1
+        """)
+        duplicate_labels = cursor.fetchall()
+        if duplicate_labels:
+            issues_found += 1
+            details.append(f"Found {len(duplicate_labels)} duplicate label numbers")
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'checks_performed': checks_performed,
+            'issues_found': issues_found,
+            'issues_fixed': issues_fixed,
+            'details': details
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@admin_bp.route('/api/optimize-database', methods=['POST'])
+def api_optimize_database():
+    """Optimize database performance"""
+    try:
+        import psycopg2.extensions
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get database size before optimization
+        cursor.execute("SELECT pg_size_pretty(pg_database_size(current_database()))")
+        size_before = cursor.fetchone()[0]
+        
+        # Run VACUUM to reclaim space
+        conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+        cursor.execute("VACUUM")
+        
+        # Run ANALYZE to update statistics
+        cursor.execute("ANALYZE")
+        
+        # Get database size after optimization
+        cursor.execute("SELECT pg_size_pretty(pg_database_size(current_database()))")
+        size_after = cursor.fetchone()[0]
+        
+        # Count tables analyzed
+        cursor.execute("""
+            SELECT COUNT(*) FROM information_schema.tables 
+            WHERE table_schema = 'public'
+        """)
+        tables_analyzed = cursor.fetchone()[0]
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'space_reclaimed': f"Optimized from {size_before} to {size_after}",
+            'tables_analyzed': tables_analyzed
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@admin_bp.route('/api/generate-qr-sheet', methods=['POST'])
+def generate_qr_sheet():
+    """Generate and download QR code PDF sheet"""
+    try:
+        from flask import send_file
+        
+        # Generate PDF
+        pdf_buffer, guids = qr_pdf_service.generate_qr_sheet()
+        filename = qr_pdf_service.get_pdf_filename()
+        
+        # Return PDF as download
+        return send_file(
+            pdf_buffer,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='application/pdf'
+        )
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500

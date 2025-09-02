@@ -168,7 +168,8 @@ export DEBIAN_FRONTEND=noninteractive
 
 # Install system dependencies
 print_status "Installing system dependencies..."
-apt install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" python3 python3-pip python3-venv postgresql postgresql-contrib nginx git curl wget avahi-daemon
+apt install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" python3 python3-pip python3-venv postgresql postgresql-contrib nginx git curl wget
+# avahi-daemon  # COMMENTED OUT - may cause network issues
 
 # Install printing system dependencies (COMMENTED OUT - BROKE NETWORK)
 # print_status "Installing printing system dependencies..."
@@ -482,11 +483,11 @@ systemctl enable nginx
 systemctl start nginx
 sleep 3  # Give Nginx time to start
 
-# Start Avahi-daemon (mDNS)
-print_status "Starting Avahi-daemon (mDNS)..."
-systemctl enable avahi-daemon
-systemctl start avahi-daemon
-sleep 2  # Give Avahi time to start
+# Start Avahi-daemon (mDNS) - COMMENTED OUT - may cause network issues
+# print_status "Starting Avahi-daemon (mDNS)..."
+# systemctl enable avahi-daemon
+# systemctl start avahi-daemon
+# sleep 2  # Give Avahi time to start
 
 # Verify Nginx is running
 if ! systemctl is-active --quiet nginx; then
@@ -496,13 +497,13 @@ if ! systemctl is-active --quiet nginx; then
 fi
 print_success "Nginx service is running"
 
-# Verify Avahi-daemon is running
-if ! systemctl is-active --quiet avahi-daemon; then
-    print_error "Avahi-daemon failed to start"
-    systemctl status avahi-daemon
-    exit 1
-fi
-print_success "Avahi-daemon service is running"
+# Verify Avahi-daemon is running - COMMENTED OUT - may cause network issues
+# if ! systemctl is-active --quiet avahi-daemon; then
+#     print_error "Avahi-daemon failed to start"
+#     systemctl status avahi-daemon
+#     exit 1
+# fi
+# print_success "Avahi-daemon service is running"
 
 # CRITICAL: Verify Nginx is actually listening on both HTTP and HTTPS ports
 print_status "Verifying Nginx port binding..."
@@ -555,6 +556,37 @@ done
 # Final verification
 if [ "$SERVICE_STABLE" = true ]; then
     print_success "Flask application is running and stable"
+    
+    # Test admin page specifically with retry logic
+    print_status "Testing admin page accessibility..."
+    ADMIN_MAX_RETRIES=10
+    ADMIN_RETRY_COUNT=0
+    ADMIN_STABLE=false
+    
+    while [ $ADMIN_RETRY_COUNT -lt $ADMIN_MAX_RETRIES ] && [ "$ADMIN_STABLE" = false ]; do
+        sleep 3
+        ADMIN_RETRY_COUNT=$((ADMIN_RETRY_COUNT + 1))
+        
+        if curl -s -f --max-time 5 http://127.0.0.1:8000/admin > /dev/null 2>&1; then
+            ADMIN_STABLE=true
+            print_success "Admin page is accessible and responding (attempt $ADMIN_RETRY_COUNT)"
+        else
+            if [ $ADMIN_RETRY_COUNT -eq 1 ]; then
+                print_warning "Admin page not responding - restarting service to reload routes..."
+                systemctl restart inventory-app
+                sleep 5
+            else
+                print_status "Admin page not responding yet, waiting... (attempt $ADMIN_RETRY_COUNT/$ADMIN_MAX_RETRIES)"
+            fi
+        fi
+    done
+    
+    # Final admin page verification
+    if [ "$ADMIN_STABLE" = true ]; then
+        print_success "Admin page is running and stable"
+    else
+        print_warning "Admin page failed to stabilize after $ADMIN_MAX_RETRIES attempts - check logs for import errors"
+    fi
 else
     print_error "Flask application failed to stabilize after $MAX_RETRIES attempts"
     print_status "Checking service status and logs..."
@@ -716,14 +748,14 @@ echo "🔍 System Status Check:"
 echo "   • Inventory App Service: $(systemctl is-active inventory-app 2>/dev/null || echo 'FAILED')"
 echo "   • Nginx Service: $(systemctl is-active nginx 2>/dev/null || echo 'FAILED')"
 echo "   • PostgreSQL Service: $(systemctl is-active postgresql 2>/dev/null || echo 'FAILED')"
-echo "   • Avahi-daemon (mDNS): $(systemctl is-active avahi-daemon 2>/dev/null || echo 'FAILED')"
+# echo "   • Avahi-daemon (mDNS): $(systemctl is-active avahi-daemon 2>/dev/null || echo 'FAILED')"  # COMMENTED OUT
 echo "   • ML Cache Directory: $(ls -A /var/lib/inventory/ml_cache >/dev/null 2>&1 && echo 'READY' || echo 'EMPTY')"
 echo "   • Database Connection: $(timeout 5 sudo -u inventory psql -h localhost -U inventory -d inventory_db -c 'SELECT 1;' >/dev/null 2>&1 && echo 'OK' || echo 'FAILED')"
 echo "   • Flask App Response: $(timeout 5 curl -s -f http://127.0.0.1:8000/ >/dev/null 2>&1 && echo 'OK' || echo 'FAILED')"
 echo "   • HTTPS Interface: $(timeout 5 curl -s -k -f https://localhost/ >/dev/null 2>&1 && echo 'OK' || echo 'FAILED')"
 echo ""
 
-if systemctl is-active --quiet inventory-app && systemctl is-active --quiet nginx && systemctl is-active --quiet postgresql && systemctl is-active --quiet avahi-daemon; then
+if systemctl is-active --quiet inventory-app && systemctl is-active --quiet nginx && systemctl is-active --quiet postgresql; then
     print_success "🎉 All core services are running successfully!"
     print_status "Your inventory system is ready for use!"
 else

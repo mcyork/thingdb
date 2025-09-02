@@ -14,8 +14,9 @@ Pillow==10.0.1
 requests==2.31.0
 python-dotenv==1.0.0
 
-# Printing system dependencies
+# QR Code and PDF generation
 qrcode[pil]==7.4.2
+reportlab==4.0.4
 
 # CONFIRMED REMOVED (not used in your app.py):
 # redis==4.6.0                 # You don't use Redis
