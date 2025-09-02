@@ -1,0 +1,51 @@
+[Unit]
+Description=Home Inventory System - Flask Application
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=exec
+User=inventory
+Group=inventory
+WorkingDirectory=/var/lib/inventory/app
+Environment=FLASK_ENV=production
+EnvironmentFile=/var/lib/inventory/config/environment.env
+ExecStart=/var/lib/inventory/app/venv/bin/gunicorn \
+    --bind 127.0.0.1:5000 \
+    --workers 2 \
+    --worker-class sync \
+    --worker-connections 50 \
+    --max-requests 1000 \
+    --max-requests-jitter 50 \
+    --timeout 60 \
+    --keep-alive 5 \
+    --access-logfile /var/lib/inventory/logs/access.log \
+    --error-logfile /var/lib/inventory/logs/error.log \
+    --capture-output \
+    --enable-stdio-inheritance \
+    main:app
+
+# Restart policy
+Restart=always
+RestartSec=3
+StartLimitInterval=60s
+StartLimitBurst=3
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/inventory
+
+# Resource limits (Pi optimization)
+MemoryMax=1G
+CPUQuota=150%
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=inventory-app
+
+[Install]
+WantedBy=multi-user.target

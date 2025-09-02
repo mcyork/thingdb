@@ -853,7 +853,7 @@ def api_upload_package():
 
 @admin_bp.route('/api/install-package', methods=['POST'])
 def api_install_package():
-    """Install an uploaded package (simplified version)"""
+    """Install an uploaded package"""
     try:
         from flask import request
         import os
@@ -864,45 +864,169 @@ def api_install_package():
         import time
         import logging
         from pathlib import Path
-        
+        import tempfile
+
         logger = logging.getLogger(__name__)
         
         data = request.json
-        package_path = data.get('package_path')
+        bundle_path = data.get('package_path')
+
+        if not bundle_path or not os.path.exists(bundle_path):
+            return jsonify({'success': False, 'error': 'Package bundle not found'}), 400
+
+        logger.info(f"Starting package installation from: {bundle_path}")
+
+        # Define paths based on the Pi's directory structure
+        inventory_root = Path('/var/lib/inventory')
+        app_dir = inventory_root / 'app'
+        logs_dir = inventory_root / 'logs'
+        backup_dir = inventory_root / 'backup'
         
-        if not package_path or not os.path.exists(package_path):
-            return jsonify({'success': False, 'error': 'Package not found'}), 400
-        
-        # Simple install - just extract and restart
-        logger.info(f"Starting package installation: {package_path}")
-        
-        # Create backup
-        app_dir = os.path.dirname(__file__)
-        backup_dir = os.path.join(app_dir, '..', '..', 'backup')
+        # Check for available disk space
+        total, used, free = shutil.disk_usage(inventory_root)
+        if free < 50 * 1024 * 1024: # 50MB threshold
+            return jsonify({'success': False, 'error': f'Insufficient disk space. Only {free // 1024 // 1024}MB free.'}), 400
+
         os.makedirs(backup_dir, exist_ok=True)
-        backup_path = os.path.join(backup_dir, f'backup-{int(time.time())}')
+        backup_path = backup_dir / f'app-backup-{int(time.time())}'
+
+        # Create backup, ignoring the venv directory
+        logger.info(f"Backing up current 'app' directory to: {backup_path}")
+        shutil.copytree(app_dir, backup_path, ignore=shutil.ignore_patterns('venv'))
+
+        # Extract the inner package from the bundle
+        temp_extract_dir = Path(tempfile.mkdtemp(prefix="inventory_install_"))
+        with tarfile.open(bundle_path, 'r:gz') as bundle_tar:
+            bundle_tar.extractall(path=temp_extract_dir)
         
-        logger.info(f"Creating backup at: {backup_path}")
-        shutil.copytree(app_dir, backup_path)
+        # Find the actual source tar.gz inside the bundle
+        package_files = list(temp_extract_dir.glob('*.tar.gz'))
+        package_files = [f for f in package_files if not f.name.endswith('-bundle.tar.gz')]
+
+        if not package_files:
+            raise Exception("No source package found inside the bundle.")
         
-        # Extract package
-        logger.info("Extracting package...")
-        with tarfile.open(package_path, 'r:gz') as tar:
-            tar.extractall(path=os.path.dirname(app_dir))
+        source_package_path = package_files[0]
         
+        # Extract the source code to a temporary location
+        temp_src_dir = Path(tempfile.mkdtemp(prefix="inventory_src_"))
+        logger.info(f"Extracting source package to: {temp_src_dir}")
+        with tarfile.open(source_package_path, 'r:gz') as src_tar:
+            src_tar.extractall(path=temp_src_dir)
+        
+        # The package contains a 'src' directory.
+        new_app_path = temp_src_dir / 'src'
+        if not new_app_path.exists():
+            raise Exception("The package does not contain a 'src' directory.")
+
+        # Delete old application files, but keep venv
+        for item in app_dir.iterdir():
+            if item.name != 'venv':
+                if item.is_dir():
+                    shutil.rmtree(item)
+                else:
+                    os.remove(item)
+
+        # Copy new application files
+        for item in new_app_path.iterdir():
+            if item.is_dir():
+                shutil.copytree(item, app_dir / item.name)
+            else:
+                shutil.copy2(item, app_dir)
+
+        # Ensure logs directory exists
+        os.makedirs(logs_dir, exist_ok=True)
+
+        # Clean up temporary directories
+        shutil.rmtree(temp_extract_dir)
+        shutil.rmtree(temp_src_dir)
+
         logger.info("Package installation completed successfully")
         
         return jsonify({
             'success': True,
             'message': 'Package installed successfully. Service restart required.',
-            'backup_location': backup_path
+            'backup_location': str(backup_path)
         })
-        
+
     except Exception as e:
         logger.error(f"Installation failed: {e}")
+        # Attempt to rollback on failure
+        try:
+            if 'backup_path' in locals() and os.path.exists(backup_path):
+                logger.warning("Installation failed, attempting to restore from backup...")
+                # Same logic as install: delete app files (except venv) and copy from backup
+                for item in app_dir.iterdir():
+                    if item.name != 'venv':
+                        if item.is_dir():
+                            shutil.rmtree(item)
+                        else:
+                            os.remove(item)
+                for item in Path(backup_path).iterdir():
+                    if item.is_dir():
+                        shutil.copytree(item, app_dir / item.name)
+                    else:
+                        shutil.copy2(item, app_dir)
+                logger.info("Rollback from backup successful.")
+        except Exception as rb_e:
+            logger.error(f"Rollback attempt failed: {rb_e}")
+
         return jsonify({
             'success': False,
             'error': f'Installation failed: {str(e)}'
+        }), 500
+
+
+@admin_bp.route('/api/rollback-package', methods=['POST'])
+def api_rollback_package():
+    """Rollback to a specified backup"""
+    try:
+        from flask import request
+        import os
+        import shutil
+        import logging
+        from pathlib import Path
+
+        logger = logging.getLogger(__name__)
+        data = request.json
+        backup_location = data.get('backup_location')
+
+        if not backup_location or not os.path.exists(backup_location):
+            return jsonify({'success': False, 'error': 'Backup location not provided or does not exist'}), 400
+
+        logger.warning(f"Starting rollback from: {backup_location}")
+
+        # Define paths based on the Pi's directory structure
+        inventory_root = Path('/var/lib/inventory')
+        app_dir = inventory_root / 'app'
+
+        # Create a temporary location for the current broken app directory
+        temp_broken_app_dir = inventory_root / f'app-broken-{int(time.time())}'
+
+        # Move current (broken) app directory away
+        if os.path.exists(app_dir):
+            logger.info(f"Moving current 'app' directory to: {temp_broken_app_dir}")
+            shutil.move(str(app_dir), str(temp_broken_app_dir))
+
+        # Restore from backup
+        logger.info(f"Restoring backup from {backup_location} to {app_dir}")
+        shutil.copytree(backup_location, app_dir)
+
+        # Clean up the broken app directory after successful rollback
+        shutil.rmtree(temp_broken_app_dir)
+
+        logger.info("Rollback completed successfully. Service restart required.")
+
+        return jsonify({
+            'success': True,
+            'message': 'Rollback completed successfully. Service restart required.'
+        })
+
+    except Exception as e:
+        logger.error(f"Rollback failed: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'Rollback failed: {str(e)}'
         }), 500
 
 
@@ -942,48 +1066,7 @@ def api_restart_service():
         }), 500
 
 
-@admin_bp.route('/api/rollback-package', methods=['POST'])
-def api_rollback_package():
-    """Rollback to the previous version"""
-    try:
-        import os
-        import shutil
-        import json
-        
-        upgrade_flag_path = os.path.join(os.path.dirname(__file__), '..', '..', '.upgrade-in-progress')
-        
-        if not os.path.exists(upgrade_flag_path):
-            return jsonify({'success': False, 'error': 'No upgrade in progress'}), 400
-        
-        # Read upgrade flag
-        with open(upgrade_flag_path, 'r') as f:
-            upgrade_flag = json.load(f)
-        
-        backup_location = upgrade_flag.get('backup_location')
-        if not backup_location or not os.path.exists(backup_location):
-            return jsonify({'success': False, 'error': 'Backup not found'}), 400
-        
-        # Restore from backup
-        current_src = os.path.join(os.path.dirname(__file__), '..')
-        temp_src = os.path.join(os.path.dirname(current_src), 'src_rollback')
-        
-        shutil.rmtree(current_src)
-        shutil.copytree(backup_location, temp_src)
-        shutil.move(temp_src, current_src)
-        
-        # Remove upgrade flag
-        os.unlink(upgrade_flag_path)
-        
-        return jsonify({
-            'success': True,
-            'message': 'Rollback completed successfully. Service restart required.'
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': f'Rollback failed: {str(e)}'
-        }), 500
+
 
 
 @admin_bp.route('/api/upgrade-status', methods=['GET'])

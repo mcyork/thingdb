@@ -124,3 +124,4 @@ pi-deployment/data/
 pi-deployment/logs/
 pi-deployment/uploads/
 signing-cert-key
+.env
