@@ -1,0 +1,477 @@
+{% extends "base.html" %}
+
+{% block title %}Print QR Codes{% endblock %}
+
+{% block styles %}
+<style>
+    .print-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+    
+    .print-header {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+    
+    .print-header h1 {
+        color: #333;
+        margin-bottom: 10px;
+    }
+    
+    .print-form {
+        background: white;
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .form-group {
+        margin-bottom: 20px;
+    }
+    
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: #333;
+    }
+    
+    .form-control {
+        width: 100%;
+        padding: 12px;
+        border: 2px solid #e1e5e9;
+        border-radius: 8px;
+        font-size: 16px;
+        transition: border-color 0.2s;
+    }
+    
+    .form-control:focus {
+        outline: none;
+        border-color: #007bff;
+    }
+    
+    .printer-select {
+        background: white;
+    }
+    
+    .printer-status {
+        font-size: 14px;
+        color: #666;
+        margin-top: 5px;
+    }
+    
+    .printer-status.online {
+        color: #28a745;
+    }
+    
+    .printer-status.offline {
+        color: #dc3545;
+    }
+    
+    .filter-section {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+    }
+    
+    .filter-section h3 {
+        margin-top: 0;
+        color: #495057;
+        font-size: 18px;
+    }
+    
+    .btn-group {
+        display: flex;
+        gap: 10px;
+        margin-top: 20px;
+    }
+    
+    .btn {
+        padding: 12px 24px;
+        border: none;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .btn-primary {
+        background: #007bff;
+        color: white;
+    }
+    
+    .btn-primary:hover {
+        background: #0056b3;
+    }
+    
+    .btn-secondary {
+        background: #6c757d;
+        color: white;
+    }
+    
+    .btn-secondary:hover {
+        background: #545b62;
+    }
+    
+    .btn-success {
+        background: #28a745;
+        color: white;
+    }
+    
+    .btn-success:hover {
+        background: #1e7e34;
+    }
+    
+    .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+    
+    .status-message {
+        padding: 15px;
+        border-radius: 8px;
+        margin-top: 20px;
+        display: none;
+    }
+    
+    .status-message.success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+    
+    .status-message.error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
+    
+    .loading {
+        display: none;
+        text-align: center;
+        margin-top: 20px;
+    }
+    
+    .spinner {
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #007bff;
+        border-radius: 50%;
+        width: 30px;
+        height: 30px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 10px;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    .item-count {
+        background: #e9ecef;
+        padding: 10px;
+        border-radius: 6px;
+        margin-bottom: 20px;
+        text-align: center;
+        font-weight: 600;
+        color: #495057;
+    }
+    
+    .qr-preview {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        text-align: center;
+    }
+    
+    .qr-preview h4 {
+        margin-top: 0;
+        color: #495057;
+    }
+    
+    .qr-preview-text {
+        color: #666;
+        font-size: 14px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="print-container">
+    <div class="print-header">
+        <h1>📱 Print QR Codes</h1>
+        <p>Print QR code labels for your inventory items</p>
+    </div>
+    
+    <div class="print-form">
+        <form id="print-form">
+            <div class="filter-section">
+                <h3>📋 Print Options</h3>
+                
+                <div class="form-group">
+                    <label for="parent_guid">Filter by Container (Optional)</label>
+                    <input type="text" id="parent_guid" name="parent_guid" 
+                           class="form-control" placeholder="Enter container GUID or leave empty for all items">
+                    <small class="form-text text-muted">
+                        Enter a container GUID to print QR codes only for items within that container, or leave empty to print QR codes for all root items.
+                    </small>
+                </div>
+                
+                <div class="item-count" id="item-count">
+                    Loading item count...
+                </div>
+            </div>
+            
+            <div class="qr-preview">
+                <h4>📱 QR Code Preview</h4>
+                <div class="qr-preview-text">
+                    QR codes will be printed in a 3-column layout with item names and shortened GUIDs below each code.
+                    <br>Each QR code contains the full GUID for scanning.
+                </div>
+            </div>
+            
+            <div class="filter-section">
+                <h3>🖨️ Printer Selection</h3>
+                
+                <div class="form-group">
+                    <label for="printer_name">Select Printer</label>
+                    <select id="printer_name" name="printer_name" class="form-control printer-select">
+                        <option value="">Loading printers...</option>
+                    </select>
+                    <div class="printer-status" id="printer-status"></div>
+                </div>
+                
+                <button type="button" class="btn btn-secondary" onclick="testPrinter()">
+                    🔧 Test Printer Connection
+                </button>
+            </div>
+            
+            <div class="btn-group">
+                <button type="submit" class="btn btn-primary" id="print-btn">
+                    📱 Print QR Codes
+                </button>
+                <a href="{{ url_for('core.home') }}" class="btn btn-secondary">
+                    ↩️ Back to Home
+                </a>
+            </div>
+        </form>
+        
+        <div class="status-message" id="status-message"></div>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Generating and printing QR codes...</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let printers = [];
+
+// Load printers on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadPrinters();
+    updateItemCount();
+});
+
+async function loadPrinters() {
+    try {
+        const response = await fetch('/print/printers');
+        const data = await response.json();
+        
+        if (data.success) {
+            printers = data.printers;
+            updatePrinterSelect();
+        } else {
+            showError('Failed to load printers: ' + data.error);
+        }
+    } catch (error) {
+        showError('Failed to load printers: ' + error.message);
+    }
+}
+
+function updatePrinterSelect() {
+    const select = document.getElementById('printer_name');
+    select.innerHTML = '';
+    
+    if (printers.length === 0) {
+        select.innerHTML = '<option value="">No printers found</option>';
+        return;
+    }
+    
+    // Add default option
+    const defaultOption = document.createElement('option');
+    defaultOption.value = '';
+    defaultOption.textContent = 'Use default printer';
+    select.appendChild(defaultOption);
+    
+    // Add printer options
+    printers.forEach(printer => {
+        const option = document.createElement('option');
+        option.value = printer.name;
+        option.textContent = printer.name + (printer.is_default ? ' (Default)' : '');
+        select.appendChild(option);
+    });
+    
+    updatePrinterStatus();
+}
+
+function updatePrinterStatus() {
+    const select = document.getElementById('printer_name');
+    const status = document.getElementById('printer-status');
+    const selectedPrinter = select.value;
+    
+    if (!selectedPrinter) {
+        // Show default printer status
+        const defaultPrinter = printers.find(p => p.is_default);
+        if (defaultPrinter) {
+            status.textContent = `Default: ${defaultPrinter.name} - ${defaultPrinter.status}`;
+            status.className = 'printer-status ' + (defaultPrinter.status.includes('idle') ? 'online' : 'offline');
+        } else {
+            status.textContent = 'No default printer set';
+            status.className = 'printer-status offline';
+        }
+    } else {
+        // Show selected printer status
+        const printer = printers.find(p => p.name === selectedPrinter);
+        if (printer) {
+            status.textContent = printer.status;
+            status.className = 'printer-status ' + (printer.status.includes('idle') ? 'online' : 'offline');
+        }
+    }
+}
+
+async function updateItemCount() {
+    const parentGuid = document.getElementById('parent_guid').value;
+    
+    try {
+        const response = await fetch('/api/tree-data');
+        const data = await response.json();
+        
+        if (data.success) {
+            let count = 0;
+            if (parentGuid) {
+                // Count items in specific container
+                count = await countItemsInContainer(parentGuid);
+            } else {
+                // Count root items
+                count = data.total_root_items;
+            }
+            
+            document.getElementById('item-count').textContent = 
+                `QR codes to print: ${count}`;
+        }
+    } catch (error) {
+        document.getElementById('item-count').textContent = 
+            'Unable to count items';
+    }
+}
+
+async function countItemsInContainer(parentGuid) {
+    try {
+        const response = await fetch(`/api/tree-children/${parentGuid}`);
+        const data = await response.json();
+        return data.success ? data.children.length : 0;
+    } catch (error) {
+        return 0;
+    }
+}
+
+async function testPrinter() {
+    const printerName = document.getElementById('printer_name').value;
+    
+    try {
+        const formData = new FormData();
+        if (printerName) {
+            formData.append('printer_name', printerName);
+        }
+        
+        const response = await fetch('/print/test-printer', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showSuccess(`Printer test successful: ${data.status}`);
+        } else {
+            showError('Printer test failed: ' + data.error);
+        }
+    } catch (error) {
+        showError('Printer test failed: ' + error.message);
+    }
+}
+
+document.getElementById('print-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const printBtn = document.getElementById('print-btn');
+    const loading = document.getElementById('loading');
+    
+    // Show loading state
+    printBtn.disabled = true;
+    loading.style.display = 'block';
+    hideStatus();
+    
+    try {
+        const formData = new FormData(this);
+        
+        const response = await fetch('/print/qr-codes', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showSuccess(data.message);
+        } else {
+            showError(data.error);
+        }
+    } catch (error) {
+        showError('Print failed: ' + error.message);
+    } finally {
+        printBtn.disabled = false;
+        loading.style.display = 'none';
+    }
+});
+
+document.getElementById('parent_guid').addEventListener('input', function() {
+    // Debounce the item count update
+    clearTimeout(this.updateTimeout);
+    this.updateTimeout = setTimeout(updateItemCount, 500);
+});
+
+document.getElementById('printer_name').addEventListener('change', updatePrinterStatus);
+
+function showSuccess(message) {
+    const status = document.getElementById('status-message');
+    status.textContent = message;
+    status.className = 'status-message success';
+    status.style.display = 'block';
+}
+
+function showError(message) {
+    const status = document.getElementById('status-message');
+    status.textContent = message;
+    status.className = 'status-message error';
+    status.style.display = 'block';
+}
+
+function hideStatus() {
+    document.getElementById('status-message').style.display = 'none';
+}
+</script>
+{% endblock %}

@@ -104,6 +104,16 @@ print_status "Copying application source code..."
 cp -r "$PROJECT_ROOT/src" ./
 print_success "Source code copied"
 
+# Copy certificate chain for package verification
+print_status "Copying certificate chain..."
+if [ -f "$PROJECT_ROOT/signing-certs-and-root/certificate-chain.crt" ]; then
+    mkdir -p signing-certs-and-root
+    cp "$PROJECT_ROOT/signing-certs-and-root/certificate-chain.crt" ./signing-certs-and-root/
+    print_success "Certificate chain copied"
+else
+    print_status "No certificate chain found - package verification will be disabled"
+fi
+
 # Copy Python requirements
 print_status "Copying Python requirements..."
 cp -r "$PROJECT_ROOT/requirements" .

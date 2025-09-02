@@ -1,0 +1,177 @@
+#!/bin/bash
+# Inventory Recovery Service
+# Monitors upgrade flags and handles automatic rollback
+
+set -e
+
+# Configuration
+UPGRADE_FLAG="/var/lib/inventory/.upgrade-in-progress"
+BACKUP_DIR="/var/lib/inventory/backups"
+APP_DIR="/var/lib/inventory/app"
+LOG_FILE="/var/log/inventory-recovery.log"
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+log_message() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a "$LOG_FILE"
+}
+
+log_info() {
+    log_message "[INFO] $1"
+}
+
+log_success() {
+    log_message "[SUCCESS] $1"
+}
+
+log_warning() {
+    log_message "[WARNING] $1"
+}
+
+log_error() {
+    log_message "[ERROR] $1"
+}
+
+# Check if jq is available
+if ! command -v jq &> /dev/null; then
+    log_error "jq is required but not installed"
+    exit 1
+fi
+
+# Function to perform rollback
+perform_rollback() {
+    log_warning "Performing rollback..."
+    
+    if [ ! -f "$UPGRADE_FLAG" ]; then
+        log_error "Upgrade flag not found - cannot rollback"
+        return 1
+    fi
+    
+    # Read backup location from flag
+    BACKUP_LOCATION=$(jq -r '.backup_location' "$UPGRADE_FLAG" 2>/dev/null)
+    PREVIOUS_VERSION=$(jq -r '.previous_version' "$UPGRADE_FLAG" 2>/dev/null)
+    
+    if [ -z "$BACKUP_LOCATION" ] || [ "$BACKUP_LOCATION" = "null" ]; then
+        log_error "Backup location not found in upgrade flag"
+        return 1
+    fi
+    
+    if [ ! -d "$BACKUP_LOCATION" ]; then
+        log_error "Backup directory not found: $BACKUP_LOCATION"
+        return 1
+    fi
+    
+    log_info "Restoring from backup: $BACKUP_LOCATION"
+    
+    # Stop inventory app
+    systemctl stop inventory-app 2>/dev/null || true
+    
+    # Restore source code
+    rm -rf "$APP_DIR/src"
+    cp -r "$BACKUP_LOCATION" "$APP_DIR/src"
+    
+    # Restart inventory app
+    systemctl start inventory-app
+    
+    # Wait for service to start
+    sleep 5
+    
+    # Verify service is running
+    if systemctl is-active --quiet inventory-app; then
+        log_success "Rollback completed successfully - restored to version $PREVIOUS_VERSION"
+        
+        # Remove upgrade flag
+        rm -f "$UPGRADE_FLAG"
+        
+        # Clean up backup
+        rm -rf "$BACKUP_LOCATION"
+        
+        return 0
+    else
+        log_error "Rollback failed - inventory-app service not running"
+        return 1
+    fi
+}
+
+# Function to check upgrade flag
+check_upgrade_flag() {
+    if [ ! -f "$UPGRADE_FLAG" ]; then
+        return 0  # No flag, nothing to do
+    fi
+    
+    log_info "Upgrade flag detected"
+    
+    # Read flag contents
+    STATE=$(jq -r '.state' "$UPGRADE_FLAG" 2>/dev/null)
+    RESTARTS_EXPECTED=$(jq -r '.restarts_expected' "$UPGRADE_FLAG" 2>/dev/null)
+    RESTARTS_COMPLETED=$(jq -r '.restarts_completed' "$UPGRADE_FLAG" 2>/dev/null)
+    
+    log_info "State: $STATE, Restarts Expected: $RESTARTS_EXPECTED, Restarts Completed: $RESTARTS_COMPLETED"
+    
+    case "$STATE" in
+        "failed")
+            log_warning "Upgrade marked as failed - performing rollback"
+            perform_rollback
+            ;;
+        "upgrading")
+            if [ "$RESTARTS_EXPECTED" -le 0 ]; then
+                log_warning "Upgrade timeout - performing rollback"
+                perform_rollback
+            else
+                log_info "Upgrade in progress - monitoring"
+            fi
+            ;;
+        "completed")
+            log_info "Upgrade completed - cleaning up flag"
+            rm -f "$UPGRADE_FLAG"
+            ;;
+        *)
+            log_warning "Unknown upgrade state: $STATE - performing rollback"
+            perform_rollback
+            ;;
+    esac
+}
+
+# Function to decrement restart counter (called on boot)
+decrement_restart_counter() {
+    if [ ! -f "$UPGRADE_FLAG" ]; then
+        return 0
+    fi
+    
+    # Decrement restart counter
+    jq '.restarts_expected = (.restarts_expected - 1)' "$UPGRADE_FLAG" > "$UPGRADE_FLAG.tmp" && mv "$UPGRADE_FLAG.tmp" "$UPGRADE_FLAG"
+    
+    log_info "Decremented restart counter"
+}
+
+# Main function
+main() {
+    log_info "Inventory Recovery Service starting"
+    
+    # Check if this is a boot-time check
+    if [ "$1" = "--boot-check" ]; then
+        log_info "Boot-time check - decrementing restart counter"
+        decrement_restart_counter
+        check_upgrade_flag
+        exit 0
+    fi
+    
+    # Continuous monitoring mode
+    log_info "Starting continuous monitoring mode"
+    
+    while true; do
+        check_upgrade_flag
+        sleep 30
+    done
+}
+
+# Handle signals
+trap 'log_info "Recovery service shutting down"; exit 0' SIGTERM SIGINT
+
+# Run main function
+main "$@"

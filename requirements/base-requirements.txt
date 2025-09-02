@@ -18,6 +18,9 @@ python-dotenv==1.0.0
 qrcode[pil]==7.4.2
 reportlab==4.0.4
 
+# Certificate validation and cryptography
+cryptography==41.0.7
+
 # CONFIRMED REMOVED (not used in your app.py):
 # redis==4.6.0                 # You don't use Redis
 # flask-session==0.5.0         # You don't use Redis sessions  
