@@ -221,6 +221,7 @@ class PackageVerificationService:
         """
         result = {
             'valid': False,
+            'unsigned': False,  # New field to indicate unsigned package
             'package_path': None,
             'signature_path': None,
             'manifest_path': None,
@@ -283,11 +284,18 @@ class PackageVerificationService:
             )
             
             if not signature_valid:
-                result['errors'].append(f"Signature verification failed: {signature_error}")
-                return result
+                # Check if this is an unsigned package (no certificate chain)
+                if "No certificate chain available" in signature_error or "Certificate chain not found" in signature_error:
+                    result['unsigned'] = True
+                    result['warnings'].append("Package is unsigned but can be installed anyway")
+                    result['valid'] = True  # Allow unsigned packages
+                else:
+                    result['errors'].append(f"Signature verification failed: {signature_error}")
+                    return result
+            else:
+                result['warnings'].append("Package verification completed successfully")
             
             result['valid'] = True
-            result['warnings'].append("Package verification completed successfully")
             
         except Exception as e:
             logger.error(f"Complete package verification error: {e}")

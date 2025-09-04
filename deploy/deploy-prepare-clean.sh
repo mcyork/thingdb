@@ -253,6 +253,44 @@ rm -rf /home/inventory/.cache/torch 2>/dev/null || true
 rm -rf /root/.cache/huggingface 2>/dev/null || true
 rm -rf /root/.cache/torch 2>/dev/null || true
 
+# Setup certificate chain for package verification (MUST happen before changing directories)
+print_status "Checking for certificate chain directory..."
+print_status "Current working directory: $(pwd)"
+print_status "Contents of current directory:"
+ls -la | grep signing || print_warning "No signing-certs-and-root directory found in current directory"
+
+if [ -d "signing-certs-and-root" ]; then
+    print_status "Found signing-certs-and-root directory!"
+    print_status "Contents of signing-certs-and-root:"
+    ls -la signing-certs-and-root/ || print_warning "Could not list signing-certs-and-root contents"
+    
+    print_status "Setting up certificate chain for package verification..."
+    mkdir -p /var/lib/inventory/signing-certs-and-root
+    print_status "Created target directory: /var/lib/inventory/signing-certs-and-root"
+    
+    print_status "Copying certificate files..."
+    cp signing-certs-and-root/* /var/lib/inventory/signing-certs-and-root/ 2>/dev/null || {
+        print_error "Failed to copy certificate files"
+        print_status "Source directory contents:"
+        ls -la signing-certs-and-root/ || true
+        print_status "Target directory contents:"
+        ls -la /var/lib/inventory/signing-certs-and-root/ || true
+    }
+    
+    print_status "Setting ownership and permissions..."
+    chown -R inventory:inventory /var/lib/inventory/signing-certs-and-root
+    chmod 644 /var/lib/inventory/signing-certs-and-root/*
+    
+    print_status "Final certificate directory contents:"
+    ls -la /var/lib/inventory/signing-certs-and-root/ || print_warning "Could not list final certificate directory"
+    
+    print_success "Certificate chain configured"
+else
+    print_error "signing-certs-and-root directory not found in current directory!"
+    print_status "Available directories:"
+    ls -la | grep "^d" || print_warning "Could not list directories"
+fi
+
 # Setup Python virtual environment
 print_status "Setting up Python environment..."
 cd /var/lib/inventory/app
@@ -361,6 +399,7 @@ if [ -d "images" ]; then
     chown -R inventory:inventory /var/lib/inventory/images
     print_success "Images directory configured"
 fi
+
 
 # Create configuration directory
 print_status "Creating configuration files..."
@@ -760,6 +799,7 @@ echo "   • Nginx Service: $(systemctl is-active nginx 2>/dev/null || echo 'FAI
 echo "   • PostgreSQL Service: $(systemctl is-active postgresql 2>/dev/null || echo 'FAILED')"
 # echo "   • Avahi-daemon (mDNS): $(systemctl is-active avahi-daemon 2>/dev/null || echo 'FAILED')"  # COMMENTED OUT
 echo "   • ML Cache Directory: $(ls -A /var/lib/inventory/ml_cache >/dev/null 2>&1 && echo 'READY' || echo 'EMPTY')"
+echo "   • Certificate Chain: $(ls -A /var/lib/inventory/signing-certs-and-root >/dev/null 2>&1 && echo 'READY' || echo 'MISSING')"
 echo "   • Database Connection: $(timeout 5 sudo -u inventory psql -h localhost -U inventory -d inventory_db -c 'SELECT 1;' >/dev/null 2>&1 && echo 'OK' || echo 'FAILED')"
 echo "   • Flask App Response: $(timeout 5 curl -s -f http://127.0.0.1:8000/ >/dev/null 2>&1 && echo 'OK' || echo 'FAILED')"
 echo "   • HTTPS Interface: $(timeout 5 curl -s -k -f https://localhost/ >/dev/null 2>&1 && echo 'OK' || echo 'FAILED')"
@@ -827,7 +867,7 @@ EOF
 print_status "Creating deployment package..."
 
 # Create the package with core files only
-tar -czf "$PACKAGE_NAME" src requirements images deploy.sh README.md
+tar -czf "$PACKAGE_NAME" src requirements images signing-certs-and-root deploy.sh README.md
 
 # Get package information
 PACKAGE_SIZE=$(du -h "$PACKAGE_NAME" | cut -f1)

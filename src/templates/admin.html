@@ -734,16 +734,16 @@ function showModal(title, message, icon = '⏳', autoDismiss = true) {
     }
     
     modalTitle.textContent = title;
-    modalMessage.textContent = message;
+    modalMessage.innerHTML = message;
     modalIcon.textContent = icon;
     
     modal.style.display = 'flex';
     
-    // Auto-dismiss after 5 seconds if enabled
+    // Auto-dismiss after 15 seconds if enabled
     if (autoDismiss) {
         modalTimeout = setTimeout(() => {
             hideModal();
-        }, 5000);
+        }, 15000);
     }
 }
 
@@ -812,9 +812,17 @@ function uploadPackage(file) {
     })
     .then(data => {
         if (data.success) {
-            currentPackagePath = data.package_path;
-            document.getElementById('install-btn').disabled = false;
-            showModal('Package Upload', `Package uploaded and verified successfully!<br><br>Version: ${data.manifest.version}<br>Size: ${(file.size / 1024).toFixed(1)} KB`, '✅');
+            if (data.unsigned) {
+                // Package is unsigned - show warning dialog with "Install anyway" option
+                currentPackagePath = data.package_path;
+                document.getElementById('install-btn').disabled = false;
+                showUnsignedPackageDialog(data, file);
+            } else {
+                // Package is signed and verified
+                currentPackagePath = data.package_path;
+                document.getElementById('install-btn').disabled = false;
+                showModal('Package Upload', `Package uploaded and verified successfully!<br><br>Version: ${data.manifest.version}<br>Size: ${(file.size / 1024).toFixed(1)} KB`, '✅');
+            }
         } else {
             showModal('Upload Failed', `Package verification failed:<br><br>${data.error}<br><br>Details: ${data.details ? data.details.join('<br>') : 'None'}`, '❌');
         }
@@ -955,6 +963,134 @@ function testPackageAPI() {
             btn.disabled = false;
         }
     });
+}
+
+function showUnsignedPackageDialog(data, file) {
+    const message = `
+        <div style="text-align: left;">
+            <p><strong>⚠️ Warning: This package is not signed!</strong></p>
+            <p>The package you uploaded is not digitally signed, which means:</p>
+            <ul style="margin-left: 20px; margin-bottom: 20px;">
+                <li>It cannot be verified as coming from a trusted source</li>
+                <li>It may have been modified or tampered with</li>
+                <li>Installing it could potentially compromise system security</li>
+            </ul>
+            <p><strong>Package Details:</strong></p>
+            <ul style="margin-left: 20px;">
+                <li>Version: ${data.manifest ? data.manifest.version : 'Unknown'}</li>
+                <li>Size: ${(file.size / 1024).toFixed(1)} KB</li>
+                <li>Status: Unsigned</li>
+            </ul>
+            <p style="margin-top: 20px; font-weight: bold; color: #d32f2f;">
+                Are you sure you want to install this unsigned package?
+            </p>
+        </div>
+    `;
+    
+    showConfirmModal(
+        'Unsigned Package Warning',
+        message,
+        '⚠️',
+        'Install Anyway',
+        'Cancel',
+        () => installUnsignedPackage(data.package_path),
+        () => {
+            // Cancel - clean up the temp file
+            fetch('/api/cancel-upload', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    package_path: data.package_path
+                })
+            }).catch(error => console.error('Failed to clean up temp file:', error));
+            
+            currentPackagePath = null;
+            document.getElementById('install-btn').disabled = true;
+        }
+    );
+}
+
+function installUnsignedPackage(packagePath) {
+    const btn = document.getElementById('install-btn');
+    const originalText = btn.innerHTML;
+    
+    btn.innerHTML = '<span class="admin-btn-icon">⏳</span><div><div class="admin-btn-text">Installing...</div><div class="admin-btn-detail">Installing unsigned package</div></div>';
+    btn.disabled = true;
+    
+    fetch('/api/install-unsigned-package', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            package_path: packagePath
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('rollback-btn').disabled = false;
+            showModal('Installation Complete', `Unsigned package installed successfully!<br><br>Backup created at: ${data.backup_location}<br><br>Service restart required to apply changes.`, '✅');
+        } else {
+            showModal('Installation Failed', `Installation failed: ${data.error}`, '❌');
+        }
+    })
+    .catch(error => {
+        showModal('Installation Error', `Installation failed: ${error.message}`, '❌');
+    })
+    .finally(() => {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    });
+}
+
+function showConfirmModal(title, message, icon, confirmText, cancelText, onConfirm, onCancel) {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.style.display = 'block';
+    
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <span class="modal-icon">${icon}</span>
+                <h2>${title}</h2>
+                <span class="close" onclick="this.parentElement.parentElement.parentElement.remove()">&times;</span>
+            </div>
+            <div class="modal-body">
+                ${message}
+            </div>
+            <div class="modal-footer" style="text-align: right; padding: 15px; border-top: 1px solid #ddd;">
+                <button class="admin-btn admin-btn-secondary" id="cancel-btn">${cancelText}</button>
+                <button class="admin-btn admin-btn-danger" id="confirm-btn">${confirmText}</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Add event listeners for the buttons
+    const confirmBtn = modal.querySelector('#confirm-btn');
+    const cancelBtn = modal.querySelector('#cancel-btn');
+    
+    confirmBtn.addEventListener('click', function() {
+        modal.remove();
+        if (onConfirm) onConfirm();
+    });
+    
+    cancelBtn.addEventListener('click', function() {
+        modal.remove();
+        if (onCancel) onCancel();
+    });
+    
+    // Close modal when clicking outside
+    modal.onclick = function(event) {
+        if (event.target === modal) {
+            modal.remove();
+            if (onCancel) onCancel();
+        }
+    };
 }
 
 function restartService() {

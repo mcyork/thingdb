@@ -63,6 +63,8 @@ def process_guid():
     # Check if this QR code is an alias
     conn = get_db_connection()
     cursor = conn.cursor()
+    
+    # First check if the original input is an alias (for pure GUID QR codes)
     cursor.execute('SELECT item_guid FROM qr_aliases WHERE qr_code = %s', (guid_input,))
     alias_result = cursor.fetchone()
     
@@ -71,6 +73,17 @@ def process_guid():
         actual_guid = alias_result[0]
         conn.close()
         return redirect(url_for('core.item_detail', guid=actual_guid))
+    
+    # If no match found with original input, check if the extracted GUID is an alias (for URL-based QR codes)
+    if guid != guid_input:  # Only check if we extracted a GUID from a URL
+        cursor.execute('SELECT item_guid FROM qr_aliases WHERE qr_code = %s', (guid,))
+        alias_result = cursor.fetchone()
+        
+        if alias_result:
+            # This extracted GUID is an alias, redirect to the actual item
+            actual_guid = alias_result[0]
+            conn.close()
+            return redirect(url_for('core.item_detail', guid=actual_guid))
     
     # Check if item exists
     cursor.execute('SELECT guid FROM items WHERE guid = %s', (guid,))

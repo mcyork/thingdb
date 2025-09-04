@@ -827,6 +827,18 @@ def api_upload_package():
                 'details': result['errors']
             }), 400
         
+        # Check if package is unsigned but still valid
+        if result.get('unsigned', False):
+            # Package is unsigned but valid - allow user to choose
+            return jsonify({
+                'success': True,
+                'unsigned': True,
+                'warning': 'Package is unsigned but can be installed',
+                'message': 'Package uploaded successfully but is not signed. You can install it anyway.',
+                'package_path': temp_path,  # Keep temp path for now
+                'manifest': result['manifest_data']
+            })
+        
         # Package is valid, move it to a permanent location
         package_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'packages')
         package_dir = os.path.abspath(package_dir)  # Convert to absolute path
@@ -974,6 +986,171 @@ def api_install_package():
         return jsonify({
             'success': False,
             'error': f'Installation failed: {str(e)}'
+        }), 500
+
+
+@admin_bp.route('/api/install-unsigned-package', methods=['POST'])
+def api_install_unsigned_package():
+    """Install an unsigned package (user confirmed they want to proceed)"""
+    try:
+        from flask import request
+        import os
+        import shutil
+        import subprocess
+        import json
+        import tarfile
+        import time
+        import logging
+        from pathlib import Path
+        import tempfile
+
+        logger = logging.getLogger(__name__)
+        
+        data = request.json
+        temp_package_path = data.get('package_path')
+
+        if not temp_package_path or not os.path.exists(temp_package_path):
+            return jsonify({'success': False, 'error': 'Package file not found'}), 400
+
+        logger.info(f"Starting unsigned package installation from: {temp_package_path}")
+
+        # Define paths based on the Pi's directory structure
+        inventory_root = Path('/var/lib/inventory')
+        app_dir = inventory_root / 'app'
+        logs_dir = inventory_root / 'logs'
+        backup_dir = inventory_root / 'backup'
+        
+        # Check for available disk space
+        total, used, free = shutil.disk_usage(inventory_root)
+        if free < 50 * 1024 * 1024: # 50MB threshold
+            return jsonify({'success': False, 'error': f'Insufficient disk space. Only {free // 1024 // 1024}MB free.'}), 400
+
+        os.makedirs(backup_dir, exist_ok=True)
+        backup_path = backup_dir / f'app-backup-{int(time.time())}'
+
+        # Create backup, ignoring the venv directory
+        logger.info(f"Backing up current 'app' directory to: {backup_path}")
+        shutil.copytree(app_dir, backup_path, ignore=shutil.ignore_patterns('venv'))
+
+        # Extract the inner package from the bundle
+        temp_extract_dir = Path(tempfile.mkdtemp(prefix="inventory_install_"))
+        with tarfile.open(temp_package_path, 'r:gz') as bundle_tar:
+            bundle_tar.extractall(path=temp_extract_dir)
+        
+        # Find the actual source tar.gz inside the bundle
+        package_files = list(temp_extract_dir.glob('*.tar.gz'))
+        package_files = [f for f in package_files if not f.name.endswith('-bundle.tar.gz')]
+
+        if not package_files:
+            raise Exception("No source package found inside the bundle.")
+        
+        source_package_path = package_files[0]
+        
+        # Extract the source code to a temporary location
+        temp_src_dir = Path(tempfile.mkdtemp(prefix="inventory_src_"))
+        logger.info(f"Extracting source package to: {temp_src_dir}")
+        with tarfile.open(source_package_path, 'r:gz') as src_tar:
+            src_tar.extractall(path=temp_src_dir)
+        
+        # The package contains a 'src' directory.
+        new_app_path = temp_src_dir / 'src'
+        if not new_app_path.exists():
+            raise Exception("The package does not contain a 'src' directory.")
+
+        # Delete old application files, but keep venv
+        for item in app_dir.iterdir():
+            if item.name != 'venv':
+                if item.is_dir():
+                    shutil.rmtree(item)
+                else:
+                    os.remove(item)
+
+        # Copy new application files
+        for item in new_app_path.iterdir():
+            if item.is_dir():
+                shutil.copytree(item, app_dir / item.name)
+            else:
+                shutil.copy2(item, app_dir)
+
+        # Ensure logs directory exists
+        os.makedirs(logs_dir, exist_ok=True)
+
+        # Clean up temporary directories and files
+        shutil.rmtree(temp_extract_dir)
+        shutil.rmtree(temp_src_dir)
+        os.unlink(temp_package_path)  # Remove the temp package file
+        os.rmdir(os.path.dirname(temp_package_path))  # Remove temp dir
+
+        logger.info("Unsigned package installation completed successfully")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Unsigned package installed successfully. Service restart required.',
+            'backup_location': str(backup_path)
+        })
+
+    except Exception as e:
+        logger.error(f"Unsigned package installation failed: {e}")
+        # Attempt to rollback on failure
+        try:
+            if 'backup_path' in locals() and os.path.exists(backup_path):
+                logger.warning("Installation failed, attempting to restore from backup...")
+                # Same logic as install: delete app files (except venv) and copy from backup
+                for item in app_dir.iterdir():
+                    if item.name != 'venv':
+                        if item.is_dir():
+                            shutil.rmtree(item)
+                        else:
+                            os.remove(item)
+                for item in Path(backup_path).iterdir():
+                    if item.is_dir():
+                        shutil.copytree(item, app_dir / item.name)
+                    else:
+                        shutil.copy2(item, app_dir)
+                logger.info("Rollback from backup successful.")
+        except Exception as rb_e:
+            logger.error(f"Rollback attempt failed: {rb_e}")
+
+        return jsonify({
+            'success': False,
+            'error': f'Unsigned package installation failed: {str(e)}'
+        }), 500
+
+
+@admin_bp.route('/api/cancel-upload', methods=['POST'])
+def api_cancel_upload():
+    """Cancel an upload and clean up temporary files"""
+    try:
+        from flask import request
+        import os
+        import logging
+
+        logger = logging.getLogger(__name__)
+        data = request.json
+        package_path = data.get('package_path')
+
+        if package_path and os.path.exists(package_path):
+            # Remove the temporary package file
+            os.unlink(package_path)
+            # Try to remove the temp directory if it's empty
+            temp_dir = os.path.dirname(package_path)
+            try:
+                os.rmdir(temp_dir)
+            except OSError:
+                # Directory not empty or already removed, that's fine
+                pass
+            logger.info(f"Cleaned up temporary package: {package_path}")
+
+        return jsonify({
+            'success': True,
+            'message': 'Upload cancelled and temporary files cleaned up'
+        })
+
+    except Exception as e:
+        logger.error(f"Failed to cancel upload: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to cancel upload: {str(e)}'
         }), 500
 
 

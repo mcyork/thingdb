@@ -118,7 +118,7 @@ print_warning "This will extract and run the deployment script on the Pi"
 # Run deployment commands remotely using pi CLI
 print_status "Running deployment commands remotely..."
 
-# Base command
+# Base command - extract and run deploy.sh from the extracted directory
 REMOTE_COMMAND="cd /tmp && tar -xzf inventory-deploy.tar.gz && sudo ./deploy.sh"
 
 # Run the main deployment

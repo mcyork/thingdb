@@ -1,25 +1,25 @@
 # OPTIMIZED Base Requirements - Remove unused dependencies
 
 # Core Flask (pinned versions for stability)
-flask==2.3.3
-gunicorn==21.2.0
+flask
+gunicorn
 
 # Database (keep psycopg2-binary - it's needed)
 psycopg2-binary==2.9.7
 
 # Image processing (essential for thumbnails) 
-Pillow==10.0.1
+Pillow
 
 # Basic utilities
-requests==2.31.0
-python-dotenv==1.0.0
+requests
+python-dotenv
 
 # QR Code and PDF generation
-qrcode[pil]==7.4.2
-reportlab==4.0.4
+qrcode[pil]
+reportlab
 
 # Certificate validation and cryptography
-cryptography==41.0.7
+cryptography
 
 # CONFIRMED REMOVED (not used in your app.py):
 # redis==4.6.0                 # You don't use Redis

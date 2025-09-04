@@ -2,10 +2,10 @@
 # Total size reduction: ~80% smaller than GPU versions
 
 # System monitoring (lightweight)
-psutil==5.9.5
+psutil
 
 # Math libraries (pinned to reasonable versions)
-numpy==1.24.3
+numpy
 
 # CPU-ONLY PyTorch (MASSIVE size savings - no CUDA libraries)
 # This single change saves ~3-4GB!
