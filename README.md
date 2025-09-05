@@ -3,10 +3,15 @@
 ## Quick Setup
 
 ### 1. First Boot
-- Burn the downloaded image to an SD card (don't use Pi Imaging Tools custom features)
+- Burn the downloaded image to an SD card
+  - Consider [Etcher](https://etcher.balena.io/) or [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
 - Insert into your Pi and boot it up
 - **Important**: Let the power light flicker until it stops - the image auto-expands to fill the SD card on first boot
 - Once expansion is complete, you can safely power off anytime
+
+> [!WARNING]  
+> Do not use the Custom Settings options of the [Raspberry Pi Imager](https://www.raspberrypi.com/software/) - the image includes ssh and wific onfiguration tools that conflict with the ciustom settings.
+
 
 ### 2. Network Setup
 
