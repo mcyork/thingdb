@@ -10,7 +10,7 @@
 - Once expansion is complete, you can safely power off anytime
 
 > [!WARNING]  
-> Do not use the Custom Settings options of the [Raspberry Pi Imager](https://www.raspberrypi.com/software/) - the image includes ssh and wific onfiguration tools that conflict with the ciustom settings.
+> Do not use the Custom Settings options of the [Raspberry Pi Imager](https://www.raspberrypi.com/software/) - the image includes ssh and wifi configuration tools that conflict with the ciustom settings.
 
 
 ### 2. Network Setup
