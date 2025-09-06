@@ -1,0 +1,20 @@
+[Unit]
+Description=Inventory Management System
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=inventory
+Group=inventory
+WorkingDirectory=/var/lib/inventory/app
+Environment=PATH=/var/lib/inventory/app/venv/bin
+Environment=TRANSFORMERS_CACHE=/var/lib/inventory/ml_cache
+Environment=HF_HOME=/var/lib/inventory/ml_cache
+EnvironmentFile=/var/lib/inventory/config/environment.env
+ExecStart=/var/lib/inventory/app/venv/bin/gunicorn --preload --workers 2 --bind 127.0.0.1:8000 main:app
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

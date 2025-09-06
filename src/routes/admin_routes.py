@@ -946,6 +946,13 @@ def api_install_package():
             else:
                 shutil.copy2(item, app_dir)
 
+        # CRITICAL: Clear __pycache__ directories to force reloading of modules
+        logger.info("Clearing __pycache__ directories...")
+        for path in Path(app_dir).rglob('__pycache__'):
+            if path.is_dir():
+                shutil.rmtree(path)
+        logger.info("Cleared __pycache__ directories.")
+
         # Ensure logs directory exists
         os.makedirs(logs_dir, exist_ok=True)
 
@@ -1071,6 +1078,13 @@ def api_install_unsigned_package():
                 shutil.copytree(item, app_dir / item.name)
             else:
                 shutil.copy2(item, app_dir)
+
+        # CRITICAL: Clear __pycache__ directories to force reloading of modules
+        logger.info("Clearing __pycache__ directories...")
+        for path in Path(app_dir).rglob('__pycache__'):
+            if path.is_dir():
+                shutil.rmtree(path)
+        logger.info("Cleared __pycache__ directories.")
 
         # Ensure logs directory exists
         os.makedirs(logs_dir, exist_ok=True)
@@ -1274,4 +1288,72 @@ def api_upgrade_status():
         return jsonify({
             'success': False,
             'error': f'Failed to get upgrade status: {str(e)}'
+        }), 500
+
+
+@admin_bp.route('/api/shutdown-system', methods=['POST'])
+def api_shutdown_system():
+    """Shutdown the system safely with filesystem sync"""
+    try:
+        import subprocess
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        logger.info("Initiating safe system shutdown...")
+        
+        # First, sync filesystems for extra safety
+        logger.info("Syncing filesystems...")
+        subprocess.run(['/usr/bin/sudo', 'sync'], check=True)
+        
+        # Then shutdown the system using sudo (non-blocking)
+        logger.info("Initiating system shutdown...")
+        subprocess.Popen(['/usr/bin/sudo', 'shutdown', '-h', 'now'], 
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        
+        # Return immediately - the system will shutdown
+        logger.info("Safe system shutdown initiated")
+        return jsonify({
+            'success': True,
+            'message': 'Safe system shutdown initiated successfully (filesystems synced)'
+        })
+            
+    except Exception as e:
+        logger.error(f"System shutdown error: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'System shutdown failed: {str(e)}'
+        }), 500
+
+
+@admin_bp.route('/api/reboot-system', methods=['POST'])
+def api_reboot_system():
+    """Reboot the system safely with filesystem sync"""
+    try:
+        import subprocess
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        logger.info("Initiating safe system reboot...")
+        
+        # First, sync filesystems for extra safety
+        logger.info("Syncing filesystems...")
+        subprocess.run(['/usr/bin/sudo', 'sync'], check=True)
+        
+        # Then reboot the system using sudo (non-blocking)
+        logger.info("Initiating system reboot...")
+        subprocess.Popen(['/usr/bin/sudo', 'reboot'], 
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        
+        # Return immediately - the system will reboot
+        logger.info("Safe system reboot initiated")
+        return jsonify({
+            'success': True,
+            'message': 'Safe system reboot initiated successfully (filesystems synced)'
+        })
+            
+    except Exception as e:
+        logger.error(f"System reboot error: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'System reboot failed: {str(e)}'
         }), 500

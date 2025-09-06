@@ -4,7 +4,7 @@ Configuration settings for Flask Inventory Management System
 import os
 
 # Application configuration
-APP_VERSION = "1.3.0"
+APP_VERSION = "1.4.3"
 MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
 
 # Database configuration - prioritize external PostgreSQL settings

@@ -429,7 +429,8 @@ print_status "Creating systemd service..."
 cat > /etc/systemd/system/inventory-app.service << 'SVCEOF'
 [Unit]
 Description=Inventory Management System
-After=network.target postgresql.service
+After=network-online.target postgresql.service
+Wants=network-online.target
 
 [Service]
 Type=simple
@@ -440,13 +441,22 @@ Environment=PATH=/var/lib/inventory/app/venv/bin
 Environment=TRANSFORMERS_CACHE=/var/lib/inventory/ml_cache
 Environment=HF_HOME=/var/lib/inventory/ml_cache
 EnvironmentFile=/var/lib/inventory/config/environment.env
-ExecStart=/var/lib/inventory/app/venv/bin/gunicorn --workers 2 --bind 127.0.0.1:8000 main:app
+ExecStart=/var/lib/inventory/app/venv/bin/gunicorn --preload --workers 2 --bind 127.0.0.1:8000 main:app
 Restart=always
 RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
 SVCEOF
+
+# Create systemd override for Nginx to ensure it also waits for the network
+print_status "Creating Nginx service override to wait for network..."
+mkdir -p /etc/systemd/system/nginx.service.d
+cat > /etc/systemd/system/nginx.service.d/wait-for-network.conf << 'NGINXOVREOF'
+[Unit]
+After=network-online.target
+Wants=network-online.target
+NGINXOVREOF
 
 # Create nginx configuration
 print_status "Configuring nginx..."
@@ -474,6 +484,12 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Explicitly disable caching for the application
+        proxy_buffering off;
+        proxy_cache off;
+        expires off;
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
     }
     
     location /images/ {

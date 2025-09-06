@@ -497,6 +497,12 @@
         backdrop-filter: blur(5px);
     }
     
+    .modal.active {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
     .modal-content {
         background-color: white;
         margin: 5% auto;
@@ -636,6 +642,10 @@
         font-size: 12px;
         flex-shrink: 0;
         cursor: pointer;
+        /* Increase touch target size for mobile */
+        padding: 10px;
+        margin: -10px;
+        margin-right: -2px; /* (8px original) - 10px padding */
     }
     
     .tree-expand-icon.expandable {
@@ -1189,7 +1199,7 @@ function renderHomeAutocompleteResults(results) {
                     ${item.label_number ? `<span style="font-weight: 600; color: #007bff;">#${item.label_number}</span>` : ''}
                     <span>${item.contained_count > 0 ? `${item.contained_count} item${item.contained_count !== 1 ? 's' : ''} inside` : 'Empty'}</span>
                     ${item.matched_tags ? `<span>• Tags: ${item.matched_tags}</span>` : ''}
-                    ${item.description && item.description.length > 0 ? `<span>• ${item.description.substring(0, 50)}${item.description.length > 50 ? '...' : ''}</span>` : ''}
+                    ${item.description && item.description.length > 0 ? `<span>• ${item.description.substring(0, 50).replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>')}${item.description.length > 50 ? '...' : ''}</span>` : ''}
                     ${item.similarity !== undefined && item.match_type === 'semantic' ? `<span>• ${Math.round(item.similarity * 100)}% match</span>` : ''}
                     <span>• Click to view</span>
                 </div>
@@ -1376,6 +1386,9 @@ function loadTreeData() {
     loading.style.display = 'block';
     container.innerHTML = '';
     
+    // Add event listener for delegated clicks
+    container.addEventListener('click', handleTreeClick);
+    
     fetch('/api/tree-data')
         .then(response => response.json())
         .then(data => {
@@ -1392,6 +1405,33 @@ function loadTreeData() {
             console.error('Tree loading error:', error);
             container.innerHTML = '<div class="tree-loading">Failed to load tree structure</div>';
         });
+}
+
+function handleTreeClick(event) {
+    const itemContent = event.target.closest('.tree-item-content');
+    if (!itemContent) return; // Click was outside any item
+
+    const item = itemContent.closest('.tree-item');
+    if (!item || !item.dataset.guid) return;
+
+    const guid = item.dataset.guid;
+    const expandIcon = item.querySelector('.tree-expand-icon.expandable');
+
+    // Define the left-hand area for expansion (in pixels)
+    const expandThreshold = 60;
+
+    // Get click position relative to the item content element
+    const rect = itemContent.getBoundingClientRect();
+    const clickX = event.clientX - rect.left;
+
+    if (expandIcon && clickX < expandThreshold) {
+        // If the click is in the "expand zone" and the item is expandable
+        event.stopPropagation();
+        toggleTreeItem(guid);
+    } else {
+        // Otherwise, navigate to the item
+        navigateToTreeItem(guid);
+    }
 }
 
 function renderTree(items, container, level) {
@@ -1421,9 +1461,9 @@ function createTreeItem(item, level) {
         indentHtml += '<div class="tree-indent"></div>';
     }
     
-    // Expand icon
+    // Expand icon (no click handler needed here due to event delegation)
     const expandIcon = item.child_count > 0 ? 
-        `<div class="tree-expand-icon expandable" onclick="event.stopPropagation(); toggleTreeItem('${item.guid}')" title="Expand/Collapse">▶</div>` :
+        `<div class="tree-expand-icon expandable" title="Expand/Collapse">▶</div>` :
         '<div class="tree-expand-icon">•</div>';
     
     // Thumbnail or placeholder
@@ -1436,7 +1476,7 @@ function createTreeItem(item, level) {
     const childrenInfo = item.child_count > 0 ? `<span class="tree-item-stat">📁 ${item.child_count}</span>` : '';
     
     itemDiv.innerHTML = `
-        <div class="tree-item-content" onclick="navigateToTreeItem('${item.guid}')">
+        <div class="tree-item-content">
             ${indentHtml}
             ${expandIcon}
             ${thumbnail}
@@ -1526,6 +1566,54 @@ window.onclick = function(event) {
 
 // Create new item function
 function createNewItem() {
+    // Show confirmation dialog instead of creating immediately
+    showNewItemConfirmation();
+}
+
+// Show confirmation dialog for new item creation
+function showNewItemConfirmation() {
+    const modal = document.createElement('div');
+    modal.className = 'modal active';
+    modal.id = 'new-item-confirmation-modal';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width: 320px; padding: 0;">
+            <div class="modal-header" style="padding: 16px 20px 12px 20px; border-bottom: 1px solid #eee;">
+                <h2 style="margin: 0; font-size: 18px;">Create New Item</h2>
+                <button onclick="hideNewItemConfirmation()" class="modal-close" style="font-size: 16px; padding: 4px;">✕</button>
+            </div>
+            <div class="modal-body" style="padding: 16px 20px;">
+                <div style="text-align: center;">
+                    <div style="font-size: 32px; margin-bottom: 8px;">📦</div>
+                    <h3 style="margin: 0 0 8px 0; font-size: 16px; font-weight: 600;">Ready to add a new item?</h3>
+                    <p style="margin: 0; font-size: 14px; color: #666;">This will create a new item in your inventory.</p>
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; gap: 8px; justify-content: center; padding: 12px 20px 16px 20px; border-top: 1px solid #eee;">
+                <button onclick="confirmCreateNewItem()" class="btn btn-primary" style="font-size: 14px; padding: 8px 16px; flex: 1;">
+                    Add New Item
+                </button>
+                <button onclick="hideNewItemConfirmation()" class="btn btn-secondary" style="font-size: 14px; padding: 8px 16px; flex: 1;">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+}
+
+// Hide the confirmation dialog
+function hideNewItemConfirmation() {
+    const modal = document.getElementById('new-item-confirmation-modal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+// Confirm and create new item
+function confirmCreateNewItem() {
+    hideNewItemConfirmation();
+    
     // Call the backend to create a new item
     fetch('/create-item', {
         method: 'POST',
@@ -1539,8 +1627,8 @@ function createNewItem() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Navigate to the new item
-            window.location.href = `/item/${data.guid}`;
+            // Navigate to the new item with edit mode parameter
+            window.location.href = `/item/${data.guid}?edit_title=true`;
         } else {
             alert('Failed to create new item: ' + (data.error || 'Unknown error'));
         }

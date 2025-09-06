@@ -88,6 +88,27 @@ def create_app():
                              heading='❌ Internal Server Error',
                              message='An internal server error occurred. Please try again later.'), 500
     
+    # Custom template filters
+    @app.template_filter('urlize_safe')
+    def urlize_safe(text):
+        """Convert URLs to clickable links with security attributes"""
+        if not text:
+            return text
+        
+        import re
+        from markupsafe import Markup
+        
+        # Pattern to match URLs
+        url_pattern = r'(https?://[^\s<>"{}|\\^`\[\]]+)'
+        
+        def make_link(match):
+            url = match.group(1)
+            return f'<a href="{url}" target="_blank" rel="noopener noreferrer">{url}</a>'
+        
+        # Replace URLs with clickable links
+        result = re.sub(url_pattern, make_link, text)
+        return Markup(result)
+    
     # Template context processors
     @app.context_processor
     def inject_version():
@@ -101,6 +122,16 @@ def create_app():
                 'thumbnails': len(thumbnail_cache.cache)
             }
         }
+    
+    # Add security and cache control headers
+    @app.after_request
+    def add_security_headers(response):
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        return response
     
     return app
 

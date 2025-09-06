@@ -478,27 +478,34 @@
                         </div>
                     </button>
                     
-                    <button onclick="testPackageAPI()" class="admin-btn">
-                        <span class="admin-btn-icon">🧪</span>
-                        <div>
-                            <div class="admin-btn-text">Test API</div>
-                            <div class="admin-btn-detail">Test package upload API</div>
-                        </div>
-                    </button>
-                    
-                    <button onclick="testSimpleAPI()" class="admin-btn">
-                        <span class="admin-btn-icon">🔧</span>
-                        <div>
-                            <div class="admin-btn-text">Simple Test</div>
-                            <div class="admin-btn-detail">Test basic API connectivity</div>
-                        </div>
-                    </button>
                     
                     <button onclick="restartService()" class="admin-btn admin-btn-warning">
                         <span class="admin-btn-icon">🔄</span>
                         <div>
                             <div class="admin-btn-text">Restart Service</div>
                             <div class="admin-btn-detail">Restart inventory application</div>
+                        </div>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- System Management Section -->
+            <div class="admin-section">
+                <h3 class="admin-section-title">System Management</h3>
+                <div class="admin-buttons">
+                    <button onclick="shutdownSystem()" class="admin-btn admin-btn-danger">
+                        <span class="admin-btn-icon">🔴</span>
+                        <div>
+                            <div class="admin-btn-text">Shutdown</div>
+                            <div class="admin-btn-detail">Shutdown system now (shutdown -h now)</div>
+                        </div>
+                    </button>
+                    
+                    <button onclick="rebootSystem()" class="admin-btn admin-btn-warning">
+                        <span class="admin-btn-icon">🟠</span>
+                        <div>
+                            <div class="admin-btn-text">Reboot</div>
+                            <div class="admin-btn-detail">Reboot system now</div>
                         </div>
                     </button>
                 </div>
@@ -1134,6 +1141,71 @@ function restartService() {
         btn.innerHTML = originalText;
         btn.disabled = false;
     });
+}
+
+// System Management Functions
+function shutdownSystem() {
+    if (confirm('⚠️ WARNING: This will shutdown the system immediately!\n\nAre you sure you want to proceed?')) {
+        const btn = document.querySelector('button[onclick="shutdownSystem()"]');
+        const originalText = btn.innerHTML;
+        
+        btn.innerHTML = '<span class="admin-btn-icon">⏳</span><div><div class="admin-btn-text">Shutting Down...</div><div class="admin-btn-detail">System is shutting down</div></div>';
+        btn.disabled = true;
+        
+        fetch('/api/shutdown-system', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showModal('System Shutdown', 'System shutdown initiated. The system will power off shortly.');
+            } else {
+                showModal('Error', 'Failed to initiate shutdown: ' + (data.error || 'Unknown error'));
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        })
+        .catch(error => {
+            showModal('Error', 'Failed to initiate shutdown: ' + error.message);
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        });
+    }
+}
+
+function rebootSystem() {
+    if (confirm('⚠️ WARNING: This will reboot the system immediately!\n\nAre you sure you want to proceed?')) {
+        const btn = document.querySelector('button[onclick="rebootSystem()"]');
+        const originalText = btn.innerHTML;
+        
+        btn.innerHTML = '<span class="admin-btn-icon">⏳</span><div><div class="admin-btn-text">Rebooting...</div><div class="admin-btn-detail">System is rebooting</div></div>';
+        btn.disabled = true;
+        
+        fetch('/api/reboot-system', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showModal('System Reboot', 'System reboot initiated. The system will restart shortly.');
+            } else {
+                showModal('Error', 'Failed to initiate reboot: ' + (data.error || 'Unknown error'));
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        })
+        .catch(error => {
+            showModal('Error', 'Failed to initiate reboot: ' + error.message);
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        });
+    }
 }
 </script>
 {% endblock %}

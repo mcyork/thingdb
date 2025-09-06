@@ -50,6 +50,71 @@
         border-color: rgba(255,255,255,0.5);
     }
     
+    /* Highlight for new item editing */
+    .header-edit-name-input.new-item-highlight {
+        background: rgba(255,255,255,0.4) !important;
+        border-color: #007bff !important;
+        box-shadow: 0 0 0 3px rgba(0,123,255,0.5) !important;
+        animation: newItemPulse 4s ease-in-out;
+    }
+    
+    /* Overlay to grey out content during new item editing */
+    .new-item-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.6);
+        z-index: 999;
+        pointer-events: none;
+        animation: fadeIn 0.3s ease-in;
+    }
+    
+    /* Make sure the header and action bar are above the overlay */
+    .app-header {
+        position: relative;
+        z-index: 1000;
+    }
+    
+    .action-bar {
+        position: relative;
+        z-index: 1000;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    
+    @keyframes newItemPulse {
+        0% { 
+            box-shadow: 0 0 0 0 rgba(0,123,255,0.8);
+            transform: scale(1);
+            background: rgba(255,255,255,0.4);
+        }
+        25% { 
+            box-shadow: 0 0 0 12px rgba(0,123,255,0.3);
+            transform: scale(1.05);
+            background: rgba(255,255,255,0.6);
+        }
+        50% { 
+            box-shadow: 0 0 0 8px rgba(0,123,255,0.2);
+            transform: scale(1.02);
+            background: rgba(255,255,255,0.5);
+        }
+        75% { 
+            box-shadow: 0 0 0 12px rgba(0,123,255,0.3);
+            transform: scale(1.05);
+            background: rgba(255,255,255,0.6);
+        }
+        100% { 
+            box-shadow: 0 0 0 0 rgba(0,123,255,0);
+            transform: scale(1);
+            background: rgba(255,255,255,0.4);
+        }
+    }
+    
     /* GUID at bottom of content */
     .content-guid {
         margin-top: 40px;
@@ -642,6 +707,14 @@
         flex: 1;
     }
     
+    .action-bar .btn:disabled {
+        background: #6c757d;
+        border-color: #6c757d;
+        color: #fff;
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+    
     /* Adjust content padding for fixed action bar */
     .app-content {
         padding: 0 !important;
@@ -910,7 +983,7 @@
         
         <div class="content-text" id="description-display">
             {% if item_data.item[2] %}
-                <p>{{ item_data.item[2] }}</p>
+                <p>{{ item_data.item[2]|urlize_safe }}</p>
             {% else %}
                 <p class="empty-content">No description added yet</p>
             {% endif %}
@@ -1032,8 +1105,8 @@
 <!-- Fixed Action Bar -->
 <div class="action-bar">
     <a href="/" class="btn btn-secondary">Back</a>
-    <button onclick="toggleControls()" class="btn btn-primary" id="controls-toggle">
-        Show Controls
+    <button onclick="toggleControls()" class="btn btn-primary" id="controls-toggle" {% if not images %}disabled{% endif %}>
+        Image Controls
     </button>
     <button onclick="deleteItem('{{ guid }}')" class="btn btn-danger">Delete Item</button>
 </div>
@@ -1041,6 +1114,39 @@
 
 {% block scripts %}
 <script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Check if this is a newly created item
+    if (sessionStorage.getItem('isNewItem') === 'true') {
+        // Remove the flag immediately so it doesn't trigger on refresh
+        sessionStorage.removeItem('isNewItem');
+        
+        // Trigger the edit mode for the title
+        editHeaderName();
+        
+        // A small delay can help ensure the element is fully visible and ready for focus on all browsers
+        setTimeout(() => {
+            const nameInput = document.getElementById('header-name-input');
+            if (nameInput) {
+                // Add overlay to grey out content
+                const overlay = document.createElement('div');
+                overlay.className = 'new-item-overlay';
+                overlay.id = 'new-item-overlay';
+                document.body.appendChild(overlay);
+                
+                // Add visual highlight to draw attention
+                nameInput.classList.add('new-item-highlight');
+                nameInput.focus();
+                nameInput.select(); // Select the default text for easy replacement
+                
+                // Remove highlight after animation completes (overlay will be removed when title is saved)
+                setTimeout(() => {
+                    nameInput.classList.remove('new-item-highlight');
+                }, 4000);
+            }
+        }, 100);
+    }
+});
+
 // Simple modal image viewer (fallback from PhotoSwipe)
 function openImageModal(imageSrc, imageAlt) {
     // Create modal
@@ -1123,7 +1229,7 @@ function toggleControls() {
     if (gallery.classList.contains('controls-visible')) {
         // Hide controls
         gallery.classList.remove('controls-visible');
-        toggleBtn.textContent = 'Show Controls';
+        toggleBtn.textContent = 'Image Controls';
         toggleBtn.classList.remove('active');
     } else {
         // Show controls
@@ -1417,6 +1523,12 @@ document.getElementById('header-edit-name-form').addEventListener('submit', func
             // Also update page title
             document.title = newName;
             cancelHeaderEditName();
+            
+            // Remove overlay if it exists (for new items)
+            const overlayEl = document.getElementById('new-item-overlay');
+            if (overlayEl) {
+                overlayEl.remove();
+            }
         } else {
             alert('Update failed: ' + (data.error || 'Unknown error'));
         }
@@ -1613,7 +1725,8 @@ document.getElementById('edit-description-form').addEventListener('submit', func
             // Update display
             const displayElement = document.getElementById('description-display').querySelector('p');
             if (newDescription) {
-                displayElement.textContent = newDescription;
+                // Use innerHTML to support URL linking (urlize equivalent in JS)
+                displayElement.innerHTML = newDescription.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
                 displayElement.classList.remove('empty-content');
             } else {
                 displayElement.textContent = 'No description added yet';
@@ -1856,6 +1969,32 @@ function showAssociationSearch() {
 
 function dismissAssociation() {
     document.getElementById('association-banner').style.display = 'none';
+    
+    // Trigger the same new item editing experience
+    setTimeout(() => {
+        // First put the title into edit mode
+        editHeaderName();
+        
+        // Then add the overlay and highlighting
+        const nameInput = document.getElementById('header-name-input');
+        if (nameInput) {
+            // Add overlay to grey out content
+            const overlay = document.createElement('div');
+            overlay.className = 'new-item-overlay';
+            overlay.id = 'new-item-overlay';
+            document.body.appendChild(overlay);
+            
+            // Add visual highlight to draw attention
+            nameInput.classList.add('new-item-highlight');
+            nameInput.focus();
+            nameInput.select(); // Select the default text for easy replacement
+            
+            // Remove highlight after animation completes (overlay will be removed when title is saved)
+            setTimeout(() => {
+                nameInput.classList.remove('new-item-highlight');
+            }, 4000);
+        }
+    }, 100);
 }
 
 function cancelAndDelete() {
@@ -1957,7 +2096,7 @@ function renderAssociationResults(results) {
     
     dropdown.innerHTML = results.map((item, index) => `
         <div class="autocomplete-item ${index === associationSelectedIndex ? 'selected' : ''}" 
-             onclick="associateWithItem('${item.guid}', '${item.name.replace(/'/g, "\\'")}')"
+             onclick="associateWithItem('${item.guid}', '${item.name.replace(/'/g, "\'")}')"
              data-index="${index}">
             <div class="autocomplete-item-name">${item.name}</div>
             ${item.matched_tags ? `<div class="autocomplete-item-tags">Tags: ${item.matched_tags}</div>` : ''}
@@ -2001,27 +2140,44 @@ function associateWithItem(targetGuid, targetName) {
         });
     }
 }
-
-// Print item details function (COMMENTED OUT - BROKE NETWORK)
-/*
-async function printItemDetails() {
-    try {
-        const response = await fetch('/print/item/{{ guid }}', {
-            method: 'POST'
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            alert('Print job sent successfully!');
-        } else {
-            alert('Print failed: ' + data.error);
-        }
-    } catch (error) {
-        alert('Print failed: ' + error.message);
-    }
-}
-*/
 {% endif %}
+</script>
+<script>
+// This script handles the auto-edit functionality for new items.
+document.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('edit_title')) {
+        // Immediately trigger the edit mode for the title.
+        editHeaderName();
+        
+        // A short delay helps ensure the input is visible and ready for focus,
+        // which is especially important for mobile browsers to bring up the keyboard.
+        setTimeout(() => {
+            const nameInput = document.getElementById('header-name-input');
+            if (nameInput) {
+                // Add overlay to grey out content
+                const overlay = document.createElement('div');
+                overlay.className = 'new-item-overlay';
+                overlay.id = 'new-item-overlay';
+                document.body.appendChild(overlay);
+                
+                // Add visual highlight to draw attention
+                nameInput.classList.add('new-item-highlight');
+                nameInput.focus();
+                nameInput.select(); // Select the default text for easy replacement.
+                
+                // Remove highlight after animation completes (overlay will be removed when title is saved)
+                setTimeout(() => {
+                    nameInput.classList.remove('new-item-highlight');
+                }, 4000);
+            }
+        }, 100);
+
+        // Use the History API to remove the URL parameter without reloading the page.
+        // This prevents the edit mode from re-triggering on a manual refresh.
+        const newUrl = window.location.pathname;
+        history.replaceState({}, document.title, newUrl);
+    }
+});
 </script>
 {% endblock %}

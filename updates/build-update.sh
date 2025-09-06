@@ -39,17 +39,41 @@ if [ ! -f "$PROJECT_ROOT/src/main.py" ]; then
     exit 1
 fi
 
-# Get version from command line or git
-if [ -n "$1" ]; then
-    VERSION="$1"
-else
-    # Get version from git tag or default to timestamp
-    if git describe --tags --exact-match HEAD 2>/dev/null; then
-        VERSION=$(git describe --tags --exact-match HEAD)
-    else
-        VERSION="dev-$(date +%Y%m%d-%H%M%S)"
-    fi
+# Get the script directory and project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+CONFIG_FILE="$PROJECT_ROOT/src/config.py"
+
+# --- Version Auto-Increment ---
+print_status "Reading and incrementing patch version..."
+if [ ! -f "$CONFIG_FILE" ]; then
+    print_error "Config file not found at $CONFIG_FILE"
+    exit 1
 fi
+
+# Read current version from config.py
+CURRENT_VERSION_LINE=$(grep -E "^APP_VERSION\s*=\s*\"[0-9]+\.[0-9]+\.[0-9]+\"" "$CONFIG_FILE")
+if [ -z "$CURRENT_VERSION_LINE" ]; then
+    print_error "APP_VERSION not found or in unexpected format in $CONFIG_FILE"
+    exit 1
+fi
+
+CURRENT_VERSION=$(echo "$CURRENT_VERSION_LINE" | grep -o -E "[0-9]+\.[0-9]+\.[0-9]+")
+MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
+MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
+PATCH=$(echo "$CURRENT_VERSION" | cut -d. -f3)
+
+# Increment the patch version
+NEW_PATCH=$((PATCH + 1))
+NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
+
+# Update the config.py file
+sed -i.bak "s/APP_VERSION = \"$CURRENT_VERSION\"/APP_VERSION = \"$NEW_VERSION\"/" "$CONFIG_FILE"
+rm "${CONFIG_FILE}.bak"
+
+print_success "Version updated from $CURRENT_VERSION to $NEW_VERSION"
+VERSION=$NEW_VERSION
+# --- End Version Auto-Increment ---
 
 print_status "Building update package for version: $VERSION"
 
@@ -57,11 +81,9 @@ print_status "Building update package for version: $VERSION"
 mkdir -p "$PACKAGES_DIR"
 
 # Check for signing certificates
-# Get the script directory and project root
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 CERT_FILE="$PROJECT_ROOT/signing-certs-and-root/eSoup+Signing+CA+INT.crt"
 KEY_FILE="$PROJECT_ROOT/signing-cert-key/eSoup+Signing+CA+INT.key"
+
 
 if [ ! -f "$CERT_FILE" ] || [ ! -f "$KEY_FILE" ]; then
     print_error "Signing certificates not found"

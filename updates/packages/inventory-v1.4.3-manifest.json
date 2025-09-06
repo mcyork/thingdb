@@ -1,0 +1,51 @@
+{
+  "package_name": "inventory-v1.4.3",
+  "version": "1.4.3",
+  "created": "2025-09-06T16:07:32Z",
+  "package_size": 173376,
+  "package_hash": "50a942b7a6107f97a61b3dc80163a7d542484ae8575753a11bb2bbfbe181dd9b",
+  "rollback_safe": true,
+  "restarts_expected": 2,
+  "dependencies": {
+    "python_packages": [
+      "reportlab==4.0.4",
+      "qrcode[pil]==7.4.2"
+    ]
+  },
+  "files_included": [
+    "src/routes/",
+    "src/templates/",
+    "src/services/",
+    "src/utils/",
+    "src/main.py",
+    "src/config.py",
+    "src/database.py",
+    "src/models.py"
+  ],
+  "upgrade_steps": [
+    {
+      "step": "backup",
+      "description": "Backup current source code"
+    },
+    {
+      "step": "extract", 
+      "description": "Extract new package"
+    },
+    {
+      "step": "install_deps",
+      "description": "Install new Python dependencies"
+    },
+    {
+      "step": "restart_service",
+      "description": "Restart inventory-app service"
+    },
+    {
+      "step": "validate",
+      "description": "Run health checks"
+    },
+    {
+      "step": "cleanup",
+      "description": "Remove backup if successful"
+    }
+  ]
+}
