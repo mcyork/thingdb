@@ -11,7 +11,7 @@
 - **Important**: Let the power light flicker until it stops - the image auto-expands to fill the SD card on first boot
 - Once expansion is complete, you can safely power off anytime
 
-
+- [RC6 image link](https://ln5.sync.com/dl/b73842090#5hqm9x4c-m3dykywz-z9g6fidj-u5dq3nne) 
 
 ### 2. Network Setup
 
