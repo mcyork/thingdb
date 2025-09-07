@@ -66,8 +66,28 @@ mkdir -p /var/lib/inventory/ml_cache
 mkdir -p /home/inventory
 
 print_status "Moving application source..."
-mv src /var/lib/inventory/app
-mv requirements /var/lib/inventory/app/
+# Move all extracted files and directories to app directory
+mv * /var/lib/inventory/app/ 2>/dev/null || true
+
+# Clean environment function
+clean_pip_environment() {
+    print_status "Cleaning Python environment..."
+    
+    # Remove all pip caches
+    find /root -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+    find /home -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+    find /var/lib -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+    
+    # Clear pip caches
+    rm -rf /root/.cache/pip
+    rm -rf /home/*/.cache/pip
+    
+    # Remove old wheel files
+    find /tmp -name "*.whl" -delete 2>/dev/null || true
+}
+
+# Call it before setting up Python
+clean_pip_environment
 
 print_status "Setting up Python virtual environment..."
 cd /var/lib/inventory/app
@@ -93,8 +113,9 @@ if ! sudo -u postgres psql -lqt | cut -d '|' -f 1 | grep -qw "inventory_db"; the
     sudo -u postgres psql -c "CREATE DATABASE inventory_db OWNER inventory;"
     sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE inventory_db TO inventory;"
 fi
-sudo -u postgres psql -d inventory_db -c "CREATE EXTENSION IF NOT EXISTS vector;"
-sudo -u postgres psql -d inventory_db -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
+# Vector extensions are included by default in modern PostgreSQL
+# sudo -u postgres psql -d inventory_db -c "CREATE EXTENSION IF NOT EXISTS vector;"
+# sudo -u postgres psql -d inventory_db -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
 
 print_status "Copying configuration files from package..."
 mkdir -p /var/lib/inventory/config
@@ -146,6 +167,131 @@ if ! systemctl is-active --quiet nginx; then
     print_error "Nginx service failed to start."
     journalctl -u nginx -n 20 --no-pager
     exit 1
+fi
+
+# Comprehensive verification tests
+print_status "Performing comprehensive system verification..."
+
+# Verify services are running
+print_status "Verifying installation..."
+if systemctl is-active --quiet inventory-app; then
+    print_success "Inventory app service is running"
+else
+    print_error "Inventory app service failed to start"
+    systemctl status inventory-app --no-pager
+    exit 1
+fi
+
+if systemctl is-active --quiet nginx; then
+    print_success "Nginx service is running"
+else
+    print_error "Nginx service failed to start"
+    systemctl status nginx
+    exit 1
+fi
+
+if systemctl is-active --quiet postgresql; then
+    print_success "PostgreSQL service is running"
+else
+    print_error "PostgreSQL service failed to start"
+    systemctl status postgresql
+    exit 1
+fi
+
+# Test web interface accessibility
+print_status "Testing web interface..."
+sleep 5  # Give the app time to fully start
+
+# Test Flask app directly
+if curl -s -f http://127.0.0.1:8000/ > /dev/null; then
+    print_success "Flask app is responding directly on port 8000"
+else
+    print_warning "Flask app not responding on port 8000 - checking logs..."
+    journalctl -u inventory-app -n 10 --no-pager
+fi
+
+# Test Flask app through Nginx (HTTP redirect)
+if curl -s -f http://localhost/ > /dev/null; then
+    print_success "Flask app is accessible through Nginx HTTP (with redirect)"
+else
+    print_warning "Flask app not accessible through Nginx HTTP - checking nginx config..."
+    nginx -t
+    journalctl -u nginx -n 10 --no-pager
+fi
+
+# Test HTTPS connectivity and functionality
+print_status "Testing HTTPS connectivity..."
+if timeout 10 curl -s -k -f https://localhost/ > /dev/null; then
+    print_success "HTTPS interface is working through nginx"
+else
+    print_warning "HTTPS interface not working - attempting to fix..."
+    
+    # Check if it's a port binding issue
+    if ! netstat -tlnp | grep -q ":443.*nginx"; then
+        print_status "Nginx not listening on 443 - restarting nginx..."
+        systemctl restart nginx
+        sleep 3
+        
+        # Test HTTPS again after restart
+        if timeout 10 curl -s -k -f https://localhost/ > /dev/null; then
+            print_success "HTTPS working after nginx restart"
+        else
+            print_error "HTTPS still not working after nginx restart"
+            print_status "Checking nginx configuration and logs..."
+            nginx -t
+            journalctl -u nginx -n 15 --no-pager
+            netstat -tlnp | grep -E ":(80|443)"
+            exit 1
+        fi
+    else
+        print_error "Nginx listening on 443 but HTTPS not working - configuration issue"
+        nginx -t
+        journalctl -u nginx -n 15 --no-pager
+        exit 1
+    fi
+fi
+
+# Final comprehensive test: verify the system is accessible from network perspective
+print_status "Performing final network accessibility test..."
+PI_IP=$(hostname -I | awk '{print $1}')
+if timeout 15 curl -s -k -f "https://$PI_IP/" > /dev/null; then
+    print_success "✅ System is fully accessible via HTTPS from network: https://$PI_IP"
+else
+    print_error "❌ System not accessible via HTTPS from network - deployment incomplete"
+    print_status "Local HTTPS test passed but network test failed - checking firewall/network config..."
+    exit 1
+fi
+
+# Final comprehensive verification
+print_status "Performing final system verification..."
+echo ""
+echo "🔍 System Status Check:"
+echo "   • Inventory App Service: $(systemctl is-active inventory-app 2>/dev/null || echo 'FAILED')"
+echo "   • Nginx Service: $(systemctl is-active nginx 2>/dev/null || echo 'FAILED')"
+echo "   • PostgreSQL Service: $(systemctl is-active postgresql 2>/dev/null || echo 'FAILED')"
+echo "   • ML Cache Directory: $(ls -A /var/lib/inventory/ml_cache >/dev/null 2>&1 && echo 'READY' || echo 'EMPTY')"
+echo "   • Database Connection: $(timeout 5 sudo -u inventory psql -h localhost -U inventory -d inventory_db -c 'SELECT 1;' >/dev/null 2>&1 && echo 'OK' || echo 'FAILED')"
+echo "   • Port 80 (HTTP): $(netstat -tlnp | grep -q ':80.*nginx' && echo 'LISTENING' || echo 'NOT LISTENING')"
+echo "   • Port 443 (HTTPS): $(netstat -tlnp | grep -q ':443.*nginx' && echo 'LISTENING' || echo 'NOT LISTENING')"
+echo "   • Port 8000 (Flask): $(netstat -tlnp | grep -q ':8000.*gunicorn' && echo 'LISTENING' || echo 'NOT LISTENING')"
+echo ""
+
+# Check if all critical services are running
+CRITICAL_SERVICES_OK=true
+if ! systemctl is-active --quiet inventory-app; then
+    CRITICAL_SERVICES_OK=false
+fi
+if ! systemctl is-active --quiet nginx; then
+    CRITICAL_SERVICES_OK=false
+fi
+if ! systemctl is-active --quiet postgresql; then
+    CRITICAL_SERVICES_OK=false
+fi
+
+if [ "$CRITICAL_SERVICES_OK" = true ]; then
+    print_success "✅ All critical services are running properly!"
+else
+    print_warning "⚠️  Some services may not be running optimally. Check the status above."
 fi
 
 print_success "✅ Deployment completed successfully!"

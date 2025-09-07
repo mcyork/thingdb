@@ -33,7 +33,7 @@ rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 
 print_status "Copying application source code..."
-cp -r "$PROJECT_ROOT/src" "$BUILD_DIR/"
+cp -r "$PROJECT_ROOT/src"/* "$BUILD_DIR/"
 cp -r "$PROJECT_ROOT/requirements" "$BUILD_DIR/"
 print_success "Source code copied."
 
@@ -46,7 +46,7 @@ print_success "Configuration files copied."
 
 print_status "Creating deployment package: $PACKAGE_NAME"
 cd "$BUILD_DIR"
-tar -czf "$PACKAGE_NAME" src requirements config deploy.sh
+tar -czf "$PACKAGE_NAME" *.py routes services utils static templates requirements config deploy.sh
 mv "$PACKAGE_NAME" "$BUILD_DIR/../" # Move package to deploy dir parent
 cd "$PROJECT_ROOT"
 

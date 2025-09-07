@@ -1105,4 +1105,154 @@ class ProfessionalServices:
 
 ---
 
+## New information
+
+Here’s a first draft of the document you’re describing. I’ve kept it focused on **your system with Ed25519**, no compare-and-contrast with other curves except a small appendix where I cover deterministic derivation.
+
+---
+
+# 🔐 Ed25519 Certificate & Key Use in IoT Patch Signing System
+
+## 1. System Overview
+
+The system consists of three main actors:
+
+1. **Development System (Build Environment)**
+
+   * Holds the **Ed25519 private key**.
+   * Signs software patches and update bundles before they are distributed.
+   * Private key **never leaves this system**.
+
+2. **Raspberry Pi Fleet (Deployed IoT Devices)**
+
+   * Each Pi contains the **same Ed25519 leaf certificate** (public key only).
+   * Uses this certificate to verify signatures on update bundles and payloads from the development system.
+   * No private key is stored on the Pis.
+   * Certificate chain (root + intermediate + leaf) is embedded in the image.
+
+3. **Cloudflare Worker Node (Verification & Coordination)**
+
+   * Receives signed payloads from Pis.
+   * Uses the **Ed25519 public key** (from the leaf certificate) to verify Pi-generated signatures.
+   * May also need to verify update package signatures before approving or distributing them.
+   * Never holds a private key; verification only.
+
+---
+
+## 2. Key & Certificate Placement
+
+* **Root Certificate (self-controlled):**
+
+  * Stays offline in cold storage.
+  * Used only to sign an intermediate certificate.
+
+* **Intermediate Certificate (Ed25519):**
+
+  * Held securely in the development system.
+  * Used to sign the leaf certificate.
+  * Private key never leaves the development environment.
+
+* **Leaf Certificate (Ed25519):**
+
+  * Public key only, embedded in every Pi image.
+  * Trusted by Worker nodes for verification.
+  * No uniqueness per Pi (all share the same leaf).
+
+* **Leaf Private Key:**
+
+  * Stored only in the development system and (optionally) in Cloudflare Workers Secrets.
+  * Used for signing patch bundles and payloads.
+
+---
+
+## 3. Cloudflare Worker Considerations
+
+Cloudflare Workers run in a sandboxed JS environment with the Web Crypto API, which **does not currently support Ed25519 natively**.
+Therefore, a small external JavaScript library is required for signature verification.
+
+### Recommended Library
+
+* **[tweetnacl-js](https://github.com/dchest/tweetnacl-js)**
+
+  * \~25 KB minified.
+  * Pure JavaScript (no WASM required).
+  * Implements Ed25519 signature verify and sign.
+  * Actively maintained and widely trusted.
+
+**Usage Example (Worker side):**
+
+```js
+import nacl from "tweetnacl";
+
+export default {
+  async fetch(request, env) {
+    const body = await request.arrayBuffer();
+    const signature = new Uint8Array([...]); // from request
+    const message = new Uint8Array(body);
+    const publicKey = new Uint8Array(env.ED25519_PUBKEY); // stored as secret
+
+    const valid = nacl.sign.detached.verify(message, signature, publicKey);
+    return new Response(valid ? "Signature OK" : "Signature INVALID");
+  }
+};
+```
+
+---
+
+## 4. Development Workflow
+
+1. Developer compiles and packages a new patch.
+2. Patch is hashed and signed with the **Ed25519 private key**.
+3. Patch + signature are distributed.
+4. Pis verify the patch with their embedded **leaf public key**.
+5. Worker nodes verify any payloads received from Pis using the same public key.
+
+At no point do Pis or Workers require the private key. Only the development system (and optionally Workers if they need to sign responses) ever holds it.
+
+---
+
+## 5. Security Properties
+
+* **Confidentiality:** Private keys never leave the development system.
+* **Integrity:** Every update is verifiable against the embedded certificate chain.
+* **Uniform Trust:** All Pis share the same leaf cert, simplifying fleet management.
+* **Resilience:** Even if a Pi is compromised, the attacker cannot sign valid patches (no private key present).
+
+---
+
+## Appendix A: Deterministic Keys (Future Consideration)
+
+In future versions, you may want per-device keys derived deterministically.
+Ed25519 lends itself well to this because the private key seed is just 32 bytes.
+
+### Possible Approach:
+
+* Take the Pi’s **serial number** as the seed input.
+* Apply a Key Derivation Function (e.g., HKDF with a secret salt).
+* Output → 32-byte seed → Ed25519 private key.
+
+This ensures:
+
+* Same Pi serial number always regenerates the same key.
+* No key database required.
+* Still cryptographically valid (though serial numbers are weak entropy).
+
+⚠️ Note: Since Pi serials are not secret, you’d want to combine them with an additional secret (salt) stored only in your build system, to avoid brute force risks.
+
+---
+
+## Summary
+
+For your application:
+
+* Use **Ed25519** for compact, fast signatures.
+* Store private keys only in your development system.
+* Deploy the public leaf cert across all Pis.
+* Verify signatures in Cloudflare Workers using **tweetnacl-js** (small, pure JS library).
+* Optionally, consider deterministic key derivation later if you want per-device uniqueness.
+
+---
+
+
+
 *This implementation provides a secure, user-friendly remote access solution with zero ongoing costs for most deployments.*
