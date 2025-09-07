@@ -12,7 +12,7 @@
 - Once expansion is complete, you can safely power off anytime
 
 - If on a prior RC run a backup - image sd card - restore back - yer on your way
-- [RC7 image link](https://ln5.sync.com/dl/21dd9c9f0#2qw8wjmv-nd69at47-m6jk2wju-c8rhynd2)) 
+- [RC7 image link](https://ln5.sync.com/dl/21dd9c9f0#2qw8wjmv-nd69at47-m6jk2wju-c8rhynd2)
 
 ### 2. Network Setup
 
