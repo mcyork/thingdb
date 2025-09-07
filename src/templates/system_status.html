@@ -198,7 +198,7 @@
             {% if error %}
                 Something's not quite right - check the details below
             {% else %}
-                Response time: {{ status.response_time }}ms • Version {{ status.app_version }}
+                Response time: {{ status.response_time }}ms • Version {% if status.app_rc %}{{ status.app_rc }} {% endif %}{{ status.app_version }}
             {% endif %}
         </p>
     </div>
@@ -300,7 +300,7 @@
                     <span class="status-label">Memory Usage</span>
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <div class="progress-bar">
-                            <div class="progress-fill {% if status.system.memory_percent < 70 %}progress-good{% elif status.system.memory_percent < 90 %}progress-warning{% else %}progress-danger{% endif %}" 
+                            <div class="progress-fill {% if status.system.memory_percent < 70 %}progress-good{% elif status.system.memory_percent < 90 %}progress-danger{% endif %}" 
                                  style="width: {{ status.system.memory_percent }}%"></div>
                         </div>
                         <span class="status-value">{{ "%.1f"|format(status.system.memory_percent) }}%</span>
@@ -310,7 +310,7 @@
                     <span class="status-label">Disk Usage</span>
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <div class="progress-bar">
-                            <div class="progress-fill {% if status.system.disk_percent < 70 %}progress-good{% elif status.system.disk_percent < 90 %}progress-warning{% else %}progress-danger{% endif %}" 
+                            <div class="progress-fill {% if status.system.disk_percent < 70 %}progress-good{% elif status.system.disk_percent < 90 %}progress-danger{% endif %}" 
                                  style="width: {{ status.system.disk_percent }}%"></div>
                         </div>
                         <span class="status-value">{{ "%.1f"|format(status.system.disk_percent) }}%</span>
@@ -322,9 +322,6 @@
     
     <div class="version-info">
         <strong>🔧 System Information:</strong><br>
-        Inventory Management System v{{ status.app_version }} • Flask • PostgreSQL • Docker
+        Inventory Management System v{% if status.app_rc %}{{ status.app_rc }} {% endif %}{{ status.app_version }} • Flask • PostgreSQL • Docker
     </div>
-    
-    <a href="/" class="back-btn">← Back to Home</a>
-</div>
 {% endblock %}

@@ -1,0 +1,19 @@
+{
+  "package_name": "inventory-ec-v1.4.5",
+  "version": "1.4.5",
+  "created": "2025-09-07T19:40:21Z",
+  "package_size": 174047,
+  "package_hash": "3b5bfa813d7723bd96992fd9aa9e73b89c3653a031574c062d695e93f7db7ef9",
+  "rollback_safe": true,
+  "restarts_expected": 2,
+  "dependencies": {},
+  "files_included": [
+    "src/"
+  ],
+  "upgrade_steps": [
+    {"step": "backup", "description": "Backup current source code"},
+    {"step": "extract", "description": "Extract new package"},
+    {"step": "restart_service", "description": "Restart inventory-app service"},
+    {"step": "validate", "description": "Run health checks"}
+  ]
+}

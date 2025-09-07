@@ -119,9 +119,18 @@ fi
 
 print_status "Copying configuration files from package..."
 mkdir -p /var/lib/inventory/config
+mkdir -p /var/lib/inventory/signing-certs-and-root
 cp ./config/environment.env /var/lib/inventory/config/environment.env
 cp ./config/inventory-app.service /etc/systemd/system/inventory-app.service
 cp ./config/nginx.conf /etc/nginx/sites-available/inventory
+
+print_status "Copying certificate chains for package verification..."
+if [ -d "./signing-certs-and-root" ]; then
+    cp ./signing-certs-and-root/*.crt /var/lib/inventory/signing-certs-and-root/
+    print_success "Certificate chains copied for package verification"
+else
+    print_warning "No signing-certs-and-root directory found - package verification will be disabled"
+fi
 
 print_status "Creating Nginx service override to wait for network..."
 mkdir -p /etc/systemd/system/nginx.service.d

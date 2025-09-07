@@ -10,7 +10,7 @@ from models import image_cache, thumbnail_cache
 from services.embedding_service import is_embedding_model_available
 from services.qr_pdf_service import qr_pdf_service
 from services.package_verification_service import PackageVerificationService
-from config import APP_VERSION
+from config import APP_VERSION, APP_RELEASE_CANDIDATE
 
 admin_bp = Blueprint('admin', __name__)
 
@@ -104,7 +104,8 @@ def system_status():
             'cache': cache_stats,
             'connection_pool': pool_stats,
             'system': system_info,
-            'app_version': APP_VERSION
+            'app_version': APP_VERSION,
+            'app_rc': APP_RELEASE_CANDIDATE
         }
         
         return render_template('system_status.html', status=status_data)
@@ -114,7 +115,8 @@ def system_status():
         error_data = {
             'overall_status': 'unhealthy',
             'error': str(e),
-            'app_version': APP_VERSION
+            'app_version': APP_VERSION,
+            'app_rc': APP_RELEASE_CANDIDATE
         }
         return render_template('system_status.html', status=error_data, error=True)
 

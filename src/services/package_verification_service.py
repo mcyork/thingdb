@@ -10,7 +10,7 @@ import tarfile
 from pathlib import Path
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.asymmetric import padding, ec, ed25519
 from cryptography.exceptions import InvalidSignature
 import logging
 
@@ -34,8 +34,20 @@ class PackageVerificationService:
     
     def _get_default_cert_path(self):
         """Get the default certificate chain path"""
-        # Look for certificate chain in the project root
+        # Check Pi deployment path first
+        pi_ec_path = Path("/var/lib/inventory/signing-certs-and-root/ec-certificate-chain.crt")
+        if pi_ec_path.exists():
+            return pi_ec_path
+        
+        pi_rsa_path = Path("/var/lib/inventory/signing-certs-and-root/certificate-chain.crt")
+        if pi_rsa_path.exists():
+            return pi_rsa_path
+        
+        # Fall back to development paths
         project_root = Path(__file__).parent.parent.parent
+        ec_chain_path = project_root / "signing-certs-and-root" / "ec-certificate-chain.crt"
+        if ec_chain_path.exists():
+            return ec_chain_path
         return project_root / "signing-certs-and-root" / "certificate-chain.crt"
     
     def _load_certificate_chain(self):
@@ -50,7 +62,6 @@ class PackageVerificationService:
             with open(self.cert_chain_path, 'rb') as f:
                 cert_data = f.read()
             
-            # Parse the certificate chain (concatenated certificates)
             self.cert_chain = []
             cert_pem_start = b"-----BEGIN CERTIFICATE-----"
             cert_pem_end = b"-----END CERTIFICATE-----"
@@ -60,7 +71,6 @@ class PackageVerificationService:
                 start_pos = cert_data.find(cert_pem_start, start)
                 if start_pos == -1:
                     break
-                
                 end_pos = cert_data.find(cert_pem_end, start_pos)
                 if end_pos == -1:
                     break
@@ -68,7 +78,6 @@ class PackageVerificationService:
                 cert_pem = cert_data[start_pos:end_pos + len(cert_pem_end)]
                 cert = x509.load_pem_x509_certificate(cert_pem)
                 self.cert_chain.append(cert)
-                
                 start = end_pos + len(cert_pem_end)
             
             logger.info(f"Loaded {len(self.cert_chain)} certificates from chain")
@@ -80,14 +89,7 @@ class PackageVerificationService:
     
     def verify_package_signature(self, package_path, signature_path):
         """
-        Verify the signature of a package
-        
-        Args:
-            package_path: Path to the package file
-            signature_path: Path to the signature file
-            
-        Returns:
-            tuple: (is_valid, error_message)
+        Verify the signature of a package, handling both RSA and EC keys.
         """
         try:
             if not os.path.exists(package_path):
@@ -98,38 +100,43 @@ class PackageVerificationService:
             
             if not self.cert_chain:
                 if self.allow_unsigned:
-                    logger.warning("No certificate chain loaded, allowing unsigned package")
                     return True, "Unsigned package allowed"
                 return False, "No certificate chain available for verification"
             
-            # Read the package and signature
             with open(package_path, 'rb') as f:
                 package_data = f.read()
             
             with open(signature_path, 'rb') as f:
                 signature_data = f.read()
             
-            # For OpenSSL dgst signatures, we need to verify against the raw data, not the hash
-            # Try to verify with each certificate in the chain (try intermediate first)
             for i, cert in enumerate(reversed(self.cert_chain)):
                 try:
-                    logger.info(f"Trying certificate {i}: {cert.subject}")
-                    # Get the public key from the certificate
                     public_key = cert.public_key()
                     
-                    # Verify the signature (OpenSSL dgst creates signatures of the data, not the hash)
-                    public_key.verify(
-                        signature_data,
-                        package_data,
-                        padding.PKCS1v15(),
-                        hashes.SHA256()
-                    )
-                    
+                    # Crypto-agility: Check key type and use the correct verification algorithm
+                    if isinstance(public_key, ed25519.Ed25519PublicKey):
+                        # EdDSA (like Ed25519) handles its own hashing.
+                        public_key.verify(signature_data, package_data)
+                    elif isinstance(public_key, ec.EllipticCurvePublicKey):
+                        # Standard ECDSA requires a hash algorithm.
+                        public_key.verify(
+                            signature_data,
+                            package_data,
+                            ec.ECDSA(hashes.SHA256())
+                        )
+                    else: # Assumes RSA
+                         public_key.verify(
+                            signature_data,
+                            package_data,
+                            padding.PKCS1v15(),
+                            hashes.SHA256()
+                        )
+
                     logger.info(f"Package signature verified with certificate: {cert.subject}")
                     return True, "Signature verified successfully"
                     
-                except InvalidSignature as e:
-                    logger.warning(f"Invalid signature with certificate {cert.subject}: {e}")
+                except InvalidSignature:
+                    logger.warning(f"Invalid signature with certificate {cert.subject}")
                     continue
                 except Exception as e:
                     logger.warning(f"Verification failed with certificate {cert.subject}: {e}")

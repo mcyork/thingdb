@@ -35,7 +35,12 @@ mkdir -p "$BUILD_DIR"
 print_status "Copying application source code..."
 cp -r "$PROJECT_ROOT/src"/* "$BUILD_DIR/"
 cp -r "$PROJECT_ROOT/requirements" "$BUILD_DIR/"
-print_success "Source code copied."
+
+print_status "Copying certificate chains for package verification..."
+mkdir -p "$BUILD_DIR/signing-certs-and-root"
+cp "$PROJECT_ROOT/signing-certs-and-root/ec-certificate-chain.crt" "$BUILD_DIR/signing-certs-and-root/"
+cp "$PROJECT_ROOT/signing-certs-and-root/certificate-chain.crt" "$BUILD_DIR/signing-certs-and-root/"
+print_success "Source code and certificate chains copied."
 
 print_status "Copying externalized configuration files..."
 cp -r "$CONFIG_SOURCE_DIR" "$BUILD_DIR/config"
@@ -46,7 +51,7 @@ print_success "Configuration files copied."
 
 print_status "Creating deployment package: $PACKAGE_NAME"
 cd "$BUILD_DIR"
-tar -czf "$PACKAGE_NAME" *.py routes services utils static templates requirements config deploy.sh
+tar -czf "$PACKAGE_NAME" *.py routes services utils static templates requirements config deploy.sh signing-certs-and-root
 mv "$PACKAGE_NAME" "$BUILD_DIR/../" # Move package to deploy dir parent
 cd "$PROJECT_ROOT"
 

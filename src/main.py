@@ -35,7 +35,7 @@ load_env_file()
 
 # Now import modules that depend on environment variables
 from flask import Flask, render_template
-from config import APP_VERSION, FLASK_CONFIG
+import config
 from database import init_database
 from models import image_cache, thumbnail_cache
 from services.embedding_service import initialize_embedding_model
@@ -56,7 +56,7 @@ def create_app():
     app = Flask(__name__)
     
     # Configure Flask
-    app.config.update(FLASK_CONFIG)
+    app.config.update(config.FLASK_CONFIG)
     
     # Initialize database
     init_database()
@@ -112,7 +112,10 @@ def create_app():
     # Template context processors
     @app.context_processor
     def inject_version():
-        return {'app_version': APP_VERSION}
+        return {
+            'app_version': config.APP_VERSION,
+            'app_rc': config.APP_RELEASE_CANDIDATE
+        }
     
     @app.context_processor
     def inject_cache_stats():
@@ -140,13 +143,13 @@ def create_app():
 app = create_app()
 
 if __name__ == '__main__':
-    print(f"Starting Flask Inventory Management System v{APP_VERSION}")
+    print(f"Starting Flask Inventory Management System v{config.APP_VERSION}")
     print("Available routes:")
     for rule in app.url_map.iter_rules():
         print(f"  {rule.endpoint:30} {rule.rule}")
     
     app.run(
-        debug=FLASK_CONFIG.get('DEBUG', True),
+        debug=config.FLASK_CONFIG.get('DEBUG', True),
         host='0.0.0.0',
         port=5000
     )
