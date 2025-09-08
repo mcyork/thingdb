@@ -76,6 +76,12 @@ SEMANTIC_SEARCH = {
     'max_results': 50
 }
 
+# Cloudflare Tunnel settings
+CLOUDFLARE_CONFIG = {
+    'worker_url': os.environ.get('CF_WORKER_URL', 'https://register.nestdb.io'),
+    'device_cert_path': os.environ.get('CF_DEVICE_CERT_PATH', '/etc/inventory/device.crt')
+}
+
 # Flask app configuration
 class Config:
     MAX_CONTENT_LENGTH = MAX_CONTENT_LENGTH
@@ -90,5 +96,7 @@ FLASK_CONFIG = {
     'MAX_CONTENT_LENGTH': MAX_CONTENT_LENGTH,
     'SECRET_KEY': os.environ.get('SECRET_KEY') or 'dev-key-change-in-production',
     'DEBUG': os.environ.get('FLASK_DEBUG', '1') == '1',
-    'TESTING': False
+    'TESTING': False,
+    'CF_WORKER_URL': CLOUDFLARE_CONFIG['worker_url'],
+    'CF_DEVICE_CERT_PATH': CLOUDFLARE_CONFIG['device_cert_path']
 }

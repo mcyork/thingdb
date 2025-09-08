@@ -1,0 +1,28 @@
+name = "inventory-pi-registration"
+main = "worker.js"
+compatibility_date = "2023-10-01"
+workers_dev = true
+
+# Environment variables (set via wrangler secret put)
+# CF_API_TOKEN - Your Cloudflare API token for DNS management
+# ZONE_ID - Zone ID for your domain (e.g., inv.esoup.net)
+# LEAF_CERT_HASH - SHA256 hash of device certificate (optional security)
+
+# KV Namespaces (optional - for rate limiting and logging)
+# [[kv_namespaces]]
+# binding = "RATE_LIMIT_KV"
+# id = "your-kv-namespace-id"
+
+# [[kv_namespaces]]
+# binding = "REGISTRATIONS_KV"
+# id = "your-registrations-kv-id"
+
+# Custom domain
+routes = [
+  { pattern = "register.nestdb.io/*", zone_id = "cdaa3b4aafa873a286c15ec7b97f5814" }
+]
+
+# Secrets (add via CLI):
+# wrangler secret put CF_API_TOKEN
+# wrangler secret put ZONE_ID
+# wrangler secret put LEAF_CERT_HASH  # optional

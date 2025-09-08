@@ -49,6 +49,7 @@ from routes.relationship_routes import relationship_bp
 from routes.admin_routes import admin_bp
 # from routes.printing_routes import printing_bp  # COMMENTED OUT - BROKE NETWORK
 from routes.backup_routes import backup_bp
+from routes.remote_access_routes import remote_access_bp
 
 
 def create_app():
@@ -74,6 +75,7 @@ def create_app():
     app.register_blueprint(admin_bp)
     # app.register_blueprint(printing_bp)  # COMMENTED OUT - BROKE NETWORK
     app.register_blueprint(backup_bp)
+    app.register_blueprint(remote_access_bp)
     
     # Error handlers
     @app.errorhandler(404)

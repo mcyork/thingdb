@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remote Access Setup</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .step {
+            display: flex;
+            margin: 2rem 0;
+            align-items: flex-start;
+        }
+        .step-number {
+            background: #0066cc;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 1rem;
+            flex-shrink: 0;
+        }
+        .form-group {
+            margin: 1rem 0;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+        .btn {
+            background: #0066cc;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 4px;
+            font-size: 1rem;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn:hover {
+            background: #0052a3;
+        }
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .alert {
+            padding: 1rem;
+            border-radius: 4px;
+            margin: 1rem 0;
+        }
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .alert-danger {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .url-display {
+            background: #f5f5f5;
+            padding: 1rem;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 1rem 0;
+        }
+        .url-display code {
+            font-size: 1.1rem;
+            color: #0066cc;
+        }
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔒 Secure Remote Access Setup</h1>
+        
+        <div class="info-box">
+            <p>Enable secure remote access to your Inventory Pi from anywhere in the world.</p>
+            <p><strong>Device Serial:</strong> <code>{{ serial }}</code></p>
+        </div>
+        
+        <div class="setup-steps">
+            <h2>Setup Steps:</h2>
+            
+            <div class="step">
+                <span class="step-number">1</span>
+                <div class="step-content">
+                    <h3>Create a FREE Cloudflare Account</h3>
+                    <p>Click the button below to sign up (opens in new tab)</p>
+                    <a href="https://dash.cloudflare.com/sign-up" 
+                       target="_blank" 
+                       class="btn">
+                        Sign Up for Cloudflare →
+                    </a>
+                </div>
+            </div>
+            
+            <div class="step">
+                <span class="step-number">2</span>
+                <div class="step-content">
+                    <h3>Generate Your API Token</h3>
+                    <p>After signing up, create an API token with these permissions:</p>
+                    <ul>
+                        <li>Account → Cloudflare Tunnel: Edit</li>
+                        <li>Account → Access: Apps and Policies: Edit</li>
+                    </ul>
+                    <a href="https://dash.cloudflare.com/profile/api-tokens" 
+                       target="_blank"
+                       class="btn">
+                        Create API Token →
+                    </a>
+                </div>
+            </div>
+            
+            <div class="step">
+                <span class="step-number">3</span>
+                <div class="step-content">
+                    <h3>Complete Setup</h3>
+                    <form id="tunnel-setup-form">
+                        <div class="form-group">
+                            <label for="cf_token">Cloudflare API Token:</label>
+                            <input type="password" 
+                                   id="cf_token" 
+                                   name="cf_token"
+                                   placeholder="Paste your token here..."
+                                   required>
+                            <small>Your token is never stored and only used for setup</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="email">Your Email Address:</label>
+                            <input type="email" 
+                                   id="email" 
+                                   name="email"
+                                   placeholder="you@example.com"
+                                   required>
+                            <small>Only this email will be able to access remotely</small>
+                        </div>
+                        
+                        <button type="submit" 
+                                class="btn"
+                                id="setup-btn">
+                            🚀 Enable Remote Access
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div id="setup-result" style="display: none;">
+            <div class="alert alert-success">
+                <h3>✅ Setup Complete!</h3>
+                <p>Your device is now accessible at:</p>
+                <div class="url-display">
+                    <code id="device-url"></code>
+                    <button onclick="copyUrl()" class="btn">Copy</button>
+                </div>
+                <p class="mt-3">
+                    <strong>Note:</strong> You'll need to authenticate with your email 
+                    when accessing remotely.
+                </p>
+            </div>
+        </div>
+        
+        <div id="setup-error" style="display: none;">
+            <div class="alert alert-danger">
+                <h3>❌ Setup Failed</h3>
+                <p id="error-message"></p>
+                <button onclick="resetForm()" class="btn">Try Again</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.getElementById('tunnel-setup-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const setupBtn = document.getElementById('setup-btn');
+        const originalText = setupBtn.innerHTML;
+        
+        // Show loading state
+        setupBtn.disabled = true;
+        setupBtn.innerHTML = '<span class="spinner"></span> Setting up...';
+        
+        const formData = {
+            cf_token: document.getElementById('cf_token').value,
+            email: document.getElementById('email').value
+        };
+        
+        try {
+            const response = await fetch('/api/setup-tunnel', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                // Show success
+                document.getElementById('device-url').textContent = result.url;
+                document.getElementById('setup-result').style.display = 'block';
+                document.getElementById('tunnel-setup-form').style.display = 'none';
+            } else {
+                // Show error
+                document.getElementById('error-message').textContent = result.error;
+                document.getElementById('setup-error').style.display = 'block';
+            }
+        } catch (error) {
+            document.getElementById('error-message').textContent = 
+                'Network error. Please check your connection.';
+            document.getElementById('setup-error').style.display = 'block';
+        } finally {
+            setupBtn.disabled = false;
+            setupBtn.innerHTML = originalText;
+        }
+    });
+    
+    function copyUrl() {
+        const url = document.getElementById('device-url').textContent;
+        navigator.clipboard.writeText(url);
+        // Show feedback
+        event.target.textContent = 'Copied!';
+        setTimeout(() => {
+            event.target.textContent = 'Copy';
+        }, 2000);
+    }
+    
+    function resetForm() {
+        document.getElementById('setup-error').style.display = 'none';
+        document.getElementById('tunnel-setup-form').reset();
+    }
+    </script>
+</body>
+</html>
