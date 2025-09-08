@@ -123,6 +123,26 @@ mkdir -p /var/lib/inventory/signing-certs-and-root
 cp ./config/environment.env /var/lib/inventory/config/environment.env
 cp ./config/inventory-app.service /etc/systemd/system/inventory-app.service
 cp ./config/nginx.conf /etc/nginx/sites-available/inventory
+cp ./config/cloudflared.service /etc/systemd/system/cloudflared.service
+
+print_status "Creating cloudflared config directory with inventory ownership..."
+mkdir -p /etc/cloudflared
+chown inventory:inventory /etc/cloudflared
+
+print_status "Creating initial cloudflared config file with inventory ownership..."
+cat > /etc/cloudflared/config.yml << 'CLOUDFLAREDEOF'
+tunnel: dummy
+credentials-file: /dev/null
+ingress:
+  - service: http_status:404
+CLOUDFLAREDEOF
+chown inventory:inventory /etc/cloudflared/config.yml
+chmod 644 /etc/cloudflared/config.yml
+
+print_status "Granting inventory user permission to manage cloudflared service..."
+echo "inventory ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart cloudflared.service, /usr/bin/systemctl enable cloudflared.service, /usr/bin/systemctl daemon-reload" > /etc/sudoers.d/inventory-cloudflared
+chmod 0440 /etc/sudoers.d/inventory-cloudflared
+
 
 print_status "Copying certificate chains for package verification..."
 if [ -d "./signing-certs-and-root" ]; then

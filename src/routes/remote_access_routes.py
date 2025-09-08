@@ -89,78 +89,73 @@ class CloudflareTunnelManager:
             return False, f"Error validating token: {str(e)}"
     
     def create_tunnel(self, cf_token: str) -> Dict:
-        """Create Cloudflare tunnel via API (no CLI required)"""
-        tunnel_name = f"inventory-pi-{self.device_serial}"
+        """Create Cloudflare tunnel via API, or retrieve/recreate it if it already exists."""
+        tunnel_name_prefix = f"inventory-pi-{self.device_serial}"
         
         try:
-            # Get account ID first
             headers = {
                 'Authorization': f'Bearer {cf_token}',
                 'Content-Type': 'application/json'
             }
             
-            accounts_response = requests.get(
-                'https://api.cloudflare.com/client/v4/accounts',
-                headers=headers,
-                timeout=10
-            )
+            accounts_response = requests.get('https://api.cloudflare.com/client/v4/accounts', headers=headers, timeout=10)
+            accounts_response.raise_for_status()
+            account_id = accounts_response.json()['result'][0]['id']
+
+            tunnels_response = requests.get(f'https://api.cloudflare.com/client/v4/accounts/{account_id}/cfd_tunnel', headers=headers, timeout=10)
+            tunnels_response.raise_for_status()
+            tunnels = tunnels_response.json()['result']
             
-            if accounts_response.status_code != 200:
-                raise Exception(f"Failed to get accounts: {accounts_response.text}")
+            # Find any existing tunnel for this device
+            existing_tunnel = next((t for t in tunnels if t['name'].startswith(tunnel_name_prefix)), None)
+
+            if existing_tunnel:
+                tunnel_id = existing_tunnel['id']
+                tunnel_name = existing_tunnel['name']
+                creds_file_path = f'/home/inventory/.cloudflared/{tunnel_id}.json'
+                
+                if not os.path.exists(creds_file_path):
+                    current_app.logger.warning(f"Orphaned tunnel found (ID: {tunnel_id}). Deleting and recreating.")
+                    delete_resp = requests.delete(f'https://api.cloudflare.com/client/v4/accounts/{account_id}/cfd_tunnel/{tunnel_id}', headers=headers, timeout=10)
+                    delete_resp.raise_for_status()
+                    current_app.logger.info(f"Orphaned tunnel {tunnel_id} deleted.")
+                    # Fall through to create a new one
+                else:
+                    current_app.logger.info(f"Found existing tunnel and credentials for: {tunnel_name}")
+                    with open(creds_file_path, 'r') as f:
+                        creds_data = json.load(f)
+                    return {
+                        'tunnel_id': tunnel_id,
+                        'tunnel_secret': creds_data['TunnelSecret'],
+                        'tunnel_name': tunnel_name
+                    }
+
+            # Create a new tunnel with a unique name
+            unique_suffix = uuid.uuid4().hex[:6]
+            tunnel_name = f"{tunnel_name_prefix}-{unique_suffix}"
+            current_app.logger.info(f"Creating new tunnel: {tunnel_name}")
             
-            accounts_data = accounts_response.json()
-            if not accounts_data.get('success') or not accounts_data.get('result'):
-                raise Exception("No accounts found")
+            tunnel_data = {'name': tunnel_name}
+            tunnel_response = requests.post(f'https://api.cloudflare.com/client/v4/accounts/{account_id}/cfd_tunnel', headers=headers, json=tunnel_data, timeout=30)
+            tunnel_response.raise_for_status()
+            tunnel_result = tunnel_response.json()['result']
             
-            account_id = accounts_data['result'][0]['id']
+            tunnel_id = tunnel_result['id']
+            tunnel_secret = tunnel_result['credentials_file']['TunnelSecret']
             
-            # Create tunnel via API
-            tunnel_data = {
-                'name': tunnel_name
-            }
-            
-            tunnel_response = requests.post(
-                f'https://api.cloudflare.com/client/v4/accounts/{account_id}/cfd_tunnel',
-                headers=headers,
-                json=tunnel_data,
-                timeout=30
-            )
-            
-            if tunnel_response.status_code != 200:
-                raise Exception(f"Failed to create tunnel: {tunnel_response.text}")
-            
-            tunnel_result = tunnel_response.json()
-            if not tunnel_result.get('success'):
-                raise Exception(f"Tunnel creation failed: {tunnel_result.get('errors', [{}])[0].get('message', 'Unknown error')}")
-            
-            tunnel_info = tunnel_result['result']
-            tunnel_id = tunnel_info['id']
-            tunnel_secret = tunnel_info['credentials_file']['TunnelSecret']
-            
-            # Create credentials file for cloudflared
             creds_data = {
                 'AccountTag': account_id,
                 'TunnelID': tunnel_id,
                 'TunnelSecret': tunnel_secret
             }
-            
-            # Create .cloudflared directory with proper permissions
             cloudflared_dir = '/home/inventory/.cloudflared'
             os.makedirs(cloudflared_dir, exist_ok=True)
-            os.chmod(cloudflared_dir, 0o755)
-            
             creds_file = f'{cloudflared_dir}/{tunnel_id}.json'
-            
             with open(creds_file, 'w') as f:
                 json.dump(creds_data, f)
-            
-            # Set proper permissions on the credentials file
             os.chmod(creds_file, 0o600)
             
-            # Configure tunnel ingress rules (THE MISSING STEP!)
-            self._configure_tunnel_ingress(cf_token, account_id, tunnel_id)
-            
-            current_app.logger.info(f"Tunnel {tunnel_id} created and configured via API")
+            # Note: Ingress configuration is now handled in setup_tunnel() after DNS registration
             
             return {
                 'tunnel_id': tunnel_id,
@@ -169,23 +164,22 @@ class CloudflareTunnelManager:
             }
             
         except Exception as e:
-            current_app.logger.error(f"Tunnel creation failed: {str(e)}")
+            current_app.logger.error(f"Tunnel creation/retrieval failed: {str(e)}")
             raise
     
-    def _configure_tunnel_ingress(self, cf_token: str, account_id: str, tunnel_id: str) -> None:
-        """Configure tunnel ingress rules via API (THE MISSING STEP!)"""
+    def _configure_tunnel_ingress(self, cf_token: str, account_id: str, tunnel_id: str, hostname: str) -> None:
+        """Configure tunnel ingress rules to point to the local service."""
         try:
             headers = {
                 'Authorization': f'Bearer {cf_token}',
                 'Content-Type': 'application/json'
             }
             
-            # Configure ingress rules
             ingress_config = {
                 'config': {
                     'ingress': [
                         {
-                            'hostname': f'pi-{self.device_serial}.nestdb.io',
+                            'hostname': hostname,
                             'service': 'https://inventory.local:443',
                             'originRequest': {
                                 'noTLSVerify': True
@@ -204,15 +198,9 @@ class CloudflareTunnelManager:
                 json=ingress_config,
                 timeout=30
             )
+            config_response.raise_for_status()
             
-            if config_response.status_code != 200:
-                raise Exception(f"Failed to configure tunnel ingress: {config_response.text}")
-            
-            config_result = config_response.json()
-            if not config_result.get('success'):
-                raise Exception(f"Tunnel configuration failed: {config_result.get('errors', [{}])[0].get('message', 'Unknown error')}")
-            
-            current_app.logger.info(f"Tunnel {tunnel_id} ingress rules configured successfully")
+            current_app.logger.info(f"Tunnel {tunnel_id} ingress rules configured successfully for {hostname}")
             
         except Exception as e:
             current_app.logger.error(f"Failed to configure tunnel ingress: {str(e)}")
@@ -220,143 +208,101 @@ class CloudflareTunnelManager:
     
     def setup_access_policy(self, cf_token: str, tunnel_id: str, 
                           email: str, hostname: str) -> bool:
-        """Configure Cloudflare Access to require authentication"""
+        """Configure Cloudflare Access, retrieving or creating components as needed."""
         headers = {
             'Authorization': f'Bearer {cf_token}',
             'Content-Type': 'application/json'
         }
         
         try:
-            # Get account ID
-            accounts = requests.get(
-                'https://api.cloudflare.com/client/v4/accounts',
-                headers=headers
-            ).json()
+            accounts_resp = requests.get('https://api.cloudflare.com/client/v4/accounts', headers=headers)
+            accounts_resp.raise_for_status()
+            account_id = accounts_resp.json()['result'][0]['id']
+
+            # Step 1: Ensure an Identity Provider is available
+            idps_resp = requests.get(f'https://api.cloudflare.com/client/v4/accounts/{account_id}/access/identity_providers', headers=headers)
+            idps_resp.raise_for_status()
+            idps = idps_resp.json()['result']
+            if not idps:
+                raise Exception("No Identity Providers configured in your Cloudflare account. Please enable the 'One-time PIN' provider in the Access section.")
             
-            account_id = accounts['result'][0]['id']
+            # Step 2: Find or Create the Access Application
+            apps_resp = requests.get(f'https://api.cloudflare.com/client/v4/accounts/{account_id}/access/apps', headers=headers)
+            apps_resp.raise_for_status()
+            apps = apps_resp.json()['result']
             
-            # First, check if we have any IdPs available
-            idps_resp = requests.get(
-                f'https://api.cloudflare.com/client/v4/accounts/{account_id}/access/identity_providers',
-                headers=headers
-            )
-            
-            if idps_resp.status_code != 200:
-                raise Exception(f"Cannot access IdPs: {idps_resp.text}")
-            
-            idps_data = idps_resp.json()
-            if not idps_data.get('success') or not idps_data.get('result'):
-                raise Exception("No Identity Providers available. Please set up email OTP in Cloudflare dashboard.")
-            
-            # Use the first available IdP (should be email OTP)
-            available_idps = [idp['id'] for idp in idps_data['result']]
-            if not available_idps:
-                raise Exception("No Identity Providers configured")
-            
-            # Check if Access app already exists
-            apps_resp = requests.get(
-                f'https://api.cloudflare.com/client/v4/accounts/{account_id}/access/apps',
-                headers=headers
-            )
-            
-            app_id = None
-            if apps_resp.status_code == 200:
-                apps_data = apps_resp.json()
-                if apps_data.get('success'):
-                    # Look for existing app with this domain
-                    for app in apps_data.get('result', []):
-                        if app.get('domain') == hostname:
-                            app_id = app['id']
-                            current_app.logger.info(f"Found existing Access app: {app_id}")
-                            break
-            
-            # Create Access app if it doesn't exist
-            if not app_id:
+            app_id = next((app['id'] for app in apps if app.get('domain') == hostname), None)
+
+            if app_id:
+                current_app.logger.info(f"Found existing Access app: {app_id}")
+            else:
+                current_app.logger.info(f"Creating new Access app for hostname: {hostname}")
                 app_data = {
                     'name': f'Inventory Pi {self.device_serial}',
                     'domain': hostname,
                     'type': 'self_hosted',
                     'session_duration': '24h',
-                    'auto_redirect_to_identity': True,
-                    'allowed_idps': available_idps[:1],  # Use first available IdP
-                    'custom_deny_message': 'Access restricted to authorized users only.'
+                    'auto_redirect_to_identity': True
                 }
-                
-                app_resp = requests.post(
-                    f'https://api.cloudflare.com/client/v4/accounts/{account_id}/access/apps',
-                    headers=headers,
-                    json=app_data
-                )
-                
-                if app_resp.status_code != 200:
-                    raise Exception(f"Failed to create Access app: {app_resp.text}")
-                
-                app_id = app_resp.json()['result']['id']
+                create_app_resp = requests.post(f'https://api.cloudflare.com/client/v4/accounts/{account_id}/access/apps', headers=headers, json=app_data)
+                create_app_resp.raise_for_status()
+                app_id = create_app_resp.json()['result']['id']
                 current_app.logger.info(f"Created new Access app: {app_id}")
+
+            # Step 3: Find or Create the 'Owner' Access Policy
+            policies_resp = requests.get(f'https://api.cloudflare.com/client/v4/accounts/{account_id}/access/apps/{app_id}/policies', headers=headers)
+            policies_resp.raise_for_status()
+            policies = policies_resp.json()['result']
             
-            # Check if policy already exists for this email
-            policies_resp = requests.get(
-                f'https://api.cloudflare.com/client/v4/accounts/{account_id}/access/apps/{app_id}/policies',
-                headers=headers
-            )
-            
-            policy_exists = False
-            if policies_resp.status_code == 200:
-                policies_data = policies_resp.json()
-                if policies_data.get('success'):
-                    for policy in policies_data.get('result', []):
-                        # Check if policy includes this email
-                        for include_rule in policy.get('include', []):
-                            if include_rule.get('email', {}).get('email') == email:
-                                policy_exists = True
-                                current_app.logger.info(f"Policy already exists for {email}")
-                                break
-                        if policy_exists:
-                            break
-            
-            # Create policy if it doesn't exist
-            if not policy_exists:
+            owner_policy_name = 'Owner Access Only'
+            owner_policy = next((p for p in policies if p['name'] == owner_policy_name), None)
+
+            if owner_policy:
+                current_app.logger.info(f"Found existing owner policy for {email}")
+                # Optional: Update policy if needed, for now we assume it's correct
+            else:
+                current_app.logger.info(f"Creating new owner policy for {email}")
                 policy_data = {
-                    'name': 'Owner Access Only',
+                    'name': owner_policy_name,
                     'precedence': 1,
                     'decision': 'allow',
                     'include': [
-                        {'email': {'email': email}}
-                    ],
-                    'exclude': [],
-                    'require': []
+                        {
+                            "email": {
+                                "email": email
+                            }
+                        }
+                    ]
                 }
-                
-                policy_resp = requests.post(
-                    f'https://api.cloudflare.com/client/v4/accounts/{account_id}/access/apps/{app_id}/policies',
-                    headers=headers,
-                    json=policy_data
-                )
-                
-                if policy_resp.status_code != 200:
-                    raise Exception(f"Failed to create Access policy: {policy_resp.text}")
-                
+                create_policy_resp = requests.post(f'https://api.cloudflare.com/client/v4/accounts/{account_id}/access/apps/{app_id}/policies', headers=headers, json=policy_data)
+                create_policy_resp.raise_for_status()
                 current_app.logger.info(f"Created Access policy for {email}")
-                
-                # Add explicit deny-all policy
-                deny_policy = {
-                    'name': 'Deny All Others',
-                    'precedence': 2,
+
+            # Step 4: Ensure a 'Deny All' fallback policy exists
+            deny_policy_name = 'Deny All Others'
+            deny_policy = next((p for p in policies if p['name'] == deny_policy_name), None)
+
+            if deny_policy:
+                current_app.logger.info("Deny-all fallback policy already exists.")
+            else:
+                current_app.logger.info("Creating deny-all fallback policy.")
+                deny_policy_data = {
+                    'name': deny_policy_name,
+                    'precedence': 50, # Give it a lower precedence
                     'decision': 'deny',
                     'include': [{'everyone': {}}]
                 }
-                
-                requests.post(
-                    f'https://api.cloudflare.com/client/v4/accounts/{account_id}/access/apps/{app_id}/policies',
-                    headers=headers,
-                    json=deny_policy
-                )
-            
-            current_app.logger.info(f"Access policy created for {email}")
+                deny_policy_resp = requests.post(f'https://api.cloudflare.com/client/v4/accounts/{account_id}/access/apps/{app_id}/policies', headers=headers, json=deny_policy_data)
+                deny_policy_resp.raise_for_status()
+                current_app.logger.info("Created deny-all policy.")
+
             return True
             
         except Exception as e:
             current_app.logger.error(f"Access policy setup failed: {str(e)}")
+            # Add more detailed error logging
+            if 'response' in locals():
+                current_app.logger.error(f"Response body: {locals()['response'].text}")
             return False
     
     
@@ -455,63 +401,42 @@ class CloudflareTunnelManager:
             current_app.logger.error(f"Tunnel routing configuration failed: {str(e)}")
             raise
     
-    def start_tunnel(self, cf_token: str, tunnel_id: str, tunnel_secret: str) -> None:
-        """Start the tunnel using cloudflared daemon (minimal CLI usage)"""
+    def start_tunnel_service(self, tunnel_id: str, hostname: str) -> None:
+        """Create config and start the tunnel service."""
         try:
-            # Create credentials file with real tunnel secret
-            creds_file = f'/home/inventory/.cloudflared/{tunnel_id}.json'
-            os.makedirs(os.path.dirname(creds_file), exist_ok=True)
+            current_app.logger.info(f"Configuring and starting systemd service for tunnel {tunnel_id}")
+
+            # --- Create cloudflared config.yml ---
+            # The /etc/cloudflared directory is owned by the 'inventory' user.
+            config_dir = "/etc/cloudflared"
+            creds_file_path = f'/home/inventory/.cloudflared/{tunnel_id}.json'
             
-            # Get account ID for AccountTag
-            accounts = requests.get(
-                'https://api.cloudflare.com/client/v4/accounts',
-                headers={'Authorization': f'Bearer {cf_token}', 'Content-Type': 'application/json'}
-            ).json()
-            account_id = accounts['result'][0]['id']
-            
-            creds_data = {
-                'AccountTag': account_id,
-                'TunnelSecret': tunnel_secret,
-                'TunnelID': tunnel_id
-            }
-            
-            with open(creds_file, 'w') as f:
-                json.dump(creds_data, f)
-            os.chmod(creds_file, 0o600)
-            
-            # Create config file
-            config_file = '/home/inventory/.cloudflared/config.yml'
             config_content = f"""tunnel: {tunnel_id}
-credentials-file: {creds_file}
+credentials-file: {creds_file_path}
+protocol: http2
 
 ingress:
-  - hostname: pi-{self.device_serial}.nestdb.io
-    service: https://localhost:8000
+  - hostname: {hostname}
+    service: https://127.0.0.1:443
     originRequest:
       noTLSVerify: true
   - service: http_status:404
 """
-            
-            with open(config_file, 'w') as f:
+            with open(f"{config_dir}/config.yml", 'w') as f:
                 f.write(config_content)
-            os.chmod(config_file, 0o644)
-            
-            # Kill any existing cloudflared processes
-            try:
-                subprocess.run(['killall', 'cloudflared'], capture_output=True)
-            except:
-                pass  # Ignore if no processes to kill
-            
-            # Start tunnel daemon in background
-            subprocess.Popen([
-                '/usr/local/bin/cloudflared',
-                'tunnel',
-                'run',
-                tunnel_id
-            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            
-            current_app.logger.info(f"Tunnel daemon {tunnel_id} started")
-            
+
+            # --- Enable and start the service using sudo ---
+            # The 'inventory' user has been granted passwordless sudo for this specific command.
+            subprocess.run(['/usr/bin/sudo', 'systemctl', 'daemon-reload'], check=True)
+            subprocess.run(['/usr/bin/sudo', 'systemctl', 'enable', 'cloudflared.service'], check=True)
+            subprocess.run(['/usr/bin/sudo', 'systemctl', 'restart', 'cloudflared.service'], check=True)
+
+            current_app.logger.info(f"Successfully started and enabled cloudflared service for tunnel {tunnel_id}")
+
+        except subprocess.CalledProcessError as e:
+            stderr = e.stderr.decode() if e.stderr else "No stderr"
+            current_app.logger.error(f"A system command failed during tunnel service setup: {stderr}")
+            raise Exception(f"Failed to manage cloudflared service: {stderr}")
         except Exception as e:
             current_app.logger.error(f"Failed to start tunnel daemon: {str(e)}")
             raise
@@ -541,39 +466,33 @@ def setup_tunnel():
         if not valid:
             return jsonify({'success': False, 'error': error}), 400
         
-        # Create tunnel
+        # Step 2: Create or retrieve the tunnel
         tunnel_info = manager.create_tunnel(cf_token)
         
-        # Register DNS via Worker
+        # Step 3: Register DNS via Worker to get the hostname
         hostname = manager.register_dns_with_worker(
             tunnel_info['tunnel_id'], 
             email
         ).replace('https://', '').replace('http://', '')
         
-        # Setup Access policy using user token (must have Access permissions)
-        try:
-            manager.setup_access_policy(
-                cf_token,  # Use the same user token
-                tunnel_info['tunnel_id'],
-                email,
-                hostname
-            )
-            current_app.logger.info(f"Access policy created for {email}")
-        except Exception as e:
-            current_app.logger.warning(f"Access policy setup failed: {str(e)}")
-        
-        # Configure tunnel routing via API
-        manager.configure_tunnel_routing(
+        # Step 4: Configure tunnel ingress rules AFTER DNS is set
+        accounts_response = requests.get('https://api.cloudflare.com/client/v4/accounts', headers={'Authorization': f'Bearer {cf_token}','Content-Type': 'application/json'})
+        accounts_response.raise_for_status()
+        account_id = accounts_response.json()['result'][0]['id']
+        manager._configure_tunnel_ingress(cf_token, account_id, tunnel_info['tunnel_id'], hostname)
+
+        # Step 5: Setup Access policy
+        manager.setup_access_policy(
             cf_token,
             tunnel_info['tunnel_id'],
+            email,
             hostname
         )
         
-        # Start the tunnel with the secret
-        manager.start_tunnel(
-            cf_token,
+        # Step 6: Start the tunnel service
+        manager.start_tunnel_service(
             tunnel_info['tunnel_id'],
-            tunnel_info['tunnel_secret']
+            hostname
         )
         
         return jsonify({

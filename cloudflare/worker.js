@@ -72,7 +72,17 @@ async function createOrUpdateDNSRecord(hostname, tunnelId) {
     }
   );
   
+  if (!existingCheck.ok) {
+    throw new Error(`Failed to check existing DNS records: ${existingCheck.status} ${await existingCheck.text()}`);
+  }
+  
   const existing = await existingCheck.json();
+  
+  if (!existing.success) {
+    throw new Error(`DNS query failed: ${JSON.stringify(existing.errors)}`);
+  }
+  
+  console.log(`DNS query result for ${hostname}:`, JSON.stringify(existing, null, 2));
   
   const recordData = {
     type: 'CNAME',
@@ -83,6 +93,7 @@ async function createOrUpdateDNSRecord(hostname, tunnelId) {
   };
   
   if (existing.result && existing.result.length > 0) {
+    console.log(`Found existing record, updating: ${existing.result[0].id}`);
     // Update existing record
     const recordId = existing.result[0].id;
     const updateResponse = await fetch(
@@ -104,6 +115,7 @@ async function createOrUpdateDNSRecord(hostname, tunnelId) {
     
     return { action: 'updated', recordId };
   } else {
+    console.log(`No existing record found, creating new one for ${hostname}`);
     // Create new record
     const createResponse = await fetch(apiUrl, {
       method: 'POST',
@@ -196,7 +208,7 @@ async function handleRequest(request) {
     
     // Sanitize serial for DNS
     const cleanSerial = serial.replace(/[^a-zA-Z0-9-]/g, '').toLowerCase();
-    const hostname = `pi-${cleanSerial}`.substring(0, 63); // DNS label limit
+    const hostname = `pi-${cleanSerial}.nestdb.io`.substring(0, 63); // DNS label limit
     
     // Create or update DNS record
     const dnsResult = await createOrUpdateDNSRecord(hostname, tunnel_id);
@@ -207,7 +219,7 @@ async function handleRequest(request) {
     // Return success response
     return new Response(JSON.stringify({
       success: true,
-      url: `https://${hostname}.nestdb.io`,
+      url: `https://${hostname}`,
       tunnel_id: tunnel_id,
       action: dnsResult.action
     }), {
