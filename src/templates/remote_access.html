@@ -18,24 +18,68 @@
             padding: 2rem;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        .step {
-            display: flex;
-            margin: 2rem 0;
-            align-items: flex-start;
+        .status-card {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
         }
-        .step-number {
-            background: #0066cc;
-            color: white;
-            width: 32px;
-            height: 32px;
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
             border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            margin-right: 1rem;
-            flex-shrink: 0;
+            margin-right: 8px;
         }
+        .status-active { background: #28a745; }
+        .status-inactive { background: #dc3545; }
+        .status-unknown { background: #ffc107; }
+        .status-not-configured { background: #6c757d; }
+        
+        .url-display {
+            background: #e9ecef;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            padding: 0.75rem;
+            font-family: monospace;
+            font-size: 0.9rem;
+            margin: 0.5rem 0;
+            word-break: break-all;
+        }
+        .copy-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        .copy-btn:hover { background: #0056b3; }
+        .copy-btn:active { background: #004085; }
+        
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-warning { background: #ffc107; color: #212529; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn:hover { opacity: 0.9; }
+        
         .form-group {
             margin: 1rem 0;
         }
@@ -51,228 +95,462 @@
             border-radius: 4px;
             font-size: 1rem;
         }
-        .btn {
-            background: #0066cc;
-            color: white;
-            border: none;
-            padding: 0.75rem 1.5rem;
+        .form-group input:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
+        }
+        
+        .setup-form {
+            display: none;
+        }
+        .setup-form.show {
+            display: block;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+        .info-item {
+            background: #f8f9fa;
+            padding: 1rem;
             border-radius: 4px;
-            font-size: 1rem;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-block;
         }
-        .btn:hover {
-            background: #0052a3;
+        .info-label {
+            font-size: 0.9rem;
+            color: #6c757d;
+            margin-bottom: 0.25rem;
         }
-        .btn:disabled {
-            background: #ccc;
-            cursor: not-allowed;
+        .info-value {
+            font-weight: 600;
+            font-family: monospace;
         }
+        
         .alert {
             padding: 1rem;
             border-radius: 4px;
             margin: 1rem 0;
         }
-        .alert-success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        .alert-danger {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-        .url-display {
-            background: #f5f5f5;
+        .alert-success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .alert-warning { background: #fff3cd; border: 1px solid #ffeaa7; color: #856404; }
+        .alert-danger { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .alert-info { background: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; }
+        
+        .loading {
+            display: none;
+            text-align: center;
             padding: 1rem;
-            border-radius: 4px;
+        }
+        .spinner {
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #007bff;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .email-item {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin: 1rem 0;
+            padding: 0.5rem;
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            margin: 0.25rem 0;
         }
-        .url-display code {
-            font-size: 1.1rem;
-            color: #0066cc;
-        }
-        .spinner {
-            display: inline-block;
-            width: 16px;
-            height: 16px;
-            border: 2px solid #ffffff;
+        
+        .remove-email-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
             border-radius: 50%;
-            border-top-color: transparent;
-            animation: spin 1s ease-in-out infinite;
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        
+        .remove-email-btn:hover {
+            background: #c82333;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🔒 Secure Remote Access Setup</h1>
+        <h1>🌐 Remote Access Setup</h1>
+        <p>Configure secure remote access to your inventory system via Cloudflare Tunnel.</p>
         
-        <div class="info-box">
-            <p>Enable secure remote access to your Inventory Pi from anywhere in the world.</p>
-            <p><strong>Device Serial:</strong> <code>{{ serial }}</code></p>
-        </div>
-        
-        <div class="setup-steps">
-            <h2>Setup Steps:</h2>
+        <!-- Status Card -->
+        <div class="status-card">
+            <h3>
+                <span class="status-indicator status-{{ 'active' if tunnel_status.configured and tunnel_status.status == 'Active' else 'inactive' if tunnel_status.configured else 'not-configured' }}"></span>
+                Tunnel Status: {{ tunnel_status.status if tunnel_status.configured else 'Not Configured' }}
+            </h3>
             
-            <div class="step">
-                <span class="step-number">1</span>
-                <div class="step-content">
-                    <h3>Create a FREE Cloudflare Account</h3>
-                    <p>Click the button below to sign up (opens in new tab)</p>
-                    <a href="https://dash.cloudflare.com/sign-up" 
-                       target="_blank" 
-                       class="btn">
-                        Sign Up for Cloudflare →
-                    </a>
-                </div>
-            </div>
-            
-            <div class="step">
-                <span class="step-number">2</span>
-                <div class="step-content">
-                    <h3>Generate Your API Token</h3>
-                    <p>After signing up, create an API token with these permissions:</p>
-                    <ul>
-                        <li>Account → Cloudflare Tunnel: Edit</li>
-                        <li>Account → Access: Apps and Policies: Edit</li>
-                    </ul>
-                    <a href="https://dash.cloudflare.com/profile/api-tokens" 
-                       target="_blank"
-                       class="btn">
-                        Create API Token →
-                    </a>
-                </div>
-            </div>
-            
-            <div class="step">
-                <span class="step-number">3</span>
-                <div class="step-content">
-                    <h3>Complete Setup</h3>
-                    <form id="tunnel-setup-form">
-                        <div class="form-group">
-                            <label for="cf_token">Cloudflare API Token:</label>
-                            <input type="password" 
-                                   id="cf_token" 
-                                   name="cf_token"
-                                   placeholder="Paste your token here..."
-                                   required>
-                            <small>Your token is never stored and only used for setup</small>
+            {% if tunnel_status.configured %}
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">Access URL</div>
+                        <div class="info-value">{{ tunnel_status.url or 'Unknown' }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Authorized Emails</div>
+                        <div class="info-value">
+                            {% if tunnel_status.emails %}
+                                {% for email in tunnel_status.emails %}
+                                    <div class="email-item">
+                                        {{ email }}
+                                        <button class="remove-email-btn" onclick="removeEmail('{{ email }}')" title="Remove email">×</button>
+                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                {{ tunnel_status.email or 'Unknown' }}
+                            {% endif %}
                         </div>
-                        
-                        <div class="form-group">
-                            <label for="email">Your Email Address:</label>
-                            <input type="email" 
-                                   id="email" 
-                                   name="email"
-                                   placeholder="you@example.com"
-                                   required>
-                            <small>Only this email will be able to access remotely</small>
-                        </div>
-                        
-                        <button type="submit" 
-                                class="btn"
-                                id="setup-btn">
-                            🚀 Enable Remote Access
-                        </button>
-                    </form>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Tunnel ID</div>
+                        <div class="info-value">{{ tunnel_status.tunnel_id[:8] + '...' if tunnel_status.tunnel_id else 'Unknown' }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Created</div>
+                        <div class="info-value">{{ tunnel_status.created_at[:10] if tunnel_status.created_at else 'Unknown' }}</div>
+                    </div>
                 </div>
+                
+                {% if tunnel_status.url %}
+                <div class="url-display" id="url-display">{{ tunnel_status.url }}</div>
+                <button class="copy-btn" onclick="copyUrl()">📋 Copy URL</button>
+                {% endif %}
+                
+                <div class="action-buttons">
+                    <button class="btn btn-success" onclick="refreshStatus()">🔄 Refresh Status</button>
+                    <button class="btn btn-warning" onclick="restartTunnel()">🔄 Restart Tunnel</button>
+                    <button class="btn btn-primary" onclick="showEmailManagement()">👥 Manage Emails</button>
+                    <button class="btn btn-secondary" onclick="showSetupForm()">⚙️ Reconfigure</button>
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    <strong>No tunnel configured.</strong> Set up remote access to securely access your inventory system from anywhere.
+                </div>
+                <button class="btn btn-primary" onclick="showSetupForm()">🚀 Setup Remote Access</button>
+            {% endif %}
+        </div>
+        
+        <!-- Email Management Form -->
+        <div class="setup-form" id="email-management-form">
+            <h3>👥 Manage Authorized Emails</h3>
+            <p>Add or remove email addresses that can access your tunnel.</p>
+            
+            <div class="form-group">
+                <label for="cf_token_email">Cloudflare API Token</label>
+                <input type="password" id="cf_token_email" name="cf_token_email" required 
+                       placeholder="Your Cloudflare API token">
+            </div>
+            
+            <div class="form-group">
+                <label for="new_email">Email Address</label>
+                <input type="email" id="new_email" name="new_email" required 
+                       placeholder="family@email.com">
+                <small>Enter the email address to add or remove</small>
+            </div>
+            
+            <div class="action-buttons">
+                <button type="button" class="btn btn-success" onclick="addEmail()">➕ Add Email</button>
+                <button type="button" class="btn btn-danger" onclick="removeEmailFromForm()">➖ Remove Email</button>
+                <button type="button" class="btn btn-secondary" onclick="hideEmailManagement()">Cancel</button>
             </div>
         </div>
         
-        <div id="setup-result" style="display: none;">
-            <div class="alert alert-success">
-                <h3>✅ Setup Complete!</h3>
-                <p>Your device is now accessible at:</p>
-                <div class="url-display">
-                    <code id="device-url"></code>
-                    <button onclick="copyUrl()" class="btn">Copy</button>
+        <!-- Setup Form -->
+        <div class="setup-form" id="setup-form">
+            <h3>Configure Remote Access</h3>
+            <p>You'll need a Cloudflare API token with tunnel permissions. <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank">Get your token here</a>.</p>
+            
+            <form id="tunnel-form">
+                <div class="form-group">
+                    <label for="cf_token">Cloudflare API Token</label>
+                    <input type="password" id="cf_token" name="cf_token" required 
+                           placeholder="Your Cloudflare API token">
                 </div>
-                <p class="mt-3">
-                    <strong>Note:</strong> You'll need to authenticate with your email 
-                    when accessing remotely.
-                </p>
-            </div>
+                
+                <div class="form-group">
+                    <label for="email">Your Email Address</label>
+                    <input type="email" id="email" name="email" required 
+                           placeholder="your@email.com">
+                    <small>This email will be authorized to access the tunnel</small>
+                </div>
+                
+                <div class="action-buttons">
+                    <button type="submit" class="btn btn-primary">🚀 Setup Tunnel</button>
+                    <button type="button" class="btn btn-secondary" onclick="hideSetupForm()">Cancel</button>
+                </div>
+            </form>
         </div>
         
-        <div id="setup-error" style="display: none;">
-            <div class="alert alert-danger">
-                <h3>❌ Setup Failed</h3>
-                <p id="error-message"></p>
-                <button onclick="resetForm()" class="btn">Try Again</button>
-            </div>
+        <!-- Loading Indicator -->
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Processing...</p>
         </div>
+        
+        <!-- Messages -->
+        <div id="messages"></div>
     </div>
 
     <script>
-    document.getElementById('tunnel-setup-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        const setupBtn = document.getElementById('setup-btn');
-        const originalText = setupBtn.innerHTML;
-        
-        // Show loading state
-        setupBtn.disabled = true;
-        setupBtn.innerHTML = '<span class="spinner"></span> Setting up...';
-        
-        const formData = {
-            cf_token: document.getElementById('cf_token').value,
-            email: document.getElementById('email').value
-        };
-        
-        try {
-            const response = await fetch('/api/setup-tunnel', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(formData)
-            });
-            
-            const result = await response.json();
-            
-            if (result.success) {
-                // Show success
-                document.getElementById('device-url').textContent = result.url;
-                document.getElementById('setup-result').style.display = 'block';
-                document.getElementById('tunnel-setup-form').style.display = 'none';
-            } else {
-                // Show error
-                document.getElementById('error-message').textContent = result.error;
-                document.getElementById('setup-error').style.display = 'block';
-            }
-        } catch (error) {
-            document.getElementById('error-message').textContent = 
-                'Network error. Please check your connection.';
-            document.getElementById('setup-error').style.display = 'block';
-        } finally {
-            setupBtn.disabled = false;
-            setupBtn.innerHTML = originalText;
+        // Show/hide setup form
+        function showSetupForm() {
+            document.getElementById('setup-form').classList.add('show');
+            document.getElementById('email-management-form').classList.remove('show');
         }
-    });
-    
-    function copyUrl() {
-        const url = document.getElementById('device-url').textContent;
-        navigator.clipboard.writeText(url);
-        // Show feedback
-        event.target.textContent = 'Copied!';
-        setTimeout(() => {
-            event.target.textContent = 'Copy';
-        }, 2000);
-    }
-    
-    function resetForm() {
-        document.getElementById('setup-error').style.display = 'none';
-        document.getElementById('tunnel-setup-form').reset();
-    }
+        
+        function hideSetupForm() {
+            document.getElementById('setup-form').classList.remove('show');
+        }
+        
+        // Show/hide email management form
+        function showEmailManagement() {
+            document.getElementById('email-management-form').classList.add('show');
+            document.getElementById('setup-form').classList.remove('show');
+        }
+        
+        function hideEmailManagement() {
+            document.getElementById('email-management-form').classList.remove('show');
+        }
+        
+        // Copy URL to clipboard
+        function copyUrl() {
+            const urlDisplay = document.getElementById('url-display');
+            navigator.clipboard.writeText(urlDisplay.textContent).then(() => {
+                showMessage('URL copied to clipboard!', 'success');
+            }).catch(() => {
+                showMessage('Failed to copy URL', 'danger');
+            });
+        }
+        
+        // Refresh status
+        async function refreshStatus() {
+            showLoading(true);
+            try {
+                const response = await fetch('/api/tunnel-status');
+                const status = await response.json();
+                
+                if (response.ok) {
+                    // Reload page to show updated status
+                    window.location.reload();
+                } else {
+                    showMessage('Failed to refresh status: ' + status.error, 'danger');
+                }
+            } catch (error) {
+                showMessage('Failed to refresh status: ' + error.message, 'danger');
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        // Restart tunnel
+        async function restartTunnel() {
+            if (!confirm('Are you sure you want to restart the tunnel? This may cause a brief interruption.')) {
+                return;
+            }
+            
+            showLoading(true);
+            try {
+                const response = await fetch('/api/restart-tunnel', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showMessage('Tunnel restarted successfully!', 'success');
+                    setTimeout(() => window.location.reload(), 2000);
+                } else {
+                    showMessage('Failed to restart tunnel: ' + result.error, 'danger');
+                }
+            } catch (error) {
+                showMessage('Failed to restart tunnel: ' + error.message, 'danger');
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        // Setup tunnel form submission
+        document.getElementById('tunnel-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const data = {
+                cf_token: formData.get('cf_token'),
+                email: formData.get('email')
+            };
+            
+            showLoading(true);
+            try {
+                const response = await fetch('/api/setup-tunnel', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showMessage('Tunnel setup successful! You can now access your inventory system remotely.', 'success');
+                    setTimeout(() => window.location.reload(), 3000);
+                } else {
+                    showMessage('Setup failed: ' + result.error, 'danger');
+                }
+            } catch (error) {
+                showMessage('Setup failed: ' + error.message, 'danger');
+            } finally {
+                showLoading(false);
+            }
+        });
+        
+        // Utility functions
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+        
+        function showMessage(text, type) {
+            const messagesDiv = document.getElementById('messages');
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type}`;
+            alertDiv.textContent = text;
+            messagesDiv.appendChild(alertDiv);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (alertDiv.parentNode) {
+                    alertDiv.parentNode.removeChild(alertDiv);
+                }
+            }, 5000);
+        }
+        
+        // Email management functions
+        async function addEmail() {
+            const cfToken = document.getElementById('cf_token_email').value.trim();
+            const email = document.getElementById('new_email').value.trim();
+            
+            if (!cfToken || !email) {
+                showMessage('Please enter both API token and email address', 'danger');
+                return;
+            }
+            
+            showLoading(true);
+            try {
+                const response = await fetch('/api/add-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cf_token: cfToken, email: email })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showMessage(result.message, 'success');
+                    document.getElementById('new_email').value = '';
+                    setTimeout(() => window.location.reload(), 2000);
+                } else {
+                    showMessage('Failed to add email: ' + result.error, 'danger');
+                }
+            } catch (error) {
+                showMessage('Failed to add email: ' + error.message, 'danger');
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        async function removeEmailFromForm() {
+            const cfToken = document.getElementById('cf_token_email').value.trim();
+            const email = document.getElementById('new_email').value.trim();
+            
+            if (!cfToken || !email) {
+                showMessage('Please enter both API token and email address', 'danger');
+                return;
+            }
+            
+            if (!confirm(`Are you sure you want to remove access for ${email}?`)) {
+                return;
+            }
+            
+            showLoading(true);
+            try {
+                const response = await fetch('/api/remove-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cf_token: cfToken, email: email })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showMessage(result.message, 'success');
+                    document.getElementById('new_email').value = '';
+                    setTimeout(() => window.location.reload(), 2000);
+                } else {
+                    showMessage('Failed to remove email: ' + result.error, 'danger');
+                }
+            } catch (error) {
+                showMessage('Failed to remove email: ' + error.message, 'danger');
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        async function removeEmail(email) {
+            if (!confirm(`Are you sure you want to remove access for ${email}?`)) {
+                return;
+            }
+            
+            const cfToken = prompt('Please enter your Cloudflare API token to remove this email:');
+            if (!cfToken) {
+                return;
+            }
+            
+            showLoading(true);
+            try {
+                const response = await fetch('/api/remove-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cf_token: cfToken, email: email })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showMessage(result.message, 'success');
+                    setTimeout(() => window.location.reload(), 2000);
+                } else {
+                    showMessage('Failed to remove email: ' + result.error, 'danger');
+                }
+            } catch (error) {
+                showMessage('Failed to remove email: ' + error.message, 'danger');
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        // Auto-refresh status every 30 seconds if tunnel is configured
+        {% if tunnel_status.configured %}
+        setInterval(refreshStatus, 30000);
+        {% endif %}
     </script>
 </body>
 </html>

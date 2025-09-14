@@ -32,12 +32,22 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 PACKAGES_DIR="$SCRIPT_DIR/packages"
 CONFIG_FILE="$PROJECT_ROOT/src/config.py"
+ENV_FILE="$PROJECT_ROOT/deploy/config/environment.env"
 
 # --- Version Auto-Increment ---
 print_status "Reading and incrementing patch version..."
 if [ ! -f "$CONFIG_FILE" ]; then
     print_error "Config file not found at $CONFIG_FILE"
     exit 1
+fi
+
+# Read release candidate from environment file
+if [ -f "$ENV_FILE" ]; then
+    RELEASE_CANDIDATE=$(grep "^RELEASE_CANDIDATE=" "$ENV_FILE" | cut -d'=' -f2)
+    print_status "Found release candidate: $RELEASE_CANDIDATE"
+else
+    print_warning "Environment file not found at $ENV_FILE, using default RC"
+    RELEASE_CANDIDATE="RC1"
 fi
 
 CURRENT_VERSION_LINE=$(grep -E "^APP_VERSION\s*=\s*\"[0-9]+\.[0-9]+\.[0-9]+\"" "$CONFIG_FILE")
@@ -73,7 +83,7 @@ MANIFEST_FILE="$PACKAGES_DIR/${PACKAGE_NAME}-manifest.json"
 # Create source package
 print_status "Creating source package..."
 cd "$PROJECT_ROOT"
-tar -czf "$PACKAGE_FILE" src/
+tar -czf "$PACKAGE_FILE" src/ deploy/config/environment.env
 
 # Calculate package hash
 PACKAGE_HASH=$(sha256sum "$PACKAGE_FILE" | cut -d' ' -f1)
@@ -93,7 +103,8 @@ cat > "$MANIFEST_FILE" << EOF
   "restarts_expected": 2,
   "dependencies": {},
   "files_included": [
-    "src/"
+    "src/",
+    "deploy/config/environment.env"
   ],
   "upgrade_steps": [
     {"step": "backup", "description": "Backup current source code"},

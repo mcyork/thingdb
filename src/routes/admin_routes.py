@@ -947,6 +947,25 @@ def api_install_package():
                 shutil.copytree(item, app_dir / item.name)
             else:
                 shutil.copy2(item, app_dir)
+        
+        # Copy environment file if it exists in the package
+        env_file_in_package = temp_src_dir / 'deploy' / 'config' / 'environment.env'
+        if env_file_in_package.exists():
+            config_dir = Path('/var/lib/inventory/config')
+            config_dir.mkdir(exist_ok=True)
+            # Use sudo to copy the environment file since it needs root permissions
+            import subprocess
+            result = subprocess.run([
+                '/usr/bin/sudo', 'cp', str(env_file_in_package), str(config_dir / 'environment.env')
+            ], capture_output=True, text=True)
+            if result.returncode == 0:
+                # Set proper ownership
+                subprocess.run([
+                    '/usr/bin/sudo', 'chown', 'inventory:inventory', str(config_dir / 'environment.env')
+                ])
+                logger.info("Updated environment.env file")
+            else:
+                logger.error(f"Failed to copy environment file: {result.stderr}")
 
         # CRITICAL: Clear __pycache__ directories to force reloading of modules
         logger.info("Clearing __pycache__ directories...")
@@ -1080,6 +1099,25 @@ def api_install_unsigned_package():
                 shutil.copytree(item, app_dir / item.name)
             else:
                 shutil.copy2(item, app_dir)
+        
+        # Copy environment file if it exists in the package
+        env_file_in_package = temp_src_dir / 'deploy' / 'config' / 'environment.env'
+        if env_file_in_package.exists():
+            config_dir = Path('/var/lib/inventory/config')
+            config_dir.mkdir(exist_ok=True)
+            # Use sudo to copy the environment file since it needs root permissions
+            import subprocess
+            result = subprocess.run([
+                '/usr/bin/sudo', 'cp', str(env_file_in_package), str(config_dir / 'environment.env')
+            ], capture_output=True, text=True)
+            if result.returncode == 0:
+                # Set proper ownership
+                subprocess.run([
+                    '/usr/bin/sudo', 'chown', 'inventory:inventory', str(config_dir / 'environment.env')
+                ])
+                logger.info("Updated environment.env file")
+            else:
+                logger.error(f"Failed to copy environment file: {result.stderr}")
 
         # CRITICAL: Clear __pycache__ directories to force reloading of modules
         logger.info("Clearing __pycache__ directories...")

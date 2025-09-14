@@ -1,4 +1,4 @@
-We wanted to go through the Nginx frontend.We want it to use the NGINX frontend.#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Check Cloudflare tunnel configuration
 """

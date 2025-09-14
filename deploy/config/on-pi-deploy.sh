@@ -105,6 +105,13 @@ else
     pip install -r requirements/ml-requirements.txt || print_warning "ML requirements installation failed."
 fi
 
+print_status "Installing cloudflared for Cloudflare Tunnel..."
+# Download and install cloudflared binary
+wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64 -O /tmp/cloudflared
+chmod +x /tmp/cloudflared
+mv /tmp/cloudflared /usr/local/bin/cloudflared
+print_success "cloudflared installed successfully"
+
 print_status "Setting up PostgreSQL..."
 if ! sudo -u postgres psql -t -c "SELECT 1 FROM pg_roles WHERE rolname='inventory'" | grep -q 1; then
     sudo -u postgres psql -c "CREATE USER inventory WITH PASSWORD 'inventory_pi_2024';"
@@ -140,8 +147,13 @@ chown inventory:inventory /etc/cloudflared/config.yml
 chmod 644 /etc/cloudflared/config.yml
 
 print_status "Granting inventory user permission to manage cloudflared service..."
-echo "inventory ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart cloudflared.service, /usr/bin/systemctl enable cloudflared.service, /usr/bin/systemctl daemon-reload" > /etc/sudoers.d/inventory-cloudflared
+echo "inventory ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart cloudflared.service, /usr/bin/systemctl enable cloudflared.service, /usr/bin/systemctl daemon-reload, /usr/bin/systemctl is-active cloudflared.service, /bin/cp, /bin/chown" > /etc/sudoers.d/inventory-cloudflared
 chmod 0440 /etc/sudoers.d/inventory-cloudflared
+
+print_status "Enabling cloudflared service (but not starting it yet)..."
+systemctl daemon-reload
+systemctl enable cloudflared.service
+print_success "cloudflared service enabled"
 
 
 print_status "Copying certificate chains for package verification..."

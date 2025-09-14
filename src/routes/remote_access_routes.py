@@ -25,6 +25,8 @@ class CloudflareTunnelManager:
         )
         # Leaf certificate for Worker authentication
         self.device_cert_path = '/etc/inventory/device.crt'
+        # Tunnel configuration storage
+        self.config_file = '/var/lib/inventory/tunnel_config.json'
         
     def _get_device_serial(self) -> str:
         """Extract unique device identifier"""
@@ -38,6 +40,206 @@ class CloudflareTunnelManager:
             # Fallback to MAC-based serial
             import uuid
             return hex(uuid.getnode())[-8:]
+    
+    def _save_tunnel_config(self, tunnel_data: Dict) -> None:
+        """Save tunnel configuration to persistent storage"""
+        try:
+            os.makedirs(os.path.dirname(self.config_file), exist_ok=True)
+            with open(self.config_file, 'w') as f:
+                json.dump(tunnel_data, f, indent=2)
+            os.chmod(self.config_file, 0o600)  # Secure permissions
+            current_app.logger.info(f"Tunnel configuration saved to {self.config_file}")
+        except Exception as e:
+            current_app.logger.error(f"Failed to save tunnel config: {str(e)}")
+    
+    def _load_tunnel_config(self) -> Optional[Dict]:
+        """Load tunnel configuration from persistent storage"""
+        try:
+            if os.path.exists(self.config_file):
+                with open(self.config_file, 'r') as f:
+                    return json.load(f)
+        except Exception as e:
+            current_app.logger.error(f"Failed to load tunnel config: {str(e)}")
+        return None
+    
+    def get_tunnel_status(self) -> Dict:
+        """Get current tunnel status and configuration"""
+        config = self._load_tunnel_config()
+        if not config:
+            return {
+                'configured': False,
+                'status': 'Not configured',
+                'url': None,
+                'tunnel_id': None,
+                'email': None,
+                'emails': [],
+                'created_at': None
+            }
+        
+        # Check if tunnel is actually running
+        try:
+            # Check if cloudflared service is running
+            result = subprocess.run(['/usr/bin/sudo', 'systemctl', 'is-active', 'cloudflared.service'], 
+                                  capture_output=True, text=True, timeout=5)
+            service_running = result.returncode == 0 and 'active' in result.stdout
+            
+            # Check if config file exists and matches
+            config_exists = os.path.exists('/etc/cloudflared/config.yml')
+            config_matches = False
+            if config_exists:
+                with open('/etc/cloudflared/config.yml', 'r') as f:
+                    config_content = f.read()
+                    config_matches = config.get('tunnel_id') in config_content
+            
+            if service_running and config_matches:
+                status = 'Active'
+            elif service_running:
+                status = 'Running (config mismatch)'
+            else:
+                status = 'Inactive'
+                
+        except Exception as e:
+            current_app.logger.error(f"Failed to check tunnel status: {str(e)}")
+            status = 'Unknown'
+        
+        return {
+            'configured': True,
+            'status': status,
+            'url': config.get('url'),
+            'tunnel_id': config.get('tunnel_id'),
+            'email': config.get('email'),
+            'emails': config.get('emails', [config.get('email')] if config.get('email') else []),
+            'created_at': config.get('created_at'),
+            'service_running': service_running if 'service_running' in locals() else False
+        }
+    
+    def add_email_to_access_policy(self, cf_token: str, email: str) -> bool:
+        """Add an email address to the Access policy"""
+        try:
+            config = self._load_tunnel_config()
+            if not config or not config.get('tunnel_id'):
+                return False
+            
+            # Get account ID
+            headers = {
+                'Authorization': f'Bearer {cf_token}',
+                'Content-Type': 'application/json'
+            }
+            
+            accounts_response = requests.get('https://api.cloudflare.com/client/v4/accounts', headers=headers, timeout=10)
+            accounts_response.raise_for_status()
+            account_id = accounts_response.json()['result'][0]['id']
+            
+            # Find the Access app for this tunnel
+            hostname = config.get('url', '').replace('https://', '')
+            apps_response = requests.get(f'https://api.cloudflare.com/client/v4/accounts/{account_id}/access/apps', headers=headers)
+            apps_response.raise_for_status()
+            
+            app_id = None
+            for app in apps_response.json().get('result', []):
+                if app.get('domain') == hostname:
+                    app_id = app['id']
+                    break
+            
+            if not app_id:
+                current_app.logger.error(f"No Access app found for hostname: {hostname}")
+                return False
+            
+            # Check if email already has access
+            policies_response = requests.get(f'https://api.cloudflare.com/client/v4/accounts/{account_id}/access/apps/{app_id}/policies', headers=headers)
+            policies_response.raise_for_status()
+            
+            for policy in policies_response.json().get('result', []):
+                for include_rule in policy.get('include', []):
+                    if include_rule.get('email', {}).get('email') == email:
+                        current_app.logger.info(f"Email {email} already has access")
+                        return True
+            
+            # Add email to existing policy or create new one
+            policy_data = {
+                'name': f'Access for {email}',
+                'precedence': 1,
+                'decision': 'allow',
+                'include': [{'email': {'email': email}}],
+                'exclude': [],
+                'require': []
+            }
+            
+            policy_response = requests.post(f'https://api.cloudflare.com/client/v4/accounts/{account_id}/access/apps/{app_id}/policies', 
+                                         headers=headers, json=policy_data)
+            policy_response.raise_for_status()
+            
+            # Update local config
+            emails = config.get('emails', [])
+            if email not in emails:
+                emails.append(email)
+                config['emails'] = emails
+                self._save_tunnel_config(config)
+            
+            current_app.logger.info(f"Added email {email} to Access policy")
+            return True
+            
+        except Exception as e:
+            current_app.logger.error(f"Failed to add email to Access policy: {str(e)}")
+            return False
+    
+    def remove_email_from_access_policy(self, cf_token: str, email: str) -> bool:
+        """Remove an email address from the Access policy"""
+        try:
+            config = self._load_tunnel_config()
+            if not config or not config.get('tunnel_id'):
+                return False
+            
+            # Get account ID
+            headers = {
+                'Authorization': f'Bearer {cf_token}',
+                'Content-Type': 'application/json'
+            }
+            
+            accounts_response = requests.get('https://api.cloudflare.com/client/v4/accounts', headers=headers, timeout=10)
+            accounts_response.raise_for_status()
+            account_id = accounts_response.json()['result'][0]['id']
+            
+            # Find the Access app for this tunnel
+            hostname = config.get('url', '').replace('https://', '')
+            apps_response = requests.get(f'https://api.cloudflare.com/client/v4/accounts/{account_id}/access/apps', headers=headers)
+            apps_response.raise_for_status()
+            
+            app_id = None
+            for app in apps_response.json().get('result', []):
+                if app.get('domain') == hostname:
+                    app_id = app['id']
+                    break
+            
+            if not app_id:
+                current_app.logger.error(f"No Access app found for hostname: {hostname}")
+                return False
+            
+            # Find and delete policies for this email
+            policies_response = requests.get(f'https://api.cloudflare.com/client/v4/accounts/{account_id}/access/apps/{app_id}/policies', headers=headers)
+            policies_response.raise_for_status()
+            
+            for policy in policies_response.json().get('result', []):
+                for include_rule in policy.get('include', []):
+                    if include_rule.get('email', {}).get('email') == email:
+                        # Delete this policy
+                        delete_response = requests.delete(f'https://api.cloudflare.com/client/v4/accounts/{account_id}/access/apps/{app_id}/policies/{policy["id"]}', headers=headers)
+                        delete_response.raise_for_status()
+                        current_app.logger.info(f"Removed policy for email {email}")
+            
+            # Update local config
+            emails = config.get('emails', [])
+            if email in emails:
+                emails.remove(email)
+                config['emails'] = emails
+                self._save_tunnel_config(config)
+            
+            current_app.logger.info(f"Removed email {email} from Access policy")
+            return True
+            
+        except Exception as e:
+            current_app.logger.error(f"Failed to remove email from Access policy: {str(e)}")
+            return False
     
     def validate_cf_token(self, token: str) -> Tuple[bool, Optional[str]]:
         """Validate Cloudflare API token has required permissions"""
@@ -180,7 +382,7 @@ class CloudflareTunnelManager:
                     'ingress': [
                         {
                             'hostname': hostname,
-                            'service': 'https://inventory.local:443',
+                            'service': 'https://192.168.43.203:443',
                             'originRequest': {
                                 'noTLSVerify': True
                             }
@@ -368,7 +570,7 @@ class CloudflareTunnelManager:
                     'ingress': [
                         {
                             'hostname': hostname,
-                            'service': 'https://inventory.local:443',  # Pi HTTPS port
+                            'service': 'https://192.168.43.203:443',  # Pi HTTPS port (use IP to avoid mDNS issues)
                             'originRequest': {
                                 'noTLSVerify': True
                             }
@@ -445,8 +647,11 @@ ingress:
 @remote_access_bp.route('/remote-access')
 def remote_access_setup():
     """Display remote access setup page"""
+    manager = CloudflareTunnelManager()
+    status = manager.get_tunnel_status()
     return render_template('remote_access.html', 
-                         serial=CloudflareTunnelManager()._get_device_serial())
+                         serial=manager.device_serial,
+                         tunnel_status=status)
 
 @remote_access_bp.route('/api/setup-tunnel', methods=['POST'])
 def setup_tunnel():
@@ -495,6 +700,17 @@ def setup_tunnel():
             hostname
         )
         
+        # Step 7: Save tunnel configuration
+        tunnel_config = {
+            'tunnel_id': tunnel_info['tunnel_id'],
+            'url': f'https://{hostname}',
+            'email': email,
+            'emails': [email],  # Initialize with the primary email
+            'created_at': datetime.utcnow().isoformat(),
+            'device_serial': manager.device_serial
+        }
+        manager._save_tunnel_config(tunnel_config)
+        
         return jsonify({
             'success': True,
             'url': f'https://{hostname}',
@@ -510,30 +726,83 @@ def setup_tunnel():
 def tunnel_status():
     """Check tunnel status"""
     try:
-        result = subprocess.run(
-            ['systemctl', 'is-active', 'cloudflared'],
-            capture_output=True,
-            text=True
-        )
-        
-        active = result.stdout.strip() == 'active'
-        
-        # Get tunnel info if available
-        tunnel_info = {}
-        if active:
-            # Parse config to get hostname
-            config_path = '/home/pi/.cloudflared/config.yml'
-            if os.path.exists(config_path):
-                with open(config_path, 'r') as f:
-                    for line in f:
-                        if 'hostname:' in line:
-                            tunnel_info['url'] = line.split(':')[1].strip()
-                            break
-        
-        return jsonify({
-            'active': active,
-            'info': tunnel_info
-        })
-        
+        manager = CloudflareTunnelManager()
+        status = manager.get_tunnel_status()
+        return jsonify(status)
     except Exception as e:
-        return jsonify({'active': False, 'error': str(e)})
+        return jsonify({'error': str(e)}), 500
+
+@remote_access_bp.route('/api/restart-tunnel', methods=['POST'])
+def restart_tunnel():
+    """API endpoint to restart tunnel service"""
+    try:
+        manager = CloudflareTunnelManager()
+        status = manager.get_tunnel_status()
+        
+        if not status['configured']:
+            return jsonify({'success': False, 'error': 'No tunnel configured'}), 400
+        
+        # Restart cloudflared service
+        subprocess.run(['/usr/bin/sudo', 'systemctl', 'restart', 'cloudflared.service'], check=True)
+        
+        return jsonify({'success': True, 'message': 'Tunnel service restarted'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@remote_access_bp.route('/api/add-email', methods=['POST'])
+def add_email():
+    """API endpoint to add an email address to tunnel access"""
+    try:
+        data = request.json
+        cf_token = data.get('cf_token', '').strip()
+        email = data.get('email', '').strip()
+        
+        if not cf_token or not email:
+            return jsonify({'success': False, 'error': 'Missing required fields'}), 400
+        
+        manager = CloudflareTunnelManager()
+        
+        # Validate token
+        valid, error = manager.validate_cf_token(cf_token)
+        if not valid:
+            return jsonify({'success': False, 'error': error}), 400
+        
+        # Add email to access policy
+        success = manager.add_email_to_access_policy(cf_token, email)
+        
+        if success:
+            return jsonify({'success': True, 'message': f'Email {email} added successfully'})
+        else:
+            return jsonify({'success': False, 'error': 'Failed to add email to access policy'}), 500
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@remote_access_bp.route('/api/remove-email', methods=['POST'])
+def remove_email():
+    """API endpoint to remove an email address from tunnel access"""
+    try:
+        data = request.json
+        cf_token = data.get('cf_token', '').strip()
+        email = data.get('email', '').strip()
+        
+        if not cf_token or not email:
+            return jsonify({'success': False, 'error': 'Missing required fields'}), 400
+        
+        manager = CloudflareTunnelManager()
+        
+        # Validate token
+        valid, error = manager.validate_cf_token(cf_token)
+        if not valid:
+            return jsonify({'success': False, 'error': error}), 400
+        
+        # Remove email from access policy
+        success = manager.remove_email_from_access_policy(cf_token, email)
+        
+        if success:
+            return jsonify({'success': True, 'message': f'Email {email} removed successfully'})
+        else:
+            return jsonify({'success': False, 'error': 'Failed to remove email from access policy'}), 500
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
