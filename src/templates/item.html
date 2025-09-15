@@ -14,7 +14,7 @@
     .header-edit-name-input {
         flex: 1; padding: 6px 12px; border: 1px solid rgba(255,255,255,0.3);
         border-radius: 6px; font-size: 18px; font-weight: 600;
-        background: rgba(255,255,255,0.1); color: white;
+        background: rgba(255,255,255,0.9); color: #333;
     }
     .header-edit-btn {
         background: rgba(255,255,255,0.2); border: none; border-radius: 6px;
@@ -95,6 +95,293 @@
         display: flex; gap: 12px; z-index: 1000;
     }
     .action-bar .btn { flex: 1; }
+
+    /* Button Styles */
+    .btn {
+        padding: 8px 16px;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-decoration: none;
+        display: inline-block;
+        text-align: center;
+    }
+    .btn-secondary {
+        background: var(--background-white);
+        color: var(--text-dark);
+        border-color: var(--border-color);
+    }
+    .btn-secondary:hover {
+        background: var(--background-light);
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+    }
+    .btn-primary {
+        background: var(--primary-color);
+        color: white;
+        border-color: var(--primary-color);
+    }
+    .btn-primary:hover {
+        background: var(--primary-hover);
+        border-color: var(--primary-hover);
+    }
+    .btn-danger {
+        background: var(--danger-color);
+        color: white;
+        border-color: var(--danger-color);
+    }
+    .btn-danger:hover {
+        background: #c82333;
+        border-color: #bd2130;
+    }
+    .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    .btn.active {
+        background: #6c757d;
+        color: white;
+        border-color: #6c757d;
+    }
+
+    /* Image Modal */
+    .image-modal {
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.9); z-index: 2000; display: none;
+        align-items: center; justify-content: center;
+    }
+    .image-modal.active { display: flex; }
+    .image-modal-content {
+        position: relative; max-width: 90%; max-height: 90%;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .image-modal-close {
+        position: absolute; top: -40px; right: 0;
+        background: rgba(255,255,255,0.2); border: none;
+        color: white; font-size: 24px; width: 40px; height: 40px;
+        border-radius: 50%; cursor: pointer; z-index: 2001;
+    }
+    .image-modal-close:hover { background: rgba(255,255,255,0.3); }
+    #modal-image {
+        max-width: 100%; max-height: 100%; object-fit: contain;
+        border-radius: 8px;
+    }
+
+    /* Upload Area */
+    .upload-area {
+        border: 2px dashed var(--border-color);
+        border-radius: 8px;
+        padding: 40px 20px;
+        text-align: center;
+        background: var(--background-light);
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+    .upload-area:hover {
+        border-color: var(--primary-color);
+        background: rgba(0, 123, 255, 0.05);
+    }
+    .upload-area.dragover {
+        border-color: var(--primary-color);
+        background: rgba(0, 123, 255, 0.1);
+        transform: scale(1.02);
+    }
+    .upload-content {
+        pointer-events: none;
+    }
+    .upload-icon {
+        font-size: 48px;
+        margin-bottom: 16px;
+        opacity: 0.6;
+    }
+    .upload-text {
+        font-size: 16px;
+        color: var(--text-dark);
+        margin-bottom: 8px;
+    }
+    .upload-link {
+        color: var(--primary-color);
+        text-decoration: underline;
+        cursor: pointer;
+    }
+    .upload-subtext {
+        font-size: 14px;
+        color: var(--text-light);
+        margin: 0;
+    }
+    .upload-progress {
+        margin-top: 16px;
+    }
+    .progress-bar {
+        width: 100%;
+        height: 8px;
+        background: var(--border-color);
+        border-radius: 4px;
+        overflow: hidden;
+        margin-bottom: 8px;
+    }
+    .progress-fill {
+        height: 100%;
+        background: var(--primary-color);
+        width: 0%;
+        transition: width 0.3s ease;
+    }
+    .progress-text {
+        font-size: 14px;
+        color: var(--text-medium);
+        margin: 0;
+        text-align: center;
+    }
+
+    /* Contained Items */
+    .contained-items-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .contained-item {
+        display: flex;
+        align-items: center;
+        padding: 12px;
+        background: var(--background-light);
+        border-radius: 8px;
+        text-decoration: none;
+        color: var(--text-dark);
+        transition: all 0.2s ease;
+        border: 1px solid var(--border-color);
+    }
+    .contained-item:hover {
+        background: var(--primary-color);
+        color: white;
+        transform: translateX(4px);
+        box-shadow: 0 2px 8px rgba(0,123,255,0.3);
+    }
+    .contained-item-thumbnail {
+        width: 48px;
+        height: 48px;
+        object-fit: cover;
+        border-radius: 6px;
+        background: var(--border-color);
+        margin-right: 12px;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .contained-item-placeholder {
+        font-size: 20px;
+        color: var(--text-light);
+    }
+    .contained-item-info {
+        flex: 1;
+        min-width: 0;
+    }
+    .contained-item-name {
+        font-weight: 600;
+        margin-bottom: 4px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .contained-item-meta {
+        font-size: 12px;
+        opacity: 0.8;
+    }
+
+    /* New Item Overlay and Highlight */
+    .new-item-overlay {
+        position: fixed;
+        top: 60px; /* Start below the header */
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.3);
+        z-index: 1500;
+        pointer-events: auto;
+    }
+    .new-item-highlight {
+        background: #fff3cd !important;
+        border: 2px solid #ffc107 !important;
+        box-shadow: 0 0 0 4px rgba(255,193,7,0.3) !important;
+        animation: new-item-pulse 1s ease-in-out;
+    }
+    @keyframes new-item-pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.02); }
+    }
+
+    /* Autocomplete Styles */
+    .autocomplete-wrapper {
+        position: relative;
+        flex: 1;
+    }
+    .autocomplete-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        margin-top: 4px;
+        max-height: 200px;
+        overflow-y: auto;
+        z-index: 1000;
+        display: none;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .autocomplete-dropdown.show {
+        display: block;
+    }
+    .autocomplete-item {
+        display: flex;
+        align-items: center;
+        padding: 12px;
+        cursor: pointer;
+        border-bottom: 1px solid #f0f0f0;
+        transition: background-color 0.2s;
+    }
+    .autocomplete-item:last-child {
+        border-bottom: none;
+    }
+    .autocomplete-item:hover,
+    .autocomplete-item.selected {
+        background-color: #f8f9fa;
+    }
+    .autocomplete-item-thumbnail {
+        width: 36px;
+        height: 36px;
+        object-fit: cover;
+        border-radius: 4px;
+        background: #e9ecef;
+        flex-shrink: 0;
+        margin-right: 12px;
+    }
+    .autocomplete-item-info {
+        flex: 1;
+        min-width: 0;
+    }
+    .autocomplete-item-name {
+        font-weight: 500;
+        color: #333;
+        margin-bottom: 2px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .autocomplete-item-meta {
+        font-size: 12px;
+        color: #666;
+    }
+    .autocomplete-no-results {
+        padding: 12px;
+        text-align: center;
+        color: #999;
+        font-style: italic;
+    }
 </style>
 {% endblock %}
 
@@ -102,7 +389,7 @@
 <!-- Using sub-header from base.html for consistency -->
 <div class="sub-header">
     <div class="sub-header-content">
-        <button onclick="history.back()" class="sub-header-back-btn">←</button>
+        <button onclick="goBack()" class="sub-header-back-btn">←</button>
         <div id="header-name-display" style="flex: 1;">
             <h1 class="sub-header-title">{{ item_data.item[1] or ('Item_' + guid[:8]) }}</h1>
         </div>
@@ -123,6 +410,8 @@
             <span class="breadcrumb-separator">›</span>
             <a href="/item/{{ ancestor.guid }}" class="breadcrumb-item">{{ ancestor.name }}</a>
         {% endfor %}
+        <span class="breadcrumb-separator">›</span>
+        <span class="breadcrumb-current">{{ item_data.item[1] or ('Item_' + guid[:8]) }}</span>
     </div>
     {% endif %}
 
@@ -132,7 +421,7 @@
         <div class="content-card">
             <div class="section-header">
                 <h2 class="section-title">Photos ({{ images|length }})</h2>
-                <button onclick="toggleControls()" class="btn btn-secondary" id="controls-toggle" style="padding: 4px 8px; font-size: 12px;" {% if not images %}disabled{% endif %}>
+                <button onclick="toggleControls()" class="btn btn-secondary" id="controls-toggle" style="padding: 4px 8px; font-size: 12px; background: #ffffff; color: #333; border: 1px solid #ccc; border-radius: 4px;" {% if not images %}disabled{% endif %}>
                     Edit
                 </button>
             </div>
@@ -140,7 +429,7 @@
             <div class="image-gallery" id="image-gallery">
                 {% for image in images %}
                 <div class="image-item">
-                    <a href="/image/{{ image[0] }}"><img src="/thumbnail/{{ image[0] }}" loading="lazy"></a>
+                    <a href="#" onclick="showImageModal({{ image[0] }})"><img src="/thumbnail/{{ image[0] }}" loading="lazy"></a>
                     <div class="image-controls">
                         <input type="radio" name="primary-image" value="{{ image[0] }}" class="primary-radio"
                                {% if image[4] %}checked{% endif %} onchange="setPrimaryImage({{ image[0] }})" title="Set as primary">
@@ -173,6 +462,28 @@
             </form>
         </div>
 
+        <!-- Item Number -->
+        <div class="content-card">
+            <div class="section-header">
+                <h2 class="section-title">Item Number</h2>
+                <button onclick="editItemNumber()" class="btn btn-secondary" id="edit-number-btn" style="padding: 4px 8px; font-size: 12px;">Edit</button>
+            </div>
+            <div class="content-text" id="number-display">
+                {% if item_data.item[6] %}
+                    <span style="font-size: 18px; font-weight: 600; color: var(--primary-color);">#{{ item_data.item[6] }}</span>
+                {% else %}
+                    <p class="empty-content">No item number assigned.</p>
+                {% endif %}
+            </div>
+            <form id="edit-number-form" style="display: none;">
+                <input type="number" class="form-input" id="number-input" value="{{ item_data.item[6] or '' }}" placeholder="Enter item number..." min="1">
+                <div style="display: flex; gap: 8px; margin-top: 8px;">
+                    <button type="submit" class="btn btn-primary">Save</button>
+                    <button type="button" onclick="cancelEditNumber()" class="btn btn-secondary">Cancel</button>
+                </div>
+            </form>
+        </div>
+
         <!-- Tags -->
         <div class="content-card">
             <h2 class="section-title">Tags</h2>
@@ -192,18 +503,88 @@
         <!-- Add Photo -->
         <div class="content-card">
             <h2 class="section-title">Add Photo</h2>
-            <form method="POST" action="/upload-image/{{ guid }}" enctype="multipart/form-data">
-                <input type="file" name="image" class="form-input" required>
-                <button type="submit" class="btn btn-primary" style="margin-top: 8px; width: 100%;">Upload</button>
+            <div class="upload-area" id="upload-area">
+                <div class="upload-content">
+                    <div class="upload-icon">📷</div>
+                    <p class="upload-text">Drag & drop photos here, or <span class="upload-link">click to choose</span></p>
+                    <p class="upload-subtext">Supports JPG, PNG, GIF</p>
+                </div>
+                <form method="POST" action="/upload-image/{{ guid }}" enctype="multipart/form-data" id="upload-form">
+                    <input type="file" name="image" id="file-input" accept="image/*" multiple style="display: none;">
+                </form>
+            </div>
+            <div class="upload-progress" id="upload-progress" style="display: none;">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill"></div>
+                </div>
+                <p class="progress-text" id="progress-text">Uploading...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contained Items Section -->
+    {% if item_data.contained_items %}
+    <div class="content-card">
+        <h2 class="section-title">Items Contained in This Item ({{ item_data.contained_items|length }})</h2>
+        <div class="contained-items-list">
+            {% for contained_item in item_data.contained_items %}
+            <a href="/item/{{ contained_item[0] }}" class="contained-item">
+                {% if contained_item[4] %}
+                <img src="/thumbnail/{{ contained_item[4] }}" alt="{{ contained_item[1] }}" class="contained-item-thumbnail">
+                {% else %}
+                <div class="contained-item-thumbnail">
+                    <div class="contained-item-placeholder">📦</div>
+                </div>
+                {% endif %}
+                <div class="contained-item-info">
+                    <div class="contained-item-name">{{ contained_item[1] }}</div>
+                    <div class="contained-item-meta">
+                        {{ contained_item[3] }} photo{{ 's' if contained_item[3] != 1 else '' }} • 
+                        Added {{ contained_item[2].strftime('%b %d, %Y') }}
+                    </div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Move Item Section -->
+    <div class="content-card">
+        <h2 class="section-title">Move Item</h2>
+        <div id="move-item-section">
+            {% if item_data.parent_item %}
+            <p style="margin-bottom: 12px; color: #666;">Currently inside: <strong>{{ item_data.parent_item[1] }}</strong></p>
+            <button onclick="removeFromContainer()" class="btn btn-secondary" style="margin-bottom: 12px;">Remove from Container</button>
+            <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #eee;">
+                <p style="margin-bottom: 8px; color: #666;">Or move to a different container:</p>
+            </div>
+            {% endif %}
+            
+            <form id="move-item-form" style="display: flex; gap: 8px; align-items: flex-end;">
+                <div class="autocomplete-wrapper">
+                    <input type="text" id="parent-search-input" class="form-input" placeholder="Type to find item to move this into" style="width: 100%;" autocomplete="off">
+                    <input type="hidden" id="parent-guid-input" name="parent_guid">
+                    <div id="autocomplete-dropdown" class="autocomplete-dropdown"></div>
+                </div>
+                <button type="submit" class="btn btn-primary" id="move-item-btn" disabled>Move Item</button>
             </form>
+            <p style="margin-top: 8px; font-size: 12px; color: #999;">Start typing to search for items by name. Select the container you want to move this item into.</p>
         </div>
     </div>
 </div>
 
 <!-- Fixed Action Bar -->
 <div class="action-bar">
-    <button onclick="showMoveDialog()" class="btn btn-secondary">Move Item</button>
     <button onclick="deleteItem('{{ guid }}')" class="btn btn-danger">Delete Item</button>
+</div>
+
+<!-- Image Modal -->
+<div id="image-modal" class="image-modal">
+    <div class="image-modal-content">
+        <button onclick="closeImageModal()" class="image-modal-close">×</button>
+        <img id="modal-image" src="" alt="Full size image">
+    </div>
 </div>
 {% endblock %}
 
@@ -214,9 +595,31 @@
 // Minor adjustments may be made to accommodate new class names if necessary.
 
 function toggleControls() {
-    document.getElementById('image-gallery').classList.toggle('controls-visible');
-    const btn = document.getElementById('controls-toggle');
-    btn.textContent = btn.textContent === 'Edit' ? 'Done' : 'Edit';
+    const gallery = document.getElementById('image-gallery');
+    const toggleBtn = document.getElementById('controls-toggle');
+    
+    if (gallery.classList.contains('controls-visible')) {
+        // Hide controls
+        gallery.classList.remove('controls-visible');
+        toggleBtn.textContent = 'Edit';
+        toggleBtn.classList.remove('active');
+    } else {
+        // Show controls
+        gallery.classList.add('controls-visible');
+        toggleBtn.textContent = 'Done';
+        toggleBtn.classList.add('active');
+    }
+}
+
+function showImageModal(imageId) {
+    const modal = document.getElementById('image-modal');
+    const modalImg = document.getElementById('modal-image');
+    modalImg.src = `/image/${imageId}`;
+    modal.classList.add('active');
+}
+
+function closeImageModal() {
+    document.getElementById('image-modal').classList.remove('active');
 }
 
 function deleteImage(imageId) {
@@ -240,16 +643,53 @@ function deleteItem(guid) {
 }
 
 function rotateImage(imageId) {
-    fetch(`/rotate-image/${imageId}`, { method: 'POST' })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                const img = document.querySelector(`a[href="/image/${imageId}"] img`);
-                img.src = img.src.split('?')[0] + '?t=' + new Date().getTime();
-            } else {
-                alert('Rotation failed: ' + data.error);
+    // Prevent double-clicks and event propagation
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    
+    // Show loading state
+    const btn = event.target;
+    
+    // Check if already processing
+    if (btn.disabled) {
+        return;
+    }
+    
+    btn.textContent = '...';
+    btn.disabled = true;
+    
+    fetch(`/rotate-image/${imageId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Update the thumbnail without reloading the page
+            const imgElement = btn.closest('.image-item').querySelector('img');
+            if (imgElement) {
+                // Force reload the thumbnail by adding a timestamp
+                const thumbnailUrl = imgElement.src.split('?')[0];
+                imgElement.src = thumbnailUrl + '?t=' + Date.now();
             }
-        });
+            btn.textContent = '↻';
+            btn.disabled = false;
+        } else {
+            alert('Rotation failed: ' + (data.error || 'Unknown error'));
+            btn.textContent = '↻';
+            btn.disabled = false;
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Rotation failed. Please try again.');
+        btn.textContent = '↻';
+        btn.disabled = false;
+    });
 }
 
 function setPrimaryImage(imageId) {
@@ -267,6 +707,7 @@ function editHeaderName() {
     document.getElementById('header-name-input').focus();
 }
 
+
 document.getElementById('header-edit-name-form').addEventListener('submit', function(e) {
     e.preventDefault();
     const newName = document.getElementById('header-name-input').value.trim();
@@ -275,8 +716,19 @@ document.getElementById('header-edit-name-form').addEventListener('submit', func
         method: 'POST',
         body: new URLSearchParams({ 'item_name': newName })
     }).then(res => res.json()).then(data => {
-        if (data.success) window.location.reload();
-        else alert('Update failed: ' + data.error);
+        if (data.success) {
+            // Remove overlay if it exists (for new item creation)
+            const overlay = document.getElementById('new-item-overlay');
+            if (overlay) {
+                overlay.remove();
+            }
+            // Remove edit_title parameter from URL and reload
+            const url = new URL(window.location);
+            url.searchParams.delete('edit_title');
+            window.location.href = url.toString();
+        } else {
+            alert('Update failed: ' + data.error);
+        }
     });
 });
 
@@ -292,12 +744,36 @@ function cancelEditDescription() {
     document.getElementById('edit-description-btn').style.display = 'block';
 }
 
+function editItemNumber() {
+    document.getElementById('number-display').style.display = 'none';
+    document.getElementById('edit-number-form').style.display = 'block';
+    document.getElementById('edit-number-btn').style.display = 'none';
+}
+
+function cancelEditNumber() {
+    document.getElementById('number-display').style.display = 'block';
+    document.getElementById('edit-number-form').style.display = 'none';
+    document.getElementById('edit-number-btn').style.display = 'block';
+}
+
 document.getElementById('edit-description-form').addEventListener('submit', function(e) {
     e.preventDefault();
     const newDesc = document.getElementById('description-input').value;
     fetch(`/update-item-description/{{ guid }}`, {
         method: 'POST',
         body: new URLSearchParams({ 'description': newDesc })
+    }).then(res => res.json()).then(data => {
+        if (data.success) window.location.reload();
+        else alert('Update failed: ' + data.error);
+    });
+});
+
+document.getElementById('edit-number-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const newNumber = document.getElementById('number-input').value;
+    fetch(`/update-item-label/{{ guid }}`, {
+        method: 'POST',
+        body: new URLSearchParams({ 'label_number': newNumber })
     }).then(res => res.json()).then(data => {
         if (data.success) window.location.reload();
         else alert('Update failed: ' + data.error);
@@ -313,25 +789,342 @@ function deleteTag(categoryId) {
         });
 }
 
-// Simplified move item dialog
-function showMoveDialog() {
-    const parentGuid = prompt('Enter the GUID of the new container item (or leave blank to move to top level):');
-    if (parentGuid === null) return; // User cancelled
+// Move item functions
+function removeFromContainer() {
+    if (!confirm('Remove this item from its current container?')) {
+        return;
+    }
     
     fetch(`/set-parent/{{ guid }}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ parent_guid: parentGuid.trim() })
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ parent_guid: '' }) // Empty parent_guid removes the parent relationship
     })
-    .then(res => res.json())
+    .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert('Item moved successfully!');
-            window.location.reload();
+            location.reload();
         } else {
-            alert('Move failed: ' + data.error);
+            alert('Failed to remove from container: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Failed to remove from container. Please try again.');
+    });
+}
+
+// Autocomplete functionality
+let autocompleteTimeout;
+let selectedIndex = -1;
+let autocompleteResults = [];
+
+const searchInput = document.getElementById('parent-search-input');
+const guidInput = document.getElementById('parent-guid-input');
+const dropdown = document.getElementById('autocomplete-dropdown');
+const moveBtn = document.getElementById('move-item-btn');
+
+function showAutocomplete() {
+    dropdown.classList.add('show');
+}
+
+function hideAutocomplete() {
+    dropdown.classList.remove('show');
+    selectedIndex = -1;
+}
+
+function renderAutocompleteResults(results) {
+    if (results.length === 0) {
+        dropdown.innerHTML = '<div class="autocomplete-no-results">No items found</div>';
+        showAutocomplete();
+        return;
+    }
+    
+    dropdown.innerHTML = results.map((item, index) => `
+        <div class="autocomplete-item ${index === selectedIndex ? 'selected' : ''}" 
+             data-guid="${item.guid}" 
+             data-name="${item.name}"
+             data-index="${index}">
+            ${item.has_image ? 
+                `<img src="/thumbnail/${item.image_id}" alt="${item.name}" class="autocomplete-item-thumbnail">` :
+                `<div class="autocomplete-item-thumbnail" style="display: flex; align-items: center; justify-content: center; font-size: 16px; color: #adb5bd;">📦</div>`
+            }
+            <div class="autocomplete-item-info">
+                <div class="autocomplete-item-name">${item.name}</div>
+                <div class="autocomplete-item-meta">
+                    ${item.contained_count > 0 ? `Contains ${item.contained_count} item${item.contained_count !== 1 ? 's' : ''}` : 'Empty container'}
+                    ${item.matched_tags ? ` • Tags: ${item.matched_tags}` : ''}
+                </div>
+            </div>
+        </div>
+    `).join('');
+    
+    showAutocomplete();
+    
+    // Add click handlers
+    dropdown.querySelectorAll('.autocomplete-item').forEach(item => {
+        item.addEventListener('click', function() {
+            selectAutocompleteItem(this.dataset.guid, this.dataset.name);
+        });
+    });
+}
+
+function selectAutocompleteItem(guid, name) {
+    searchInput.value = name;
+    guidInput.value = guid;
+    moveBtn.disabled = false;
+    hideAutocomplete();
+}
+
+// Search input event listeners
+if (searchInput) {
+    searchInput.addEventListener('input', function() {
+        const query = this.value.trim();
+        
+        if (query.length < 2) {
+            hideAutocomplete();
+            moveBtn.disabled = true;
+            return;
+        }
+        
+        clearTimeout(autocompleteTimeout);
+        autocompleteTimeout = setTimeout(() => {
+            fetch(`/api/semantic-search?q=${encodeURIComponent(query)}&exclude={{ guid }}&limit=15`)
+                .then(response => response.json())
+                .then(data => {
+                    // Semantic search API returns array directly, not wrapped in success object
+                    autocompleteResults = data;
+                    renderAutocompleteResults(autocompleteResults);
+                })
+                .catch(error => {
+                    console.error('Search error:', error);
+                    hideAutocomplete();
+                });
+        }, 300);
+    });
+
+    searchInput.addEventListener('keydown', function(e) {
+        if (!dropdown.classList.contains('show')) return;
+        
+        switch(e.key) {
+            case 'ArrowDown':
+                e.preventDefault();
+                selectedIndex = Math.min(selectedIndex + 1, autocompleteResults.length - 1);
+                updateSelection();
+                break;
+            case 'ArrowUp':
+                e.preventDefault();
+                selectedIndex = Math.max(selectedIndex - 1, -1);
+                updateSelection();
+                break;
+            case 'Enter':
+                e.preventDefault();
+                if (selectedIndex >= 0 && autocompleteResults[selectedIndex]) {
+                    const item = autocompleteResults[selectedIndex];
+                    selectAutocompleteItem(item.guid, item.name);
+                }
+                break;
+            case 'Escape':
+                hideAutocomplete();
+                break;
         }
     });
 }
+
+function updateSelection() {
+    const items = dropdown.querySelectorAll('.autocomplete-item');
+    items.forEach((item, index) => {
+        item.classList.toggle('selected', index === selectedIndex);
+    });
+}
+
+// Click outside to close
+document.addEventListener('click', function(e) {
+    if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+        hideAutocomplete();
+    }
+});
+
+// Handle move item form submission
+if (document.getElementById('move-item-form')) {
+    document.getElementById('move-item-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const parentGuid = guidInput.value.trim();
+        if (!parentGuid) {
+            alert('Please select a container from the search results');
+            return;
+        }
+        
+        // Check if trying to move item into itself
+        if (parentGuid.toLowerCase() === '{{ guid }}'.toLowerCase()) {
+            alert('Cannot move an item into itself!');
+            return;
+        }
+        
+        // Show loading state
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.textContent;
+        submitBtn.textContent = 'Moving...';
+        submitBtn.disabled = true;
+        
+        // Create JSON data
+        fetch(`/set-parent/{{ guid }}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ parent_guid: parentGuid })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Failed to move item: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to move item. Please try again.');
+        })
+        .finally(() => {
+            submitBtn.textContent = originalText;
+            submitBtn.disabled = false;
+        });
+    });
+}
+
+// Back button functionality using breadcrumb navigation
+function goBack() {
+    {% if item_data.breadcrumb and item_data.breadcrumb|length > 0 %}
+        // Go to the immediate parent (last item in breadcrumb)
+        const parentGuid = '{{ item_data.breadcrumb[-1].guid }}';
+        window.location.href = '/item/' + parentGuid;
+    {% else %}
+        // No parent, go to home
+        window.location.href = '/';
+    {% endif %}
+}
+
+// New item forced editing functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('edit_title')) {
+        // Immediately trigger the edit mode for the title
+        editHeaderName();
+        
+        // A short delay helps ensure the input is visible and ready for focus
+        setTimeout(() => {
+            const nameInput = document.getElementById('header-name-input');
+            if (nameInput) {
+                // Add overlay to grey out content
+                const overlay = document.createElement('div');
+                overlay.className = 'new-item-overlay';
+                overlay.id = 'new-item-overlay';
+                overlay.onclick = function(e) {
+                    // Prevent clicking through the overlay
+                    e.preventDefault();
+                    e.stopPropagation();
+                };
+                document.body.appendChild(overlay);
+                
+                // Add visual highlight to draw attention
+                nameInput.classList.add('new-item-highlight');
+                nameInput.focus();
+                nameInput.select(); // Select the default text for easy replacement
+                
+                // Remove highlight after animation completes
+                setTimeout(() => {
+                    nameInput.classList.remove('new-item-highlight');
+                }, 2000);
+            }
+        }, 100);
+    }
+});
+
+// Upload functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const uploadArea = document.getElementById('upload-area');
+    const fileInput = document.getElementById('file-input');
+    const uploadForm = document.getElementById('upload-form');
+    const uploadProgress = document.getElementById('upload-progress');
+    const progressFill = document.getElementById('progress-fill');
+    const progressText = document.getElementById('progress-text');
+
+    // Click to upload
+    uploadArea.addEventListener('click', () => {
+        fileInput.click();
+    });
+
+    // File input change
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            uploadFiles(e.target.files);
+        }
+    });
+
+    // Drag and drop
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('dragover');
+    });
+
+    uploadArea.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+    });
+
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            uploadFiles(files);
+        }
+    });
+
+    function uploadFiles(files) {
+        // Show progress
+        uploadProgress.style.display = 'block';
+        progressFill.style.width = '0%';
+        progressText.textContent = 'Uploading...';
+
+        // Upload each file
+        let completed = 0;
+        const total = files.length;
+
+        Array.from(files).forEach((file, index) => {
+            const formData = new FormData();
+            formData.append('image', file);
+
+            fetch('/upload-image/{{ guid }}', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                completed++;
+                const progress = (completed / total) * 100;
+                progressFill.style.width = progress + '%';
+                progressText.textContent = `Uploading... ${completed}/${total}`;
+
+                if (completed === total) {
+                    progressText.textContent = 'Upload complete!';
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                }
+            })
+            .catch(error => {
+                console.error('Upload error:', error);
+                progressText.textContent = 'Upload failed!';
+            });
+        });
+    }
+});
 </script>
 {% endblock %}

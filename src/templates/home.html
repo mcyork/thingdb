@@ -133,6 +133,163 @@
     }
     .modal-body { padding: 24px; }
     .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; }
+
+    /* Admin Menu */
+    .admin-menu-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+    }
+    .admin-menu-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 20px;
+        background: var(--background-light);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        text-decoration: none;
+        color: var(--text-dark);
+        transition: all 0.2s;
+    }
+    .admin-menu-item:hover {
+        background: var(--primary-color);
+        color: white;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px var(--shadow-color);
+    }
+    .admin-menu-icon {
+        font-size: 32px;
+        margin-bottom: 8px;
+    }
+    .admin-menu-text {
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    /* New Item Confirmation Modal */
+    .modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 1000;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+    .modal.active {
+        display: flex;
+    }
+    .modal-content {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        max-width: 90vw;
+        max-height: 90vh;
+        overflow: auto;
+    }
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .modal-close {
+        background: none;
+        border: none;
+        font-size: 20px;
+        cursor: pointer;
+        padding: 4px;
+        color: #666;
+    }
+    .modal-close:hover {
+        color: #333;
+    }
+
+    /* Home Page Autocomplete Styles */
+    .home-autocomplete-wrapper {
+        position: relative;
+    }
+    .home-autocomplete-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        min-width: 100%;
+        width: max-content;
+        max-width: 90vw;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 12px;
+        margin-top: 8px;
+        max-height: 400px;
+        overflow-y: auto;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 2000;
+        display: none;
+    }
+    .home-autocomplete-dropdown.show {
+        display: block;
+    }
+    .home-autocomplete-item {
+        padding: 16px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border-bottom: 1px solid #f0f0f0;
+        transition: background-color 0.2s;
+    }
+    .home-autocomplete-item:last-child {
+        border-bottom: none;
+    }
+    .home-autocomplete-item:hover,
+    .home-autocomplete-item.selected {
+        background-color: #f8f9fa;
+    }
+    .home-autocomplete-item-thumbnail {
+        width: 48px;
+        height: 48px;
+        object-fit: cover;
+        border-radius: 8px;
+        background: #e9ecef;
+        flex-shrink: 0;
+    }
+    .home-autocomplete-item-info {
+        flex: 1;
+        min-width: 0;
+    }
+    .home-autocomplete-item-name {
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 4px;
+        font-size: 16px;
+        line-height: 1.3;
+        word-wrap: break-word;
+    }
+    .home-autocomplete-item-meta {
+        font-size: 14px;
+        color: #666;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        line-height: 1.4;
+    }
+    .home-autocomplete-no-results {
+        padding: 20px;
+        text-align: center;
+        color: #999;
+        font-style: italic;
+    }
+    .home-autocomplete-loading {
+        padding: 20px;
+        text-align: center;
+        color: #666;
+    }
 </style>
 {% endblock %}
 
@@ -140,11 +297,14 @@
 <!-- App Header with Integrated Search -->
 <header class="app-header">
     <div class="app-header-content">
-        <h1 style="margin-right: 16px;">Inventory</h1>
+        <h1 style="margin-right: 16px; cursor: pointer;" onclick="showAdminMenu()" title="Admin Menu">Inventory</h1>
         <form method="POST" action="/process-guid" id="search-form" style="flex: 1; position: relative;">
-            <div class="header-search-input-group">
-                <span class="header-search-icon">🔍</span>
-                <input type="text" id="search-input" name="guid" class="header-search-input" placeholder="Search or scan..." autocomplete="off">
+            <div class="home-autocomplete-wrapper">
+                <div class="header-search-input-group">
+                    <span class="header-search-icon">🔍</span>
+                    <input type="text" id="search-input" name="guid" class="header-search-input" placeholder="Search or scan..." autocomplete="off" autocorrect="off" spellcheck="false">
+                </div>
+                <div id="home-autocomplete-dropdown" class="home-autocomplete-dropdown"></div>
             </div>
         </form>
         <button onclick="createNewItem()" class="header-action-btn" title="Create New Item">➕</button>
@@ -154,20 +314,6 @@
 
 <!-- Main Content -->
 <div class="app-content">
-    <div class="action-grid">
-        <a href="/admin" class="action-grid-item">
-            <span class="action-grid-icon">🛠️</span> Admin
-        </a>
-        <a href="/system-status" class="action-grid-item">
-            <span class="action-grid-icon">🚀</span> Status
-        </a>
-        <a href="/db-stats" class="action-grid-item">
-            <span class="action-grid-icon">📊</span> Stats
-        </a>
-        <a href="#" onclick="showQuickStartGuide()" class="action-grid-item">
-            <span class="action-grid-icon">📖</span> Guide
-        </a>
-    </div>
 
     <!-- Items List / Tree View Container -->
     <div class="items-container card" style="padding: 0; margin: 0 16px;">
@@ -244,6 +390,36 @@
             </ol>
             <h3>🔍 Smart Search</h3>
             <p>Try searching for concepts like "camping gear" or "electronics" to see semantic search in action.</p>
+        </div>
+    </div>
+</div>
+
+<!-- Admin Menu Modal -->
+<div id="admin-menu-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Admin Menu</h2>
+            <button onclick="closeAdminMenu()" class="modal-close">✕</button>
+        </div>
+        <div class="modal-body">
+            <div class="admin-menu-grid">
+                <a href="/admin" class="admin-menu-item">
+                    <span class="admin-menu-icon">🛠️</span>
+                    <span class="admin-menu-text">Admin Panel</span>
+                </a>
+                <a href="/system-status" class="admin-menu-item">
+                    <span class="admin-menu-icon">🚀</span>
+                    <span class="admin-menu-text">System Status</span>
+                </a>
+                <a href="/db-stats" class="admin-menu-item">
+                    <span class="admin-menu-icon">📊</span>
+                    <span class="admin-menu-text">Database Stats</span>
+                </a>
+                <a href="#" onclick="showQuickStartGuide(); closeAdminMenu();" class="admin-menu-item">
+                    <span class="admin-menu-icon">📖</span>
+                    <span class="admin-menu-text">Quick Start Guide</span>
+                </a>
+            </div>
         </div>
     </div>
 </div>
@@ -392,23 +568,233 @@ function handleQRCode(data) {
 
 // --- New Item & Quick Start ---
 function createNewItem() {
+    // Show confirmation dialog instead of creating immediately
+    showNewItemConfirmation();
+}
+
+// Show confirmation dialog for new item creation
+function showNewItemConfirmation() {
+    const modal = document.createElement('div');
+    modal.className = 'modal active';
+    modal.id = 'new-item-confirmation-modal';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width: 320px; padding: 0;">
+            <div class="modal-header" style="padding: 16px 20px 12px 20px; border-bottom: 1px solid #eee;">
+                <h2 style="margin: 0; font-size: 18px;">Create New Item</h2>
+                <button onclick="hideNewItemConfirmation()" class="modal-close" style="font-size: 16px; padding: 4px;">✕</button>
+            </div>
+            <div class="modal-body" style="padding: 16px 20px;">
+                <div style="text-align: center;">
+                    <div style="font-size: 32px; margin-bottom: 8px;">📦</div>
+                    <h3 style="margin: 0 0 8px 0; font-size: 16px; font-weight: 600;">Ready to add a new item?</h3>
+                    <p style="margin: 0; font-size: 14px; color: #666;">This will create a new item in your inventory.</p>
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; gap: 8px; justify-content: center; padding: 12px 20px 16px 20px; border-top: 1px solid #eee;">
+                <button onclick="confirmCreateNewItem()" class="btn btn-primary" style="font-size: 14px; padding: 8px 16px; flex: 1;">
+                    Add New Item
+                </button>
+                <button onclick="hideNewItemConfirmation()" class="btn btn-secondary" style="font-size: 14px; padding: 8px 16px; flex: 1;">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+}
+
+// Hide the confirmation dialog
+function hideNewItemConfirmation() {
+    const modal = document.getElementById('new-item-confirmation-modal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+// Confirm and create new item
+function confirmCreateNewItem() {
+    hideNewItemConfirmation();
+    
+    // Call the backend to create a new item
     fetch('/create-item', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            description: ''
+        })
     })
-    .then(res => res.json())
+    .then(response => response.json())
     .then(data => {
         if (data.success) {
-            window.location.href = `/item/${data.guid}?new_item=1`;
+            // Navigate to the new item with edit mode parameter
+            window.location.href = `/item/${data.guid}?edit_title=true`;
         } else {
-            alert('Error creating item: ' + data.error);
+            alert('Failed to create new item: ' + (data.error || 'Unknown error'));
         }
+    })
+    .catch(error => {
+        console.error('Error creating item:', error);
+        alert('Failed to create new item. Please try again.');
     });
 }
 
 function showQuickStartGuide() { document.getElementById('quick-start-modal').classList.add('active'); }
 function closeQuickStartGuide() { document.getElementById('quick-start-modal').classList.remove('active'); }
+
+function showAdminMenu() { document.getElementById('admin-menu-modal').classList.add('active'); }
+function closeAdminMenu() { document.getElementById('admin-menu-modal').classList.remove('active'); }
+
+// Home page autocomplete functionality
+let homeAutocompleteTimeout;
+let homeSelectedIndex = -1;
+let homeAutocompleteResults = [];
+
+const homeSearchInput = document.getElementById('search-input');
+const homeDropdown = document.getElementById('home-autocomplete-dropdown');
+
+function showHomeAutocomplete() {
+    homeDropdown.classList.add('show');
+}
+
+function hideHomeAutocomplete() {
+    homeDropdown.classList.remove('show');
+    homeSelectedIndex = -1;
+}
+
+function renderHomeAutocompleteResults(results) {
+    if (results.length === 0) {
+        hideHomeAutocomplete();
+        return;
+    }
+    
+    homeDropdown.innerHTML = results.map((item, index) => `
+        <div class="home-autocomplete-item ${index === homeSelectedIndex ? 'selected' : ''}" 
+             data-guid="${item.guid}" 
+             data-name="${item.name}"
+             data-index="${index}">
+            ${item.has_image ? 
+                `<img src="/thumbnail/${item.image_id}" alt="${item.name}" class="home-autocomplete-item-thumbnail">` :
+                `<div class="home-autocomplete-item-thumbnail" style="display: flex; align-items: center; justify-content: center; font-size: 20px; color: #adb5bd;">📦</div>`
+            }
+            <div class="home-autocomplete-item-info">
+                <div class="home-autocomplete-item-name">${item.name}</div>
+                <div class="home-autocomplete-item-meta">
+                    ${item.label_number ? `<span style="font-weight: 600; color: #007bff;">#${item.label_number}</span>` : ''}
+                    <span>${item.contained_count > 0 ? `${item.contained_count} item${item.contained_count !== 1 ? 's' : ''} inside` : 'Empty'}</span>
+                    ${item.matched_tags ? `<span>• Tags: ${item.matched_tags}</span>` : ''}
+                    ${item.description && item.description.length > 0 ? `<span>• ${item.description.substring(0, 50)}${item.description.length > 50 ? '...' : ''}</span>` : ''}
+                    ${item.similarity !== undefined && item.match_type === 'semantic' ? `<span>• ${Math.round(item.similarity * 100)}% match</span>` : ''}
+                    <span>• Click to view</span>
+                </div>
+            </div>
+        </div>
+    `).join('');
+    
+    showHomeAutocomplete();
+    
+    // Add click handlers
+    homeDropdown.querySelectorAll('.home-autocomplete-item').forEach(item => {
+        item.addEventListener('click', function() {
+            navigateToItem(this.dataset.guid);
+        });
+    });
+}
+
+function navigateToItem(guid) {
+    window.location.href = `/item/${guid}`;
+}
+
+function isGuidOrUrl(input) {
+    // Check if it looks like a GUID or URL
+    const guidPattern = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+    return guidPattern.test(input) || input.startsWith('http');
+}
+
+// Search input handlers
+homeSearchInput.addEventListener('input', function() {
+    const query = this.value.trim();
+    
+    // If it looks like a GUID or URL, don't show autocomplete
+    if (isGuidOrUrl(query)) {
+        hideHomeAutocomplete();
+        return;
+    }
+    
+    if (!query || query.length < 2) {
+        hideHomeAutocomplete();
+        return;
+    }
+    
+    // Clear previous timeout
+    clearTimeout(homeAutocompleteTimeout);
+    
+    // Show loading state
+    homeDropdown.innerHTML = '<div class="home-autocomplete-loading">Searching...</div>';
+    showHomeAutocomplete();
+    
+    // Debounce the search
+    homeAutocompleteTimeout = setTimeout(() => {
+        fetch(`/api/semantic-search?q=${encodeURIComponent(query)}&limit=15`)
+            .then(response => response.json())
+            .then(results => {
+                homeAutocompleteResults = results;
+                renderHomeAutocompleteResults(results);
+            })
+            .catch(error => {
+                console.error('Search error:', error);
+                // Fallback to traditional search
+                fetch(`/search-items?q=${encodeURIComponent(query)}`)
+                    .then(response => response.json())
+                    .then(results => {
+                        homeAutocompleteResults = results;
+                        renderHomeAutocompleteResults(results);
+                    })
+                    .catch(error2 => {
+                        console.error('Fallback search error:', error2);
+                        hideHomeAutocomplete();
+                    });
+            });
+    }, 300);
+});
+
+// Keyboard navigation
+homeSearchInput.addEventListener('keydown', function(e) {
+    const items = homeDropdown.querySelectorAll('.home-autocomplete-item');
+    
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        homeSelectedIndex = Math.min(homeSelectedIndex + 1, items.length - 1);
+        updateHomeSelection(items);
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        homeSelectedIndex = Math.max(homeSelectedIndex - 1, -1);
+        updateHomeSelection(items);
+    } else if (e.key === 'Enter' && homeSelectedIndex >= 0) {
+        e.preventDefault();
+        const selected = homeAutocompleteResults[homeSelectedIndex];
+        if (selected) {
+            navigateToItem(selected.guid);
+        }
+    } else if (e.key === 'Escape') {
+        hideHomeAutocomplete();
+    }
+});
+
+function updateHomeSelection(items) {
+    items.forEach((item, index) => {
+        item.classList.toggle('selected', index === homeSelectedIndex);
+    });
+}
+
+// Click outside to close
+document.addEventListener('click', function(e) {
+    if (!homeSearchInput.contains(e.target) && !homeDropdown.contains(e.target)) {
+        hideHomeAutocomplete();
+    }
+});
 
 // --- Init ---
 document.addEventListener('DOMContentLoaded', updateView);
