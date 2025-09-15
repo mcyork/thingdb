@@ -12,9 +12,9 @@
 - Once expansion is complete, you can safely power off anytime
 
 - If on a prior RC run a backup - image sd card - restore back - yer on your way
-- [RC7 image link](https://ln5.sync.com/dl/21dd9c9f0#2qw8wjmv-nd69at47-m6jk2wju-c8rhynd2)
-- RC8 image link (Pending)
-RC8 was built to include the Cloudflare code feature set and a few minor tweaks. The code stuff is included on the image. Cosmetically, there is a patch that you should apply immediately which will rewrite the entire GUI to the new format.I think it's cleaner, simpler, and hopefully better.I'll be removing Legacy RC-7 and everything about it one 8 is available.
+
+- [RC8 image link](https://ln5.sync.com/dl/4c0996700#ksqf7wjr-wqw7y7sa-q8d6xhet-yetvviix)
+#### RC8 was built to include the Cloudflare code feature set and a few minor tweaks. The new code is included on the image. Cosmetically, there is a patch that you should apply immediately which will rewrite the entire GUI to the new format.I think it's cleaner, simpler, and hopefully better.I'll be removing Legacy RC-7 and everything about it one 8 is available. see the release notes for more: [RC8_RELEASE_NOTES.md](patches/RC8_RELEASE_NOTES.md)
 
 ### 2. Network Setup
 
