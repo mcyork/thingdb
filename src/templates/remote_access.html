@@ -1,556 +1,267 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Remote Access Setup</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            background: #f5f5f5;
-        }
-        .container {
-            background: white;
-            border-radius: 8px;
-            padding: 2rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .status-card {
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: 8px;
-            padding: 1.5rem;
-            margin-bottom: 2rem;
-        }
-        .status-indicator {
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            margin-right: 8px;
-        }
-        .status-active { background: #28a745; }
-        .status-inactive { background: #dc3545; }
-        .status-unknown { background: #ffc107; }
-        .status-not-configured { background: #6c757d; }
-        
-        .url-display {
-            background: #e9ecef;
-            border: 1px solid #ced4da;
-            border-radius: 4px;
-            padding: 0.75rem;
-            font-family: monospace;
-            font-size: 0.9rem;
-            margin: 0.5rem 0;
-            word-break: break-all;
-        }
-        .copy-btn {
-            background: #007bff;
-            color: white;
-            border: none;
-            padding: 0.5rem 1rem;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.9rem;
-        }
-        .copy-btn:hover { background: #0056b3; }
-        .copy-btn:active { background: #004085; }
-        
-        .action-buttons {
-            display: flex;
-            gap: 1rem;
-            margin-top: 1rem;
-        }
-        .btn {
-            padding: 0.75rem 1.5rem;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 1rem;
-            text-decoration: none;
-            display: inline-block;
-            text-align: center;
-        }
-        .btn-primary { background: #007bff; color: white; }
-        .btn-success { background: #28a745; color: white; }
-        .btn-warning { background: #ffc107; color: #212529; }
-        .btn-danger { background: #dc3545; color: white; }
-        .btn:hover { opacity: 0.9; }
-        
-        .form-group {
-            margin: 1rem 0;
-        }
-        .form-group label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-weight: 600;
-        }
-        .form-group input {
-            width: 100%;
-            padding: 0.75rem;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 1rem;
-        }
-        .form-group input:focus {
-            outline: none;
-            border-color: #007bff;
-            box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
-        }
-        
-        .setup-form {
-            display: none;
-        }
-        .setup-form.show {
-            display: block;
-        }
-        
-        .info-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-            margin: 1rem 0;
-        }
-        .info-item {
-            background: #f8f9fa;
-            padding: 1rem;
-            border-radius: 4px;
-        }
-        .info-label {
-            font-size: 0.9rem;
-            color: #6c757d;
-            margin-bottom: 0.25rem;
-        }
-        .info-value {
-            font-weight: 600;
-            font-family: monospace;
-        }
-        
-        .alert {
-            padding: 1rem;
-            border-radius: 4px;
-            margin: 1rem 0;
-        }
-        .alert-success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
-        .alert-warning { background: #fff3cd; border: 1px solid #ffeaa7; color: #856404; }
-        .alert-danger { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
-        .alert-info { background: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; }
-        
-        .loading {
-            display: none;
-            text-align: center;
-            padding: 1rem;
-        }
-        .spinner {
-            border: 2px solid #f3f3f3;
-            border-top: 2px solid #007bff;
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        .email-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0.5rem;
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: 4px;
-            margin: 0.25rem 0;
-        }
-        
-        .remove-email-btn {
-            background: #dc3545;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            cursor: pointer;
-            font-size: 16px;
-            line-height: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .remove-email-btn:hover {
-            background: #c82333;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🌐 Remote Access Setup</h1>
-        <p>Configure secure remote access to your inventory system via Cloudflare Tunnel.</p>
-        
-        <!-- Status Card -->
-        <div class="status-card">
-            <h3>
-                <span class="status-indicator status-{{ 'active' if tunnel_status.configured and tunnel_status.status == 'Active' else 'inactive' if tunnel_status.configured else 'not-configured' }}"></span>
-                Tunnel Status: {{ tunnel_status.status if tunnel_status.configured else 'Not Configured' }}
-            </h3>
-            
-            {% if tunnel_status.configured %}
-                <div class="info-grid">
-                    <div class="info-item">
-                        <div class="info-label">Access URL</div>
-                        <div class="info-value">{{ tunnel_status.url or 'Unknown' }}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Authorized Emails</div>
-                        <div class="info-value">
-                            {% if tunnel_status.emails %}
-                                {% for email in tunnel_status.emails %}
-                                    <div class="email-item">
-                                        {{ email }}
-                                        <button class="remove-email-btn" onclick="removeEmail('{{ email }}')" title="Remove email">×</button>
-                                    </div>
-                                {% endfor %}
-                            {% else %}
-                                {{ tunnel_status.email or 'Unknown' }}
-                            {% endif %}
-                        </div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Tunnel ID</div>
-                        <div class="info-value">{{ tunnel_status.tunnel_id[:8] + '...' if tunnel_status.tunnel_id else 'Unknown' }}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Created</div>
-                        <div class="info-value">{{ tunnel_status.created_at[:10] if tunnel_status.created_at else 'Unknown' }}</div>
-                    </div>
-                </div>
-                
-                {% if tunnel_status.url %}
-                <div class="url-display" id="url-display">{{ tunnel_status.url }}</div>
-                <button class="copy-btn" onclick="copyUrl()">📋 Copy URL</button>
-                {% endif %}
-                
-                <div class="action-buttons">
-                    <button class="btn btn-success" onclick="refreshStatus()">🔄 Refresh Status</button>
-                    <button class="btn btn-warning" onclick="restartTunnel()">🔄 Restart Tunnel</button>
-                    <button class="btn btn-primary" onclick="showEmailManagement()">👥 Manage Emails</button>
-                    <button class="btn btn-secondary" onclick="showSetupForm()">⚙️ Reconfigure</button>
-                </div>
-            {% else %}
-                <div class="alert alert-info">
-                    <strong>No tunnel configured.</strong> Set up remote access to securely access your inventory system from anywhere.
-                </div>
-                <button class="btn btn-primary" onclick="showSetupForm()">🚀 Setup Remote Access</button>
-            {% endif %}
+{% extends "base.html" %}
+
+{% block title %}Remote Access Setup{% endblock %}
+
+{% block styles %}
+<style>
+    .status-indicator {
+        display: inline-block; width: 12px; height: 12px;
+        border-radius: 50%; margin-right: 8px;
+    }
+    .status-active { background: var(--success-color); }
+    .status-inactive { background: var(--danger-color); }
+    .status-unknown { background: var(--warning-color); }
+    .status-not-configured { background: var(--secondary-color); }
+
+    .info-grid {
+        display: grid; grid-template-columns: 1fr; gap: 12px;
+        margin: 16px 0;
+    }
+    @media (min-width: 600px) {
+        .info-grid { grid-template-columns: 1fr 1fr; }
+    }
+    .info-item {
+        background: var(--background-light); padding: 12px;
+        border-radius: 6px;
+    }
+    .info-label { font-size: 13px; color: var(--text-light); margin-bottom: 4px; }
+    .info-value { font-weight: 600; font-family: monospace; word-break: break-all; }
+    
+    .email-item {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 4px 0;
+    }
+    .remove-email-btn {
+        background: var(--danger-color); color: white; border: none;
+        border-radius: 50%; width: 24px; height: 24px; cursor: pointer;
+        font-size: 16px; line-height: 1;
+    }
+    .alert {
+        padding: 12px; border-radius: 8px; margin: 16px 0;
+        border: 1px solid;
+    }
+    .alert-info { background: #d1ecf1; border-color: #bee5eb; color: #0c5460; }
+    .loading { text-align: center; padding: 16px; display: none; }
+</style>
+{% endblock %}
+
+{% block app_content %}
+<div class="sub-header">
+    <div class="sub-header-content">
+        <button onclick="history.back()" class="sub-header-back-btn">←</button>
+        <h1 class="sub-header-title">Remote Access</h1>
+    </div>
+</div>
+
+<div class="app-content">
+    <!-- Status Card -->
+    <div class="card">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px;">
+            <span class="status-indicator status-{{ 'active' if tunnel_status.configured and tunnel_status.status == 'Active' else 'inactive' if tunnel_status.configured else 'not-configured' }}"></span>
+            <h2 style="margin:0; font-size: 18px;">
+                Status: {{ tunnel_status.status if tunnel_status.configured else 'Not Configured' }}
+            </h2>
         </div>
-        
-        <!-- Email Management Form -->
-        <div class="setup-form" id="email-management-form">
-            <h3>👥 Manage Authorized Emails</h3>
-            <p>Add or remove email addresses that can access your tunnel.</p>
-            
-            <div class="form-group">
-                <label for="cf_token_email">Cloudflare API Token</label>
-                <input type="password" id="cf_token_email" name="cf_token_email" required 
-                       placeholder="Your Cloudflare API token">
+
+        {% if tunnel_status.configured %}
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-label">Access URL</div>
+                    <div class="info-value">{{ tunnel_status.url or 'Unknown' }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Tunnel ID</div>
+                    <div class="info-value">{{ tunnel_status.tunnel_id[:8] + '...' if tunnel_status.tunnel_id else 'Unknown' }}</div>
+                </div>
             </div>
-            
-            <div class="form-group">
-                <label for="new_email">Email Address</label>
-                <input type="email" id="new_email" name="new_email" required 
-                       placeholder="family@email.com">
-                <small>Enter the email address to add or remove</small>
+            <div class="info-item">
+                <div class="info-label">Authorized Emails</div>
+                {% for email in tunnel_status.emails %}
+                    <div class="email-item">
+                        <span>{{ email }}</span>
+                        <button class="remove-email-btn" onclick="removeEmail('{{ email }}')" title="Remove email">×</button>
+                    </div>
+                {% else %}
+                    <div class="info-value">None</div>
+                {% endfor %}
             </div>
-            
-            <div class="action-buttons">
-                <button type="button" class="btn btn-success" onclick="addEmail()">➕ Add Email</button>
-                <button type="button" class="btn btn-danger" onclick="removeEmailFromForm()">➖ Remove Email</button>
-                <button type="button" class="btn btn-secondary" onclick="hideEmailManagement()">Cancel</button>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px;">
+                <button class="btn btn-secondary" onclick="restartTunnel()">Restart Tunnel</button>
+                <button class="btn btn-secondary" onclick="showEmailManagement()">Manage Emails</button>
+            </div>
+        {% else %}
+            <div class="alert alert-info">
+                No tunnel configured. Set up remote access to securely access your inventory from anywhere.
+            </div>
+            <button class="btn btn-primary" onclick="showSetupForm()">🚀 Setup Remote Access</button>
+        {% endif %}
+    </div>
+
+    <!-- Setup/Management Forms -->
+    <div id="form-container" style="display: none;">
+        <div class="card" id="email-management-form">
+            <h3>Manage Authorized Emails</h3>
+            <div class="form-group">
+                <label for="cf_token_email" class="form-label">Cloudflare API Token</label>
+                <input type="password" id="cf_token_email" class="form-input" required>
+            </div>
+            <div class="form-group">
+                <label for="new_email" class="form-label">Email Address</label>
+                <input type="email" id="new_email" class="form-input" required>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button type="button" class="btn btn-primary" onclick="addEmail()">Add Email</button>
+                <button type="button" class="btn btn-secondary" onclick="hideForms()">Cancel</button>
             </div>
         </div>
-        
-        <!-- Setup Form -->
-        <div class="setup-form" id="setup-form">
-            <h3>Configure Remote Access</h3>
-            <p>You'll need a Cloudflare API token with tunnel permissions. <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank">Get your token here</a>.</p>
-            
+
+        <div class="card" id="setup-form">
+            <h3>Configure New Tunnel</h3>
+            <p>You'll need a Cloudflare API token. <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank">Get one here</a>.</p>
             <form id="tunnel-form">
                 <div class="form-group">
-                    <label for="cf_token">Cloudflare API Token</label>
-                    <input type="password" id="cf_token" name="cf_token" required 
-                           placeholder="Your Cloudflare API token">
+                    <label for="cf_token" class="form-label">Cloudflare API Token</label>
+                    <input type="password" id="cf_token" class="form-input" required>
                 </div>
-                
                 <div class="form-group">
-                    <label for="email">Your Email Address</label>
-                    <input type="email" id="email" name="email" required 
-                           placeholder="your@email.com">
-                    <small>This email will be authorized to access the tunnel</small>
+                    <label for="email" class="form-label">Your Email Address</label>
+                    <input type="email" id="email" class="form-input" required>
                 </div>
-                
-                <div class="action-buttons">
-                    <button type="submit" class="btn btn-primary">🚀 Setup Tunnel</button>
-                    <button type="button" class="btn btn-secondary" onclick="hideSetupForm()">Cancel</button>
+                <div style="display: flex; gap: 8px;">
+                    <button type="submit" class="btn btn-primary">Setup Tunnel</button>
+                    <button type="button" class="btn btn-secondary" onclick="hideForms()">Cancel</button>
                 </div>
             </form>
         </div>
-        
-        <!-- Loading Indicator -->
-        <div class="loading" id="loading">
-            <div class="spinner"></div>
-            <p>Processing...</p>
-        </div>
-        
-        <!-- Messages -->
-        <div id="messages"></div>
     </div>
 
-    <script>
-        // Show/hide setup form
-        function showSetupForm() {
-            document.getElementById('setup-form').classList.add('show');
-            document.getElementById('email-management-form').classList.remove('show');
+    <div class="loading" id="loading"><div class="spinner"></div> Processing...</div>
+    <div id="messages"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const formContainer = document.getElementById('form-container');
+    const setupForm = document.getElementById('setup-form');
+    const emailForm = document.getElementById('email-management-form');
+
+    function showSetupForm() {
+        formContainer.style.display = 'block';
+        setupForm.style.display = 'block';
+        emailForm.style.display = 'none';
+    }
+    function showEmailManagement() {
+        formContainer.style.display = 'block';
+        setupForm.style.display = 'none';
+        emailForm.style.display = 'block';
+    }
+    function hideForms() {
+        formContainer.style.display = 'none';
+    }
+
+    function showLoading(show) { document.getElementById('loading').style.display = show ? 'block' : 'none'; }
+    function showMessage(text, type) {
+        const messagesDiv = document.getElementById('messages');
+        messagesDiv.innerHTML = `<div class="alert alert-${type === 'success' ? 'info' : 'danger'}">${text}</div>`;
+        setTimeout(() => messagesDiv.innerHTML = '', 5000);
+    }
+
+    async function restartTunnel() {
+        if (!confirm('Restart the tunnel? This may cause a brief interruption.')) return;
+        showLoading(true);
+        try {
+            const response = await fetch('/api/restart-tunnel', { method: 'POST' });
+            const result = await response.json();
+            if (response.ok) {
+                showMessage('Tunnel restarted successfully!', 'success');
+                setTimeout(() => window.location.reload(), 2000);
+            } else {
+                throw new Error(result.error);
+            }
+        } catch (error) {
+            showMessage('Failed to restart tunnel: ' + error.message, 'danger');
+        } finally {
+            showLoading(false);
         }
-        
-        function hideSetupForm() {
-            document.getElementById('setup-form').classList.remove('show');
-        }
-        
-        // Show/hide email management form
-        function showEmailManagement() {
-            document.getElementById('email-management-form').classList.add('show');
-            document.getElementById('setup-form').classList.remove('show');
-        }
-        
-        function hideEmailManagement() {
-            document.getElementById('email-management-form').classList.remove('show');
-        }
-        
-        // Copy URL to clipboard
-        function copyUrl() {
-            const urlDisplay = document.getElementById('url-display');
-            navigator.clipboard.writeText(urlDisplay.textContent).then(() => {
-                showMessage('URL copied to clipboard!', 'success');
-            }).catch(() => {
-                showMessage('Failed to copy URL', 'danger');
+    }
+
+    document.getElementById('tunnel-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        showLoading(true);
+        try {
+            const response = await fetch('/api/setup-tunnel', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    cf_token: document.getElementById('cf_token').value,
+                    email: document.getElementById('email').value
+                })
             });
+            const result = await response.json();
+            if (response.ok) {
+                showMessage('Tunnel setup successful!', 'success');
+                setTimeout(() => window.location.reload(), 3000);
+            } else {
+                throw new Error(result.error);
+            }
+        } catch (error) {
+            showMessage('Setup failed: ' + error.message, 'danger');
+        } finally {
+            showLoading(false);
         }
+    });
+
+    async function addEmail() {
+        const cfToken = document.getElementById('cf_token_email').value.trim();
+        const email = document.getElementById('new_email').value.trim();
+        if (!cfToken || !email) return showMessage('API token and email are required.', 'danger');
         
-        // Refresh status
-        async function refreshStatus() {
-            showLoading(true);
-            try {
-                const response = await fetch('/api/tunnel-status');
-                const status = await response.json();
-                
-                if (response.ok) {
-                    // Reload page to show updated status
-                    window.location.reload();
-                } else {
-                    showMessage('Failed to refresh status: ' + status.error, 'danger');
-                }
-            } catch (error) {
-                showMessage('Failed to refresh status: ' + error.message, 'danger');
-            } finally {
-                showLoading(false);
+        showLoading(true);
+        try {
+            const response = await fetch('/api/add-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cf_token: cfToken, email: email })
+            });
+            const result = await response.json();
+            if (response.ok) {
+                showMessage(result.message, 'success');
+                setTimeout(() => window.location.reload(), 2000);
+            } else {
+                throw new Error(result.error);
             }
+        } catch (error) {
+            showMessage('Failed to add email: ' + error.message, 'danger');
+        } finally {
+            showLoading(false);
         }
-        
-        // Restart tunnel
-        async function restartTunnel() {
-            if (!confirm('Are you sure you want to restart the tunnel? This may cause a brief interruption.')) {
-                return;
+    }
+
+    async function removeEmail(email) {
+        if (!confirm(`Remove access for ${email}?`)) return;
+        const cfToken = prompt('Please enter your Cloudflare API token to confirm:');
+        if (!cfToken) return;
+
+        showLoading(true);
+        try {
+            const response = await fetch('/api/remove-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cf_token: cfToken, email: email })
+            });
+            const result = await response.json();
+            if (response.ok) {
+                showMessage(result.message, 'success');
+                setTimeout(() => window.location.reload(), 2000);
+            } else {
+                throw new Error(result.error);
             }
-            
-            showLoading(true);
-            try {
-                const response = await fetch('/api/restart-tunnel', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                const result = await response.json();
-                
-                if (response.ok) {
-                    showMessage('Tunnel restarted successfully!', 'success');
-                    setTimeout(() => window.location.reload(), 2000);
-                } else {
-                    showMessage('Failed to restart tunnel: ' + result.error, 'danger');
-                }
-            } catch (error) {
-                showMessage('Failed to restart tunnel: ' + error.message, 'danger');
-            } finally {
-                showLoading(false);
-            }
+        } catch (error) {
+            showMessage('Failed to remove email: ' + error.message, 'danger');
+        } finally {
+            showLoading(false);
         }
-        
-        // Setup tunnel form submission
-        document.getElementById('tunnel-form').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const formData = new FormData(this);
-            const data = {
-                cf_token: formData.get('cf_token'),
-                email: formData.get('email')
-            };
-            
-            showLoading(true);
-            try {
-                const response = await fetch('/api/setup-tunnel', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                
-                const result = await response.json();
-                
-                if (response.ok) {
-                    showMessage('Tunnel setup successful! You can now access your inventory system remotely.', 'success');
-                    setTimeout(() => window.location.reload(), 3000);
-                } else {
-                    showMessage('Setup failed: ' + result.error, 'danger');
-                }
-            } catch (error) {
-                showMessage('Setup failed: ' + error.message, 'danger');
-            } finally {
-                showLoading(false);
-            }
-        });
-        
-        // Utility functions
-        function showLoading(show) {
-            document.getElementById('loading').style.display = show ? 'block' : 'none';
-        }
-        
-        function showMessage(text, type) {
-            const messagesDiv = document.getElementById('messages');
-            const alertDiv = document.createElement('div');
-            alertDiv.className = `alert alert-${type}`;
-            alertDiv.textContent = text;
-            messagesDiv.appendChild(alertDiv);
-            
-            // Auto-remove after 5 seconds
-            setTimeout(() => {
-                if (alertDiv.parentNode) {
-                    alertDiv.parentNode.removeChild(alertDiv);
-                }
-            }, 5000);
-        }
-        
-        // Email management functions
-        async function addEmail() {
-            const cfToken = document.getElementById('cf_token_email').value.trim();
-            const email = document.getElementById('new_email').value.trim();
-            
-            if (!cfToken || !email) {
-                showMessage('Please enter both API token and email address', 'danger');
-                return;
-            }
-            
-            showLoading(true);
-            try {
-                const response = await fetch('/api/add-email', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ cf_token: cfToken, email: email })
-                });
-                
-                const result = await response.json();
-                
-                if (response.ok) {
-                    showMessage(result.message, 'success');
-                    document.getElementById('new_email').value = '';
-                    setTimeout(() => window.location.reload(), 2000);
-                } else {
-                    showMessage('Failed to add email: ' + result.error, 'danger');
-                }
-            } catch (error) {
-                showMessage('Failed to add email: ' + error.message, 'danger');
-            } finally {
-                showLoading(false);
-            }
-        }
-        
-        async function removeEmailFromForm() {
-            const cfToken = document.getElementById('cf_token_email').value.trim();
-            const email = document.getElementById('new_email').value.trim();
-            
-            if (!cfToken || !email) {
-                showMessage('Please enter both API token and email address', 'danger');
-                return;
-            }
-            
-            if (!confirm(`Are you sure you want to remove access for ${email}?`)) {
-                return;
-            }
-            
-            showLoading(true);
-            try {
-                const response = await fetch('/api/remove-email', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ cf_token: cfToken, email: email })
-                });
-                
-                const result = await response.json();
-                
-                if (response.ok) {
-                    showMessage(result.message, 'success');
-                    document.getElementById('new_email').value = '';
-                    setTimeout(() => window.location.reload(), 2000);
-                } else {
-                    showMessage('Failed to remove email: ' + result.error, 'danger');
-                }
-            } catch (error) {
-                showMessage('Failed to remove email: ' + error.message, 'danger');
-            } finally {
-                showLoading(false);
-            }
-        }
-        
-        async function removeEmail(email) {
-            if (!confirm(`Are you sure you want to remove access for ${email}?`)) {
-                return;
-            }
-            
-            const cfToken = prompt('Please enter your Cloudflare API token to remove this email:');
-            if (!cfToken) {
-                return;
-            }
-            
-            showLoading(true);
-            try {
-                const response = await fetch('/api/remove-email', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ cf_token: cfToken, email: email })
-                });
-                
-                const result = await response.json();
-                
-                if (response.ok) {
-                    showMessage(result.message, 'success');
-                    setTimeout(() => window.location.reload(), 2000);
-                } else {
-                    showMessage('Failed to remove email: ' + result.error, 'danger');
-                }
-            } catch (error) {
-                showMessage('Failed to remove email: ' + error.message, 'danger');
-            } finally {
-                showLoading(false);
-            }
-        }
-        
-        // Auto-refresh status every 30 seconds if tunnel is configured
-        {% if tunnel_status.configured %}
-        setInterval(refreshStatus, 30000);
-        {% endif %}
-    </script>
-</body>
-</html>
+    }
+</script>
+{% endblock %}

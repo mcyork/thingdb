@@ -4,415 +4,116 @@
 
 {% block styles %}
 <style>
-    .backup-container {
-        max-width: 800px;
-        margin: 0 auto;
-    }
-    
-    .backup-header {
-        text-align: center;
-        margin-bottom: 32px;
-    }
-    
-    .backup-header h1 {
-        color: #007bff;
-        margin-bottom: 8px;
-    }
-    
-    .backup-header p {
-        color: #666;
-        font-size: 16px;
-    }
-    
-    .backup-stats {
+    .stats-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
         gap: 16px;
-        margin-bottom: 32px;
+        margin-bottom: 16px;
     }
-    
     .stat-card {
-        background: white;
-        border-radius: 12px;
-        padding: 20px;
+        background: var(--background-light);
+        border-radius: 8px;
+        padding: 16px;
         text-align: center;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        border: 1px solid #eee;
     }
-    
     .stat-value {
         font-size: 24px;
         font-weight: 700;
-        color: #007bff;
-        margin-bottom: 4px;
+        color: var(--primary-color);
     }
-    
     .stat-label {
-        font-size: 14px;
-        color: #666;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
+        font-size: 13px;
+        color: var(--text-light);
+        margin-top: 4px;
     }
-    
-    .backup-actions {
+    .actions-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 16px;
-        margin-bottom: 32px;
     }
-    
-    .backup-btn {
-        padding: 16px 24px;
-        border: none;
-        border-radius: 12px;
-        font-size: 16px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-    }
-    
-    .backup-btn:active {
-        transform: scale(0.98);
-    }
-    
-    .backup-btn-primary {
-        background: #007bff;
-        color: white;
-    }
-    
-    .backup-btn-primary:hover {
-        background: #0056b3;
-    }
-    
-    .backup-btn-secondary {
-        background: #6c757d;
-        color: white;
-    }
-    
-    .backup-btn-secondary:hover {
-        background: #545b62;
-    }
-    
-    .backup-btn-danger {
-        background: #dc3545;
-        color: white;
-    }
-    
-    .backup-btn-danger:hover {
-        background: #c82333;
-    }
-    
-    .backup-btn:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-    }
-    
-    .backup-list {
-        background: white;
-        border-radius: 12px;
-        padding: 24px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        border: 1px solid #eee;
-    }
-    
-    .backup-list h3 {
-        margin-bottom: 20px;
-        color: #333;
-        font-size: 18px;
-    }
-    
     .backup-item {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 16px;
-        border: 1px solid #eee;
-        border-radius: 8px;
-        margin-bottom: 12px;
-        transition: all 0.2s;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--border-color);
     }
-    
-    .backup-item:hover {
-        border-color: #007bff;
-        box-shadow: 0 2px 8px rgba(0,123,255,0.1);
-    }
-    
-    .backup-item:last-child {
-        margin-bottom: 0;
-    }
-    
-    .backup-info {
-        flex: 1;
-    }
-    
-    .backup-name {
-        font-weight: 600;
-        color: #333;
-        margin-bottom: 4px;
-    }
-    
-    .backup-meta {
-        font-size: 14px;
-        color: #666;
-    }
-    
-    .backup-actions-item {
-        display: flex;
-        gap: 8px;
-    }
-    
-    .backup-action-btn {
-        padding: 8px 12px;
-        border: none;
-        border-radius: 6px;
-        font-size: 14px;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-    
-    .backup-action-btn:active {
-        transform: scale(0.95);
-    }
-    
-    .backup-action-btn-download {
-        background: #28a745;
-        color: white;
-    }
-    
-    .backup-action-btn-download:hover {
-        background: #218838;
-    }
-    
-    .backup-action-btn-delete {
-        background: #dc3545;
-        color: white;
-    }
-    
-    .backup-action-btn-delete:hover {
-        background: #c82333;
-    }
-    
-    .backup-action-btn-restore {
-        background: #ffc107;
-        color: #212529;
-    }
-    
-    .backup-action-btn-restore:hover {
-        background: #e0a800;
-    }
-    
-    .no-backups {
-        text-align: center;
-        padding: 40px;
-        color: #666;
-    }
-    
-    .no-backups-icon {
-        font-size: 48px;
-        margin-bottom: 16px;
-        opacity: 0.5;
-    }
-    
-    .restore-section {
-        background: white;
-        border-radius: 12px;
-        padding: 24px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        border: 1px solid #eee;
-        margin-bottom: 32px;
-    }
-    
-    .restore-section h3 {
-        margin-bottom: 16px;
-        color: #333;
-    }
-    
+    .backup-item:last-child { border-bottom: none; }
+    .backup-info { flex: 1; }
+    .backup-name { font-weight: 600; }
+    .backup-meta { font-size: 13px; color: var(--text-light); }
+    .backup-actions-item { display: flex; gap: 8px; }
     .file-upload {
-        border: 2px dashed #ddd;
+        border: 2px dashed var(--border-color);
         border-radius: 8px;
-        padding: 32px;
+        padding: 24px;
         text-align: center;
         cursor: pointer;
         transition: all 0.2s;
     }
-    
-    .file-upload:hover {
-        border-color: #007bff;
-        background: #f8f9fa;
-    }
-    
-    .file-upload.dragover {
-        border-color: #007bff;
-        background: #e3f2fd;
-    }
-    
-    .file-upload input[type="file"] {
-        display: none;
-    }
-    
-    .file-upload-icon {
-        font-size: 32px;
-        color: #666;
-        margin-bottom: 12px;
-    }
-    
-    .file-upload-text {
-        color: #666;
-        margin-bottom: 8px;
-    }
-    
-    .file-upload-hint {
-        font-size: 14px;
-        color: #999;
-    }
-    
-    .loading {
-        display: inline-block;
-        width: 16px;
-        height: 16px;
-        border: 2px solid #f3f3f3;
-        border-top: 2px solid #007bff;
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
-    }
-    
-    @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-    }
-    
+    .file-upload:hover { border-color: var(--primary-color); background: var(--background-light); }
+    .file-upload.dragover { border-color: var(--primary-color); background: #e3f2fd; }
+    .loading { text-align: center; padding: 16px; display: none; }
     .alert {
-        padding: 12px 16px;
-        border-radius: 8px;
-        margin-bottom: 16px;
-        font-size: 14px;
+        padding: 12px; border-radius: 8px; margin-top: 16px;
+        border: 1px solid;
     }
-    
-    .alert-success {
-        background: #d4edda;
-        color: #155724;
-        border: 1px solid #c3e6cb;
-    }
-    
-    .alert-error {
-        background: #f8d7da;
-        color: #721c24;
-        border: 1px solid #f5c6cb;
-    }
-    
-    .alert-warning {
-        background: #fff3cd;
-        color: #856404;
-        border: 1px solid #ffeaa7;
-    }
+    .alert-success { background: #d4edda; border-color: #c3e6cb; color: #155724; }
+    .alert-danger { background: #f8d7da; border-color: #f5c6cb; color: #721c24; }
 </style>
 {% endblock %}
 
 {% block app_content %}
-<div class="app-header">
-    <div class="app-header-content">
-        <div>
-            <h1>Backup & Restore</h1>
-            <div class="app-version">Data Protection & Recovery</div>
-        </div>
-        <a href="/" class="btn btn-secondary">← Back</a>
+<div class="sub-header">
+    <div class="sub-header-content">
+        <button onclick="history.back()" class="sub-header-back-btn">←</button>
+        <h1 class="sub-header-title">Backup & Restore</h1>
     </div>
 </div>
 
 <div class="app-content">
-    <div class="backup-container">
-        <!-- Backup Stats -->
-        <div class="backup-stats" id="backup-stats">
-            <div class="stat-card">
-                <div class="stat-value" id="db-size">-</div>
-                <div class="stat-label">Database Size</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" id="item-count">-</div>
-                <div class="stat-label">Items</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" id="image-count">-</div>
-                <div class="stat-label">Images</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" id="backup-count">-</div>
-                <div class="stat-label">Backups</div>
-            </div>
-        </div>
+    <div id="messages"></div>
 
-        <!-- Backup Actions -->
-        <div class="backup-actions">
-            <button class="backup-btn backup-btn-primary" onclick="createBackup()" id="create-backup-btn">
-                <span>💾</span>
-                <span>Create Backup</span>
-            </button>
-            <button class="backup-btn backup-btn-secondary" onclick="refreshBackups()" id="refresh-btn">
-                <span>🔄</span>
-                <span>Refresh</span>
-            </button>
+    <div class="card">
+        <div class="stats-grid" id="backup-stats">
+            <div class="stat-card"><div class="stat-value" id="db-size">-</div><div class="stat-label">DB Size</div></div>
+            <div class="stat-card"><div class="stat-value" id="item-count">-</div><div class="stat-label">Items</div></div>
+            <div class="stat-card"><div class="stat-value" id="image-count">-</div><div class="stat-label">Images</div></div>
+            <div class="stat-card"><div class="stat-value" id="backup-count">-</div><div class="stat-label">Backups</div></div>
         </div>
-
-        <!-- Restore Section -->
-        <div class="restore-section">
-            <h3>🔄 Restore Options</h3>
-            
-            <!-- Option 1: Restore from existing backup -->
-            <div style="margin-bottom: 24px;">
-                <h4 style="margin-bottom: 12px; color: #333;">From Existing Backup</h4>
-                <p style="color: #666; margin-bottom: 16px; font-size: 14px;">
-                    Restore from a backup that's already stored on this system.
-                </p>
-                <div id="restore-existing-section" style="display: none;">
-                    <select id="restore-backup-select" class="form-input" style="margin-bottom: 12px;">
-                        <option value="">Select a backup file...</option>
-                    </select>
-                    <button class="backup-btn backup-btn-secondary" onclick="restoreFromExisting()" id="restore-existing-btn" disabled>
-                        <span>🔄</span>
-                        <span>Restore from Selected Backup</span>
-                    </button>
-                </div>
-                <div id="no-backups-message" style="text-align: center; padding: 20px; color: #666; background: #f8f9fa; border-radius: 8px;">
-                    No backups available for restore
-                </div>
-            </div>
-            
-            <!-- Option 2: Upload and restore -->
-            <div>
-                <h4 style="margin-bottom: 12px; color: #333;">Upload Backup File</h4>
-                <p style="color: #666; margin-bottom: 16px; font-size: 14px;">
-                    Upload a backup file from your computer to restore.
-                </p>
-                <div class="file-upload" onclick="document.getElementById('restore-file').click()" 
-                     ondrop="handleFileDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
-                    <input type="file" id="restore-file" accept=".zip" onchange="handleFileSelect(event)">
-                    <div class="file-upload-icon">📁</div>
-                    <div class="file-upload-text">Drop backup file here or click to select</div>
-                    <div class="file-upload-hint">Supports .zip backup files</div>
-                </div>
-                <button class="backup-btn backup-btn-secondary" onclick="restoreFromUpload()" id="restore-upload-btn" style="margin-top: 16px; width: 100%;" disabled>
-                    <span>🔄</span>
-                    <span>Upload and Restore</span>
-                </button>
-            </div>
+        <div class="actions-grid">
+            <button class="btn btn-primary" onclick="createBackup()" id="create-backup-btn">💾 Create Backup</button>
+            <button class="btn btn-secondary" onclick="loadBackupStatus()" id="refresh-btn">🔄 Refresh</button>
         </div>
+    </div>
 
-        <!-- Backup List -->
-        <div class="backup-list">
-            <h3>📋 Available Backups</h3>
-            <div id="backup-list">
-                <div class="no-backups">
-                    <div class="no-backups-icon">📦</div>
-                    <div>No backups found</div>
-                    <div style="font-size: 14px; margin-top: 8px;">Create your first backup to get started</div>
-                </div>
+    <div class="card">
+        <h3>🔄 Restore from File</h3>
+        <div class="form-group">
+            <label for="restore-backup-select" class="form-label">Restore from an existing backup:</label>
+            <select id="restore-backup-select" class="form-input" style="margin-bottom: 8px;"><option value="">Select a backup...</option></select>
+            <button class="btn btn-secondary btn-block" onclick="restoreFromExisting()" id="restore-existing-btn" disabled>Restore from Selection</button>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Or upload a new backup file:</label>
+            <div class="file-upload" onclick="document.getElementById('restore-file').click()" ondrop="handleFileDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
+                <input type="file" id="restore-file" accept=".zip" onchange="handleFileSelect(event)" style="display:none;">
+                <span>📁 Drop backup file or click to select</span>
+            </div>
+            <button class="btn btn-secondary btn-block" onclick="restoreFromUpload()" id="restore-upload-btn" style="margin-top: 8px;" disabled>Upload and Restore</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>📋 Available Backups</h3>
+        <div id="backup-list">
+            <div class="no-backups" style="text-align: center; padding: 20px; color: var(--text-light);">
+                <span>📦</span>
+                <p>No backups found</p>
             </div>
         </div>
     </div>
+    <div class="loading" id="loading"><span>⏳</span> Processing...</div>
 </div>
 {% endblock %}
 
@@ -420,26 +121,19 @@
 <script>
 let selectedFile = null;
 
-// Load backup status on page load
-document.addEventListener('DOMContentLoaded', function() {
-    loadBackupStatus();
-});
+document.addEventListener('DOMContentLoaded', loadBackupStatus);
 
 function loadBackupStatus() {
     fetch('/api/backup/status')
-        .then(response => response.json())
+        .then(res => res.json())
         .then(data => {
             if (data.success) {
                 updateBackupStats(data);
                 updateBackupList(data.backups);
             } else {
-                showAlert('Error loading backup status: ' + data.error, 'error');
+                showMessage('Error loading backup status: ' + data.error, 'danger');
             }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showAlert('Failed to load backup status', 'error');
-        });
+        }).catch(err => showMessage('Failed to load backup status', 'danger'));
 }
 
 function updateBackupStats(data) {
@@ -450,212 +144,128 @@ function updateBackupStats(data) {
 }
 
 function updateBackupList(backups) {
-    const backupList = document.getElementById('backup-list');
-    const restoreExistingSection = document.getElementById('restore-existing-section');
-    const noBackupsMessage = document.getElementById('no-backups-message');
-    const restoreBackupSelect = document.getElementById('restore-backup-select');
-    
-    // Update restore dropdown
+    const listEl = document.getElementById('backup-list');
+    const selectEl = document.getElementById('restore-backup-select');
+    listEl.innerHTML = '';
+    selectEl.innerHTML = '<option value="">Select a backup...</option>';
+
     if (backups.length === 0) {
-        restoreExistingSection.style.display = 'none';
-        noBackupsMessage.style.display = 'block';
-        backupList.innerHTML = `
-            <div class="no-backups">
-                <div class="no-backups-icon">📦</div>
-                <div>No backups found</div>
-                <div style="font-size: 14px; margin-top: 8px;">Create your first backup to get started</div>
-            </div>
-        `;
+        listEl.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-light);">📦 No backups found</div>';
         return;
     }
-    
-    // Show restore section and populate dropdown
-    restoreExistingSection.style.display = 'block';
-    noBackupsMessage.style.display = 'none';
-    
-    // Clear and populate dropdown
-    restoreBackupSelect.innerHTML = '<option value="">Select a backup file...</option>';
+
     backups.forEach(backup => {
-        const option = document.createElement('option');
-        option.value = backup.filename;
-        option.textContent = `${backup.filename} (${backup.size_human}, ${new Date(backup.created).toLocaleDateString()})`;
-        restoreBackupSelect.appendChild(option);
-    });
-    
-    // Update backup list
-    backupList.innerHTML = backups.map(backup => `
-        <div class="backup-item">
+        const itemEl = document.createElement('div');
+        itemEl.className = 'backup-item';
+        itemEl.innerHTML = `
             <div class="backup-info">
                 <div class="backup-name">${backup.filename}</div>
-                <div class="backup-meta">
-                    Created: ${new Date(backup.created).toLocaleString()} • Size: ${backup.size_human}
-                </div>
+                <div class="backup-meta">${new Date(backup.created).toLocaleString()} • ${backup.size_human}</div>
             </div>
             <div class="backup-actions-item">
-                <button class="backup-action-btn backup-action-btn-download" onclick="downloadBackup('${backup.filename}')">
-                    📥 Download
-                </button>
-                <button class="backup-action-btn backup-action-btn-delete" onclick="deleteBackup('${backup.filename}')">
-                    🗑️ Delete
-                </button>
+                <button class="btn btn-secondary" onclick="downloadBackup('${backup.filename}')">📥</button>
+                <button class="btn btn-danger" onclick="deleteBackup('${backup.filename}')">🗑️</button>
             </div>
-        </div>
-    `).join('');
+        `;
+        listEl.appendChild(itemEl);
+
+        const option = document.createElement('option');
+        option.value = backup.filename;
+        option.textContent = `${backup.filename} (${backup.size_human})`;
+        selectEl.appendChild(option);
+    });
 }
 
 function createBackup() {
     const btn = document.getElementById('create-backup-btn');
-    const originalText = btn.innerHTML;
-    
+    const originalHtml = btn.innerHTML;
     btn.disabled = true;
-    btn.innerHTML = '<span class="loading"></span><span>Creating backup...</span>';
+    btn.innerHTML = 'Creating...';
     
-    fetch('/api/backup/create', {
-        method: 'POST'
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showAlert(`Backup created successfully: ${data.backup_file} (${data.backup_size})`, 'success');
-            loadBackupStatus();
-        } else {
-            showAlert('Failed to create backup: ' + data.error, 'error');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showAlert('Failed to create backup', 'error');
-    })
-    .finally(() => {
-        btn.disabled = false;
-        btn.innerHTML = originalText;
-    });
+    fetch('/api/backup/create', { method: 'POST' })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                showMessage(`Backup created: ${data.backup_file}`, 'success');
+                loadBackupStatus();
+            } else {
+                showMessage('Failed to create backup: ' + data.error, 'danger');
+            }
+        })
+        .catch(err => showMessage('Failed to create backup', 'danger'))
+        .finally(() => { btn.disabled = false; btn.innerHTML = originalHtml; });
 }
 
-function downloadBackup(filename) {
-    window.location.href = `/api/backup/download/${filename}`;
-}
+function downloadBackup(filename) { window.location.href = `/api/backup/download/${filename}`; }
 
 function deleteBackup(filename) {
-    if (!confirm(`Are you sure you want to delete backup "${filename}"?`)) {
-        return;
-    }
-    
-    fetch(`/api/backup/delete/${filename}`, {
-        method: 'DELETE'
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showAlert('Backup deleted successfully', 'success');
-            loadBackupStatus();
-        } else {
-            showAlert('Failed to delete backup: ' + data.error, 'error');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showAlert('Failed to delete backup', 'error');
-    });
+    if (!confirm(`Delete backup "${filename}"?`)) return;
+    fetch(`/api/backup/delete/${filename}`, { method: 'DELETE' })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                showMessage('Backup deleted.', 'success');
+                loadBackupStatus();
+            } else {
+                showMessage('Failed to delete backup: ' + data.error, 'danger');
+            }
+        }).catch(err => showMessage('Failed to delete backup.', 'danger'));
 }
 
+document.getElementById('restore-backup-select').addEventListener('change', function() {
+    document.getElementById('restore-existing-btn').disabled = !this.value;
+});
+
 function restoreFromExisting() {
-    const selectedBackup = document.getElementById('restore-backup-select').value;
-    
-    if (!selectedBackup) {
-        showAlert('Please select a backup file first', 'error');
-        return;
-    }
-    
-    if (!confirm(`Are you sure you want to restore from backup "${selectedBackup}"? This will replace all current data and may take several minutes.`)) {
-        return;
-    }
+    const filename = document.getElementById('restore-backup-select').value;
+    if (!filename) return showMessage('Please select a backup file.', 'danger');
+    if (!confirm(`Restore from "${filename}"? This will replace all current data.`)) return;
     
     const btn = document.getElementById('restore-existing-btn');
-    const originalText = btn.innerHTML;
-    
     btn.disabled = true;
-    btn.innerHTML = '<span class="loading"></span><span>Restoring...</span>';
-    
-    fetch(`/api/backup/restore-existing/${selectedBackup}`, {
-        method: 'POST'
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showAlert(data.message, 'success');
-            // Reset dropdown
-            document.getElementById('restore-backup-select').value = '';
-            
-            // If it's a restart message, show additional info
-            if (data.message.includes('restart automatically')) {
-                setTimeout(() => {
-                    showAlert('The page will refresh automatically when the application restarts. If it doesn\'t refresh within 30 seconds, please refresh manually.', 'warning');
-                }, 3000);
+    btn.innerHTML = 'Restoring...';
+
+    fetch(`/api/backup/restore-existing/${filename}`, { method: 'POST' })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                showMessage(data.message, 'success');
+                if (data.message.includes('restart')) {
+                    setTimeout(() => showMessage('Page will refresh when the app restarts.', 'info'), 3000);
+                }
+            } else {
+                showMessage('Restore failed: ' + data.error, 'danger');
             }
-        } else {
-            showAlert('Failed to restore backup: ' + data.error, 'error');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showAlert('Failed to restore backup', 'error');
-    })
-    .finally(() => {
-        btn.disabled = false;
-        btn.innerHTML = originalText;
-    });
+        })
+        .catch(err => showMessage('Restore failed.', 'danger'))
+        .finally(() => { btn.disabled = false; btn.innerHTML = 'Restore from Selection'; });
 }
 
 function restoreFromUpload() {
-    if (!selectedFile) {
-        showAlert('Please select a backup file first', 'error');
-        return;
-    }
-    
-    if (!confirm('Are you sure you want to restore from this backup? This will replace all current data and may take several minutes.')) {
-        return;
-    }
-    
+    if (!selectedFile) return showMessage('Please select a backup file to upload.', 'danger');
+    if (!confirm(`Restore from uploaded file "${selectedFile.name}"? This will replace all current data.`)) return;
+
     const btn = document.getElementById('restore-upload-btn');
-    const originalText = btn.innerHTML;
-    
     btn.disabled = true;
-    btn.innerHTML = '<span class="loading"></span><span>Restoring...</span>';
-    
+    btn.innerHTML = 'Restoring...';
+
     const formData = new FormData();
     formData.append('backup_file', selectedFile);
-    
-    fetch('/api/backup/restore', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showAlert(data.message, 'success');
-            selectedFile = null;
-            document.getElementById('restore-file').value = '';
-            document.getElementById('restore-upload-btn').disabled = true;
-            
-            // If it's a restart message, show additional info
-            if (data.message.includes('restart automatically')) {
-                setTimeout(() => {
-                    showAlert('The page will refresh automatically when the application restarts. If it doesn\'t refresh within 30 seconds, please refresh manually.', 'warning');
-                }, 3000);
+
+    fetch('/api/backup/restore', { method: 'POST', body: formData })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                showMessage(data.message, 'success');
+                if (data.message.includes('restart')) {
+                    setTimeout(() => showMessage('Page will refresh when the app restarts.', 'info'), 3000);
+                }
+            } else {
+                showMessage('Restore failed: ' + data.error, 'danger');
             }
-        } else {
-            showAlert('Failed to restore backup: ' + data.error, 'error');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showAlert('Failed to restore backup', 'error');
-    })
-    .finally(() => {
-        btn.disabled = false;
-        btn.innerHTML = originalText;
-    });
+        })
+        .catch(err => showMessage('Restore failed.', 'danger'))
+        .finally(() => { btn.disabled = false; btn.innerHTML = 'Upload and Restore'; });
 }
 
 function handleFileSelect(event) {
@@ -663,82 +273,23 @@ function handleFileSelect(event) {
     if (file) {
         selectedFile = file;
         document.getElementById('restore-upload-btn').disabled = false;
-        showAlert(`Selected file: ${file.name}`, 'success');
+        showMessage(`Selected file: ${file.name}`, 'success');
     }
 }
 
-function handleDragOver(event) {
-    event.preventDefault();
-    event.currentTarget.classList.add('dragover');
-}
-
-function handleDragLeave(event) {
-    event.preventDefault();
-    event.currentTarget.classList.remove('dragover');
-}
-
+function handleDragOver(event) { event.preventDefault(); event.currentTarget.classList.add('dragover'); }
+function handleDragLeave(event) { event.preventDefault(); event.currentTarget.classList.remove('dragover'); }
 function handleFileDrop(event) {
     event.preventDefault();
     event.currentTarget.classList.remove('dragover');
-    
-    const files = event.dataTransfer.files;
-    if (files.length > 0) {
-        const file = files[0];
-        if (file.name.endsWith('.zip')) {
-            selectedFile = file;
-            document.getElementById('restore-file').files = files;
-            document.getElementById('restore-upload-btn').disabled = false;
-            showAlert(`Selected file: ${file.name}`, 'success');
-        } else {
-            showAlert('Please select a .zip backup file', 'error');
-        }
+    const file = event.dataTransfer.files[0];
+    if (file && file.name.endsWith('.zip')) {
+        selectedFile = file;
+        document.getElementById('restore-upload-btn').disabled = false;
+        showMessage(`Selected file: ${file.name}`, 'success');
+    } else {
+        showMessage('Please select a .zip backup file.', 'danger');
     }
-}
-
-// Add dropdown change handler
-document.addEventListener('DOMContentLoaded', function() {
-    const restoreBackupSelect = document.getElementById('restore-backup-select');
-    if (restoreBackupSelect) {
-        restoreBackupSelect.addEventListener('change', function() {
-            const restoreExistingBtn = document.getElementById('restore-existing-btn');
-            restoreExistingBtn.disabled = !this.value;
-        });
-    }
-});
-
-function refreshBackups() {
-    const btn = document.getElementById('refresh-btn');
-    const originalText = btn.innerHTML;
-    
-    btn.innerHTML = '<span class="loading"></span><span>Refreshing...</span>';
-    
-    loadBackupStatus();
-    
-    setTimeout(() => {
-        btn.innerHTML = originalText;
-    }, 1000);
-}
-
-function showAlert(message, type) {
-    // Remove existing alerts
-    const existingAlerts = document.querySelectorAll('.alert');
-    existingAlerts.forEach(alert => alert.remove());
-    
-    // Create new alert
-    const alert = document.createElement('div');
-    alert.className = `alert alert-${type}`;
-    alert.textContent = message;
-    
-    // Insert at top of container
-    const container = document.querySelector('.backup-container');
-    container.insertBefore(alert, container.firstChild);
-    
-    // Auto-remove after 5 seconds
-    setTimeout(() => {
-        if (alert.parentNode) {
-            alert.remove();
-        }
-    }, 5000);
 }
 </script>
 {% endblock %}

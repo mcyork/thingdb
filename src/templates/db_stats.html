@@ -1,438 +1,164 @@
 {% extends "base.html" %}
 
-{% block title %}Database Health Report{% endblock %}
+{% block title %}Database Statistics{% endblock %}
 
 {% block styles %}
 <style>
-    .stats-container {
-        max-width: 600px;
-        margin: 0 auto;
-        padding: 20px;
-    }
-    
-    .stats-header {
-        text-align: center;
-        margin-bottom: 30px;
-    }
-    
-    .stats-title {
-        font-size: 24px;
-        font-weight: 700;
-        color: #333;
-        margin-bottom: 8px;
-    }
-    
-    .stats-subtitle {
-        color: #666;
-        font-size: 16px;
-    }
-    
     .stats-grid {
         display: grid;
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
         gap: 16px;
-        margin-bottom: 30px;
+        margin-bottom: 24px;
     }
-    
     .stat-card {
-        background: white;
-        border-radius: 12px;
-        padding: 20px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        border-left: 4px solid #007bff;
-    }
-    
-    .stat-icon {
-        font-size: 28px;
-        margin-bottom: 8px;
-        display: block;
-    }
-    
-    .stat-value {
-        font-size: 24px;
-        font-weight: 700;
-        color: #007bff;
-        margin-bottom: 4px;
-    }
-    
-    .stat-label {
-        color: #666;
-        font-size: 14px;
-        margin-bottom: 8px;
-    }
-    
-    .stat-detail {
-        color: #999;
-        font-size: 12px;
-        font-style: italic;
-    }
-    
-    .fun-facts {
-        background: #f8f9fa;
-        border-radius: 12px;
-        padding: 20px;
-        margin-bottom: 20px;
-    }
-    
-    .fun-facts h3 {
-        font-size: 18px;
-        margin-bottom: 16px;
-        color: #333;
-    }
-    
-    .fun-fact {
-        margin-bottom: 12px;
-        padding: 12px;
-        background: white;
+        background: var(--background-white);
+        border: 1px solid var(--border-color);
         border-radius: 8px;
-        border-left: 3px solid #28a745;
+        padding: 16px;
+        text-align: center;
     }
-    
+    .stat-value {
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--primary-color);
+    }
+    .stat-label {
+        font-size: 13px;
+        color: var(--text-light);
+        margin-top: 4px;
+    }
+    .section-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-medium);
+        margin-bottom: 12px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .fun-facts-card {
+        background: var(--background-light);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 16px;
+    }
+    .fun-fact {
+        font-size: 14px;
+        color: var(--text-dark);
+        margin-bottom: 8px;
+    }
     .fun-fact:last-child {
         margin-bottom: 0;
     }
-    
-    .back-btn {
-        display: inline-block;
-        background: #007bff;
-        color: white;
-        text-decoration: none;
-        padding: 12px 24px;
-        border-radius: 8px;
-        font-weight: 500;
-        margin-top: 20px;
-    }
-    
-    .back-btn:hover {
-        background: #0056b3;
-        text-decoration: none;
-        color: white;
-    }
-    
-    .database-info {
-        background: #f8f9fa;
-        border-radius: 8px;
-        padding: 16px;
-        margin-top: 20px;
-        font-size: 12px;
-        color: #666;
-        text-align: center;
-    }
-    
-    .bulk-assign-btn {
-        background: #28a745;
-        color: white;
-        border: none;
-        border-radius: 6px;
-        padding: 8px 12px;
-        font-size: 12px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.2s;
-        margin-top: 4px;
-        width: 100%;
-    }
-    
-    .bulk-assign-btn:hover {
-        background: #218838;
-        transform: translateY(-1px);
-    }
-    
-    .bulk-assign-btn:active {
-        transform: translateY(0);
-    }
-    
-    .bulk-assign-btn:disabled {
-        background: #6c757d;
-        cursor: not-allowed;
-        transform: none;
-    }
-    
-
-    
-    @media (min-width: 768px) {
-        .stats-grid {
-            grid-template-columns: repeat(2, 1fr);
-        }
+    .fun-fact strong {
+        color: var(--primary-color);
     }
 </style>
 {% endblock %}
 
 {% block app_content %}
-<div class="stats-container">
-    <div class="stats-header">
-        <h1 class="stats-title">🏥 Database Health Report</h1>
-        <p class="stats-subtitle">Your inventory's vital signs are looking great!</p>
+<div class="sub-header">
+    <div class="sub-header-content">
+        <button onclick="history.back()" class="sub-header-back-btn">←</button>
+        <h1 class="sub-header-title">Database Statistics</h1>
     </div>
-    
+</div>
+
+<div class="app-content">
+    <!-- Primary Stats -->
     <div class="stats-grid">
         <div class="stat-card">
-            <span class="stat-icon">📦</span>
             <div class="stat-value">{{ stats.total_items }}</div>
             <div class="stat-label">Total Items</div>
-            <div class="stat-detail">
-                {% if stats.total_items == 0 %}
-                    Ready for your first item!
-                {% elif stats.total_items == 1 %}
-                    Just getting started!
-                {% elif stats.total_items < 10 %}
-                    Building up nicely!
-                {% elif stats.total_items < 50 %}
-                    Great collection!
-                {% else %}
-                    Wow, impressive inventory!
-                {% endif %}
-            </div>
         </div>
-        
         <div class="stat-card">
-            <span class="stat-icon">📷</span>
             <div class="stat-value">{{ stats.total_images }}</div>
             <div class="stat-label">Total Images</div>
-            <div class="stat-detail">
-                {% if stats.total_images == 0 %}
-                    Time to snap some photos!
-                {% elif stats.total_images < stats.total_items %}
-                    Some items need photos
-                {% elif stats.total_images == stats.total_items %}
-                    Perfect 1:1 ratio!
-                {% else %}
-                    {{ "%.1f"|format(stats.total_images / stats.total_items if stats.total_items > 0 else 0) }} photos per item
-                {% endif %}
-            </div>
         </div>
-        
         <div class="stat-card">
-            <span class="stat-icon">🏷️</span>
             <div class="stat-value">{{ stats.total_tags }}</div>
             <div class="stat-label">Total Tags</div>
-            <div class="stat-detail">
-                {% if stats.total_tags == 0 %}
-                    No tags yet - try adding some!
-                {% elif stats.total_tags < 5 %}
-                    Good start on organization!
-                {% else %}
-                    Well organized collection!
-                {% endif %}
-            </div>
         </div>
-        
         <div class="stat-card">
-            <span class="stat-icon">⏱️</span>
-            <div class="stat-value">{{ (stats.oldest_item[1].strftime('%b %Y') if stats.oldest_item else 'N/A') }}</div>
-            <div class="stat-label">Oldest Item</div>
-            <div class="stat-detail">
-                {% if stats.oldest_item %}
-                    {{ stats.oldest_item[0] or 'Unnamed item' }}
-                {% else %}
-                    No items yet
-                {% endif %}
-            </div>
-        </div>
-        
-        <div class="stat-card">
-            <span class="stat-icon">🏠</span>
             <div class="stat-value">{{ stats.top_level_items }}</div>
             <div class="stat-label">Top-Level Items</div>
-            <div class="stat-detail">Items not inside anything else</div>
-        </div>
-        
-        <div class="stat-card">
-            <span class="stat-icon">📦</span>
-            <div class="stat-value">{{ stats.container_items }}</div>
-            <div class="stat-label">Container Items</div>
-            <div class="stat-detail">Items that hold other items</div>
-        </div>
-        
-        <div class="stat-card">
-            <span class="stat-icon">📄</span>
-            <div class="stat-value">{{ stats.leaf_items }}</div>
-            <div class="stat-label">Leaf Items</div>
-            <div class="stat-detail">Items with nothing inside them</div>
-        </div>
-        
-        <div class="stat-card">
-            <span class="stat-icon">🪆</span>
-            <div class="stat-value">{{ stats.max_nesting_depth }}</div>
-            <div class="stat-label">Deepest Nesting</div>
-            <div class="stat-detail">
-                {% if stats.max_nesting_depth == 0 %}
-                    No nested items yet
-                {% elif stats.max_nesting_depth == 1 %}
-                    One level deep (item in item)
-                {% else %}
-                    {{ stats.max_nesting_depth }} levels of Russian dolls!
-                {% endif %}
-            </div>
-        </div>
-        
-        <div class="stat-card">
-            <span class="stat-icon">🏷️</span>
-            <div class="stat-value">#{{ stats.next_label_number }}</div>
-            <div class="stat-label">Next Label Number</div>
-            <div class="stat-detail">Auto-assigned to new items (seq: {{ stats.sequence_value }})</div>
-        </div>
-        
-        <div class="stat-card">
-            <span class="stat-icon">🔢</span>
-            <div class="stat-value">{{ stats.highest_label_in_use }}</div>
-            <div class="stat-label">Highest Label Used</div>
-            <div class="stat-detail">
-                {% if stats.highest_label_in_use == 0 %}
-                    No labels assigned yet
-                {% else %}
-                    Label #{{ stats.highest_label_in_use }} is in use
-                {% endif %}
-            </div>
-        </div>
-        
-        <div class="stat-card" style="border-left-color: #28a745;">
-            <span class="stat-icon">🏷️</span>
-            <div class="stat-value">{{ stats.unlabeled_count or 0 }}</div>
-            <div class="stat-label">Unlabeled Items</div>
-            <div class="stat-detail">
-                {% if stats.unlabeled_count > 0 %}
-                    <button onclick="bulkAssignLabels()" class="bulk-assign-btn" id="bulk-assign-btn">
-                        Auto-assign starting from #{{ stats.next_label_number }}
-                    </button>
-                {% else %}
-                    All items have labels! 🎉
-                {% endif %}
-            </div>
-        </div>
-        
-        <div class="stat-card" style="border-left-color: #6f42c1;">
-            <span class="stat-icon">🧠</span>
-            <div class="stat-value">{{ stats.embedding_stats.with_embeddings }}</div>
-            <div class="stat-label">Items with Embeddings</div>
-            <div class="stat-detail">
-                {% if stats.embedding_stats.missing_embeddings > 0 %}
-                    {{ stats.embedding_stats.missing_embeddings }} items need embeddings
-                {% else %}
-                    All items indexed for semantic search! 🎉
-                {% endif %}
-            </div>
         </div>
     </div>
-    
 
-    
+    <!-- Hierarchy Stats -->
+    <h2 class="section-title">Hierarchy</h2>
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.container_items }}</div>
+            <div class="stat-label">Container Items</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.leaf_items }}</div>
+            <div class="stat-label">Leaf Items</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.max_nesting_depth }}</div>
+            <div class="stat-label">Max Nesting Depth</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.avg_items_per_container }}</div>
+            <div class="stat-label">Avg Items/Container</div>
+        </div>
+    </div>
+
+    <!-- Labeling Stats -->
+    <h2 class="section-title">Labeling</h2>
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value">#{{ stats.next_label_number }}</div>
+            <div class="stat-label">Next Label</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.highest_label_in_use }}</div>
+            <div class="stat-label">Highest Label Used</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.unlabeled_count or 0 }}</div>
+            <div class="stat-label">Unlabeled Items</div>
+        </div>
+    </div>
+
+    <!-- Semantic Search Stats -->
+    <h2 class="section-title">Semantic Search</h2>
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.embedding_stats.with_embeddings }}</div>
+            <div class="stat-label">Items Indexed</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.embedding_stats.missing_embeddings }}</div>
+            <div class="stat-label">Items Not Indexed</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.embedding_stats.percentage_indexed }}%</div>
+            <div class="stat-label">Index Coverage</div>
+        </div>
+    </div>
+
+    <!-- Fun Facts -->
     {% if stats.total_items > 0 %}
-    <div class="fun-facts">
-        <h3>🎉 Fun Facts About Your Inventory</h3>
-        
+    <h2 class="section-title">Fun Facts</h2>
+    <div class="fun-facts-card">
         {% if stats.recent_item %}
-        <div class="fun-fact">
-            <strong>📅 Latest Addition:</strong> 
-            "{{ stats.recent_item[0] or 'Unnamed item' }}" was added 
-            {{ stats.recent_item[1].strftime('%B %d, %Y') }}
-        </div>
+        <p class="fun-fact"><strong>Latest:</strong> "{{ stats.recent_item[0] or 'Unnamed' }}" on {{ stats.recent_item[1].strftime('%b %d, %Y') }}.</p>
         {% endif %}
-        
+        {% if stats.oldest_item %}
+        <p class="fun-fact"><strong>Oldest:</strong> "{{ stats.oldest_item[0] or 'Unnamed' }}" on {{ stats.oldest_item[1].strftime('%b %d, %Y') }}.</p>
+        {% endif %}
         {% if stats.most_images and stats.most_images[1] > 1 %}
-        <div class="fun-fact">
-            <strong>📸 Photo Champion:</strong> 
-            "{{ stats.most_images[0] or 'Unnamed item' }}" wins with {{ stats.most_images[1] }} photos!
-        </div>
+        <p class="fun-fact"><strong>Most Photogenic:</strong> "{{ stats.most_images[0] or 'Unnamed' }}" has {{ stats.most_images[1] }} photos.</p>
         {% endif %}
-        
         {% if stats.popular_tag and stats.popular_tag[1] > 1 %}
-        <div class="fun-fact">
-            <strong>🏆 Most Popular Tag:</strong> 
-            "{{ stats.popular_tag[0] }}" is used {{ stats.popular_tag[1] }} times
-        </div>
+        <p class="fun-fact"><strong>Most Popular Tag:</strong> "#{{ stats.popular_tag[0] }}" is used {{ stats.popular_tag[1] }} times.</p>
         {% endif %}
-        
-        {% if stats.total_items > 1 %}
-        <div class="fun-fact">
-            <strong>📊 Collection Span:</strong> 
-            Your inventory spans from {{ stats.oldest_item[1].strftime('%B %Y') if stats.oldest_item else 'unknown' }} 
-            to {{ stats.recent_item[1].strftime('%B %Y') if stats.recent_item else 'unknown' }}
-        </div>
-        {% endif %}
-        
-        {% if stats.longest_chain_depth > 0 %}
-        <div class="fun-fact">
-            <strong>🔗 Longest Chain:</strong> 
-            {{ stats.longest_chain_path }}
-            <br><small style="color: #999;">{{ stats.longest_chain_depth + 1 }} items deep!</small>
-        </div>
-        {% endif %}
-        
         {% if stats.biggest_container and stats.biggest_container[1] > 1 %}
-        <div class="fun-fact">
-            <strong>🎒 Biggest Container:</strong> 
-            "{{ stats.biggest_container[0] or 'Unnamed item' }}" holds {{ stats.biggest_container[1] }} items directly
-        </div>
-        {% endif %}
-        
-        {% if stats.avg_items_per_container > 0 %}
-        <div class="fun-fact">
-            <strong>📊 Container Efficiency:</strong> 
-            Your containers hold an average of {{ stats.avg_items_per_container }} items each
-        </div>
-        {% endif %}
-        
-        {% if stats.container_items > 0 and stats.leaf_items > 0 %}
-        <div class="fun-fact">
-            <strong>🌳 Organization Ratio:</strong> 
-            {{ stats.container_items }} containers organizing {{ stats.leaf_items }} leaf items
-            ({{ "%.1f"|format((stats.leaf_items / stats.container_items) if stats.container_items > 0 else 0) }}:1 ratio)
-        </div>
+        <p class="fun-fact"><strong>Largest Container:</strong> "{{ stats.biggest_container[0] or 'Unnamed' }}" holds {{ stats.biggest_container[1] }} items.</p>
         {% endif %}
     </div>
     {% endif %}
-    
-    <div class="database-info">
-        <strong>🔧 Technical Details:</strong><br>
-        {{ stats.db_version.split(' ')[0] }} • Connection Pool: Active • Cache: Enabled
-    </div>
-    
-    <a href="/" class="back-btn">← Back to Home</a>
 </div>
-
-<script>
-function bulkAssignLabels() {
-    const btn = document.getElementById('bulk-assign-btn');
-    const originalText = btn.textContent;
-    
-    // Confirm action
-    if (!confirm('Auto-assign sequential label numbers to all unlabeled items? This action cannot be undone.')) {
-        return;
-    }
-    
-    // Disable button and show loading
-    btn.disabled = true;
-    btn.textContent = 'Assigning labels...';
-    
-    fetch('/bulk-assign-labels', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert(data.message + '\n\nAssigned labels:\n' + 
-                  data.assignments.map(a => `• ${a.name}: #${a.label}`).join('\n'));
-            
-            // Refresh the page to show updated stats
-            window.location.reload();
-        } else {
-            alert('Error: ' + (data.error || 'Unknown error occurred'));
-            btn.disabled = false;
-            btn.textContent = originalText;
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Failed to assign labels. Please try again.');
-        btn.disabled = false;
-        btn.textContent = originalText;
-    });
-}
-
-
-</script>
 {% endblock %}
