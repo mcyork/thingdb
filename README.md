@@ -13,6 +13,8 @@
 
 - If on a prior RC run a backup - image sd card - restore back - yer on your way
 - [RC7 image link](https://ln5.sync.com/dl/21dd9c9f0#2qw8wjmv-nd69at47-m6jk2wju-c8rhynd2)
+- RC8 image link (Pending)
+RC8 was built to include the Cloudflare code feature set and a few minor tweaks. The code stuff is included on the image. Cosmetically, there is a patch that you should apply immediately which will rewrite the entire GUI to the new format.I think it's cleaner, simpler, and hopefully better.I'll be removing Legacy RC-7 and everything about it one 8 is available.
 
 ### 2. Network Setup
 
@@ -21,7 +23,9 @@
 - Access via `https://inventory.local`
 
 **WiFi (Using BTBerryWifi):**
-- Download BTBerryWifi from the App Store
+- Download BTBerryWifi from the:
+  - [App Store](https://apps.apple.com/us/app/btberrywifi/id1596978011)
+  - [Google Play](https://play.google.com/store/apps/details?id=com.bluepieapps.btberrywifi&hl=en_US&pli=1)
 - Scan your network for "Inventory" device
 - Follow prompts to scan for SSIDs and enter WiFi password
 - Access via `https://inventory.local`
