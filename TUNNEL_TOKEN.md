@@ -2,31 +2,31 @@ These are the instructions on how to, once you have a Cloudflare account, genera
 
 ## Step 1
 Click the search box and type "API" - you'll see a link to your API. Click that.
-![Step 1](1.png)
+![Step 1](images/1.png)
 
 ## Step 2
 Navigate to the account API tokens page. If you're not already there, click the link that appears.
-![Step 2](2.png)
+![Step 2](images/2.png)
 
 ## Step 3
 Click "Create token"
-![Step 3](3.png)
+![Step 3](images/3.png)
 
 ## Step 4
 In the list, you'll see "Create Custom Token". When you click that, you'll get several dropdown menus to configure. The result will be these three items on your page:
-![Step 4](4.png)
+![Step 4](images/4.png)
 
 ## Step 5
 Continue to the summary page. It may say "Generate token" here. Regardless, review the steps below before proceeding. You'll be given a copy-paste command and receive your token. **Save this token somewhere secure** - you'll need it if you ever need to regenerate it. You can create new tokens, but they'll be completely different, requiring you to go through the tunnel generation process again.
-![Step 5](5.png)
+![Step 5](images/5.png)
 
 ## Step 6
 You may reach this page during the workflow. If it says "Generate token here" on your first time through, that's normal. This screenshot shows a subsequent visit.
-![Step 6](6.png)
+![Step 6](images/6.png)
 
 ## Step 7
 Finally, you'll reach a page like this where you can copy your token. If you're comfortable with command line tools on Mac or Linux, you can run the validation command they provide to test your token.
-![Step 7](7.png)
+![Step 7](images/7.png)
 
 ## Next Steps
 Return to the app and enter this tunnel token along with your email address in the tunnel creation section. Your email address is special because it's the one that will receive the one-time access tokens. When you use the generated URL (on nestdb.io with your Pi name), enter that same email address on the login page. You'll receive a 6-digit code via email - enter this code to gain access to your Pi Inventory. Tunnels stay active for 24 hours, after which you'll need to request a new token.
