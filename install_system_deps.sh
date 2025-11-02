@@ -228,6 +228,14 @@ main() {
     esac
     
     create_env_file
+    
+    # Create ML model cache directory
+    echo ""
+    echo "🤖 Setting up ML model cache directory..."
+    sudo mkdir -p /var/lib/thingdb/cache/models
+    sudo chown -R $USER:$USER /var/lib/thingdb
+    echo -e "${GREEN}✓${NC} ML cache directory created"
+    
     setup_systemd_service
     
     echo ""

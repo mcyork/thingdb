@@ -76,10 +76,7 @@ Issues = "https://github.com/yourusername/thingdb/issues"
 thingdb = "thingdb.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src"]
-
-[tool.hatch.build.targets.wheel.sources]
-"src" = "thingdb"
+packages = ["src/thingdb"]
 
 [tool.black]
 line-length = 100

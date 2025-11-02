@@ -17,7 +17,7 @@ def initialize_embedding_model():
             from sentence_transformers import SentenceTransformer
             
             # Set up proper cache directory for Hugging Face models
-            cache_dir = "/var/lib/inventory/cache/models"
+            cache_dir = "/var/lib/thingdb/cache/models"
             os.environ['HF_HOME'] = cache_dir
             os.environ['TRANSFORMERS_CACHE'] = cache_dir
             
@@ -130,7 +130,7 @@ def is_model_cached():
     """Check if the embedding model is cached locally"""
     try:
         import os
-        cache_dir = "/var/lib/inventory/cache/models"
+        cache_dir = "/var/lib/thingdb/cache/models"
         # Check both possible cache directory structures
         model_path1 = os.path.join(cache_dir, "sentence-transformers", SEMANTIC_SEARCH['model_name'])
         model_path2 = os.path.join(cache_dir, f"models--sentence-transformers--{SEMANTIC_SEARCH['model_name']}")
@@ -143,7 +143,7 @@ def get_cache_info():
     """Get information about model caching"""
     try:
         import os
-        cache_dir = "/var/lib/inventory/cache/models"
+        cache_dir = "/var/lib/thingdb/cache/models"
         # Check both possible cache directory structures
         model_path1 = os.path.join(cache_dir, "sentence-transformers", SEMANTIC_SEARCH['model_name'])
         model_path2 = os.path.join(cache_dir, f"models--sentence-transformers--{SEMANTIC_SEARCH['model_name']}")

@@ -1,69 +1,50 @@
 version: '3.8'
 
 services:
-  inventory:
-    build: .
-    container_name: inventory-app
+  thingdb:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: thingdb
     ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      # Persistent data volumes
-      - postgres_data:/var/lib/postgresql/data
-      - images_data:/var/lib/inventory/images
-      - ml_cache_data:/var/lib/inventory/ml_cache
-      - ssl_data:/var/lib/inventory/ssl
-      - config_data:/var/lib/inventory/config
-      # Log volumes
-      - logs_data:/var/log/supervisor
-      - nginx_logs:/var/log/nginx
-      - postgres_logs:/var/log/postgresql
+      - "5000:5000"
     environment:
-      # Database configuration
-      POSTGRES_HOST: localhost
-      POSTGRES_PORT: 5432
-      POSTGRES_USER: inventory
-      POSTGRES_PASSWORD: inventory_pi_2024
-      POSTGRES_DB: inventory_db
+      # Database credentials
+      POSTGRES_PASSWORD: thingdb_docker_pass
       
-      # Application configuration
+      # Flask configuration
+      SECRET_KEY: change_this_secret_key_in_production
       FLASK_ENV: production
-      SECRET_KEY: inventory_docker_secret_key_change_in_production
-      RELEASE_CANDIDATE: RC8
       
-      # Storage configuration
-      IMAGE_STORAGE_METHOD: filesystem
-      IMAGE_DIR: /var/lib/inventory/images
+      # ML model cache
+      TRANSFORMERS_CACHE: /var/lib/thingdb/cache/models
+      HF_HOME: /var/lib/thingdb/cache/models
+    volumes:
+      # Persistent PostgreSQL data
+      - postgres_data:/var/lib/postgresql/data
       
-      # ML Cache configuration
-      TRANSFORMERS_CACHE: /var/lib/inventory/ml_cache
-      HF_HOME: /var/lib/inventory/ml_cache
+      # ML model cache (sentence transformers ~500MB)
+      - ml_cache:/var/lib/thingdb/cache/models
       
-      # Cloudflare configuration (optional)
-      CF_WORKER_URL: https://register.nestdb.io
-      CF_DEVICE_CERT_PATH: /etc/inventory/device.crt
+      # User uploads
+      - uploads:/app/src/uploads
+      
+      # ThingDB state
+      - thingdb_data:/var/lib/thingdb
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 60s
 
 volumes:
   postgres_data:
     driver: local
-  images_data:
+  ml_cache:
     driver: local
-  ml_cache_data:
+  uploads:
     driver: local
-  ssl_data:
-    driver: local
-  config_data:
-    driver: local
-  logs_data:
-    driver: local
-  nginx_logs:
-    driver: local
-  postgres_logs:
+  thingdb_data:
     driver: local

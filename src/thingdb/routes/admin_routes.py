@@ -2,15 +2,19 @@
 Admin routes for Flask Inventory Management System
 Handles health checks, system monitoring, and administration functions
 """
+import os
 import psutil
 from datetime import datetime
 from flask import Blueprint, jsonify, render_template
 from thingdb.database import get_db_connection, get_connection_pool_info
 from thingdb.models import image_cache, thumbnail_cache
-from thingdb.services.embedding_service import is_embedding_model_available
+from thingdb.services.embedding_service import (
+    is_embedding_model_available,
+    generate_embedding,
+    get_cache_info
+)
 from thingdb.services.qr_pdf_service import qr_pdf_service
-# from thingdb.services.package_verification_service import PackageVerificationService  # REMOVED - simplifying installation
-from thingdb.config import APP_VERSION, APP_RELEASE_CANDIDATE
+from thingdb.config import APP_VERSION, APP_RELEASE_CANDIDATE, IMAGE_STORAGE_METHOD, IMAGE_DIR
 
 admin_bp = Blueprint('admin', __name__)
 
@@ -405,7 +409,6 @@ def system_metrics():
 def api_reindex_embeddings():
     """Reindex all embeddings for semantic search (called from DB stats page)"""
     try:
-        from services.embedding_service import generate_embedding
         conn = get_db_connection()
         cursor = conn.cursor()
         
@@ -483,9 +486,6 @@ def api_reindex_embeddings():
 def cleanup_orphaned_images():
     """Clean up orphaned image files from filesystem"""
     try:
-        from thingdb.config import IMAGE_STORAGE_METHOD, IMAGE_DIR
-        import os
-        
         if IMAGE_STORAGE_METHOD != 'filesystem':
             return jsonify({
                 'success': False,
@@ -566,8 +566,6 @@ def cleanup_orphaned_images():
 def model_cache_status():
     """Check the status of the embedding model cache"""
     try:
-        from services.embedding_service import get_cache_info, is_embedding_model_available
-        
         cache_info = get_cache_info()
         model_available = is_embedding_model_available()
         
