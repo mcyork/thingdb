@@ -5,12 +5,12 @@ Handles health checks, system monitoring, and administration functions
 import psutil
 from datetime import datetime
 from flask import Blueprint, jsonify, render_template
-from database import get_db_connection, get_connection_pool_info
-from models import image_cache, thumbnail_cache
-from services.embedding_service import is_embedding_model_available
-from services.qr_pdf_service import qr_pdf_service
-from services.package_verification_service import PackageVerificationService
-from config import APP_VERSION, APP_RELEASE_CANDIDATE
+from thingdb.database import get_db_connection, get_connection_pool_info
+from thingdb.models import image_cache, thumbnail_cache
+from thingdb.services.embedding_service import is_embedding_model_available
+from thingdb.services.qr_pdf_service import qr_pdf_service
+# from thingdb.services.package_verification_service import PackageVerificationService  # REMOVED - simplifying installation
+from thingdb.config import APP_VERSION, APP_RELEASE_CANDIDATE
 
 admin_bp = Blueprint('admin', __name__)
 
@@ -483,7 +483,7 @@ def api_reindex_embeddings():
 def cleanup_orphaned_images():
     """Clean up orphaned image files from filesystem"""
     try:
-        from config import IMAGE_STORAGE_METHOD, IMAGE_DIR
+        from thingdb.config import IMAGE_STORAGE_METHOD, IMAGE_DIR
         import os
         
         if IMAGE_STORAGE_METHOD != 'filesystem':
@@ -747,10 +747,15 @@ def generate_qr_sheet():
 
 
 # =============================================================================
-# PACKAGE MANAGEMENT ROUTES
+# PACKAGE MANAGEMENT ROUTES - REMOVED (Simplifying to pip install)
 # =============================================================================
+# These routes have been removed as we're moving to a simple pip-installable package
+# If you need package management, see the aaa/package_verification_service.py backup
 
-@admin_bp.route('/api/test-package-upload', methods=['GET'])
+# All package management routes (upload, install, rollback) have been removed
+# Users should install/update with: pip install -e . (or from PyPI when published)
+
+# @admin_bp.route('/api/test-package-upload', methods=['GET'])
 def api_test_package_upload():
     """Test route to verify package upload functionality is working"""
     try:
@@ -1254,11 +1259,12 @@ def api_rollback_package():
         })
 
     except Exception as e:
-        logger.error(f"Rollback failed: {e}")
         return jsonify({
             'success': False,
             'error': f'Rollback failed: {str(e)}'
         }), 500
+
+# End of removed package management routes
 
 
 @admin_bp.route('/api/restart-service', methods=['POST'])

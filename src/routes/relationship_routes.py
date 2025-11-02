@@ -3,8 +3,8 @@ Relationship routes for Flask Inventory Management System
 Handles parent/child relationships and nested item management
 """
 from flask import Blueprint, request, jsonify, render_template
-from database import get_db_connection
-from utils.helpers import is_valid_guid
+from thingdb.database import get_db_connection
+from thingdb.utils.helpers import is_valid_guid
 
 relationship_bp = Blueprint('relationship', __name__)
 

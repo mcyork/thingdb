@@ -5,10 +5,10 @@ Handles item creation, editing, deletion, and relationship management
 import json
 import os
 from flask import Blueprint, request, jsonify, redirect, url_for
-from database import get_db_connection
-from utils.helpers import is_valid_guid, validate_item_data
-from services.embedding_service import generate_embedding
-from config import IMAGE_STORAGE_METHOD, IMAGE_DIR
+from thingdb.database import get_db_connection
+from thingdb.utils.helpers import is_valid_guid, validate_item_data
+from thingdb.services.embedding_service import generate_embedding
+from thingdb.config import IMAGE_STORAGE_METHOD, IMAGE_DIR
 
 item_bp = Blueprint('item', __name__)
 
@@ -400,7 +400,7 @@ def create_item():
         # Generate new GUID if not provided
         guid = data.get('guid')
         if not guid:
-            from utils.helpers import generate_guid
+            from thingdb.utils.helpers import generate_guid
             guid = generate_guid()
         elif not is_valid_guid(guid):
             return jsonify({"success": False, "error": "Invalid GUID format"}), 400

@@ -1,0 +1,120 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "thingdb"
+version = "1.4.17"
+description = "Smart inventory management system with semantic search and image support"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [
+    {name = "Your Name", email = "your.email@example.com"}
+]
+keywords = ["inventory", "management", "semantic-search", "qr-codes", "flask"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Framework :: Flask",
+    "Topic :: Office/Business",
+]
+
+# Core dependencies (including ML for semantic search)
+dependencies = [
+    # Web Framework
+    "flask>=2.3.0",
+    "gunicorn>=21.0.0",
+    
+    # Database
+    "psycopg2-binary>=2.9.9",  # Python 3.13 compatible
+    
+    # Image Processing
+    "Pillow>=10.0.0",
+    
+    # Utilities
+    "requests>=2.31.0",
+    "python-dotenv>=1.0.0",
+    "qrcode[pil]>=7.4.0",
+    "reportlab>=4.0.0",
+    
+    # ML Dependencies (required for semantic search)
+    "psutil>=5.9.0",
+    "numpy>=1.24.0,<3.0.0",
+    "torch>=2.6.0",  # Python 3.13 support
+    "sentence-transformers>=3.0.0",  # Latest with Python 3.13 support
+]
+
+[project.optional-dependencies]
+# Development dependencies only
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "flake8>=6.1.0",
+    "black>=23.7.0",
+    "mypy>=1.5.0",
+]
+
+# All optional dependencies (just dev tools now)
+all = [
+    "thingdb[dev]",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/thingdb"
+Documentation = "https://github.com/yourusername/thingdb#readme"
+Repository = "https://github.com/yourusername/thingdb"
+Issues = "https://github.com/yourusername/thingdb/issues"
+
+[project.scripts]
+thingdb = "thingdb.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[tool.hatch.build.targets.wheel.sources]
+"src" = "thingdb"
+
+[tool.black]
+line-length = 100
+target-version = ['py39', 'py310', 'py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.mypy_cache
+  | \.venv
+  | build
+  | dist
+  | aaa
+  | depricated
+)/
+'''
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = "-v --cov=src --cov-report=html --cov-report=term"
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+exclude = [
+    '^aaa/',
+    '^depricated/',
+    '^\.mypy_cache/',
+]
+

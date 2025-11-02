@@ -4,7 +4,7 @@ Utility functions and helpers for Flask Inventory Management System
 import uuid
 import hashlib
 from datetime import datetime
-from config import IMAGE_SETTINGS
+from thingdb.config import IMAGE_SETTINGS
 
 def generate_guid():
     """Generate a new GUID for items"""

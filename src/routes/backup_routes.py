@@ -13,8 +13,8 @@ import threading
 import time
 from datetime import datetime
 from flask import Blueprint, jsonify, request, send_file, render_template
-from database import get_db_connection, DB_CONFIG
-from config import IMAGE_DIR, IMAGE_STORAGE_METHOD
+from thingdb.database import get_db_connection, DB_CONFIG
+from thingdb.config import IMAGE_DIR, IMAGE_STORAGE_METHOD
 
 backup_bp = Blueprint('backup', __name__)
 

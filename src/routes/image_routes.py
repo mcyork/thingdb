@@ -5,11 +5,11 @@ Handles image upload, serving, rotation, and deletion
 import os
 from flask import Blueprint, request, jsonify, Response
 from werkzeug.utils import secure_filename
-from database import get_db_connection, return_db_connection
-from services.image_service import generate_thumbnail, generate_preview, is_valid_image, save_image_to_file, apply_rotation_to_image
-from models import thumbnail_cache, image_cache
-from utils.helpers import is_valid_guid, generate_etag, get_content_type
-from config import IMAGE_STORAGE_METHOD, IMAGE_DIR
+from thingdb.database import get_db_connection, return_db_connection
+from thingdb.services.image_service import generate_thumbnail, generate_preview, is_valid_image, save_image_to_file, apply_rotation_to_image
+from thingdb.models import thumbnail_cache, image_cache
+from thingdb.utils.helpers import is_valid_guid, generate_etag, get_content_type
+from thingdb.config import IMAGE_STORAGE_METHOD, IMAGE_DIR
 
 image_bp = Blueprint('image', __name__)
 

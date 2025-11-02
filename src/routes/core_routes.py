@@ -4,9 +4,9 @@ Handles home page, GUID processing, and item viewing
 """
 import json
 from flask import Blueprint, render_template, request, redirect, url_for, jsonify
-from database import get_db_connection
-from utils.helpers import is_valid_guid, generate_guid
-from config import APP_VERSION
+from thingdb.database import get_db_connection
+from thingdb.utils.helpers import is_valid_guid, generate_guid
+from thingdb.config import APP_VERSION
 
 core_bp = Blueprint('core', __name__)
 

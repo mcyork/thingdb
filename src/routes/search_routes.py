@@ -4,10 +4,10 @@ Handles traditional text search and semantic search functionality
 """
 import json
 from flask import Blueprint, request, jsonify, render_template
-from database import get_db_connection
-from utils.helpers import clean_search_query, extract_tags_from_query, paginate_results
-from services.embedding_service import generate_embedding, cosine_similarity, parse_embedding_from_db, is_embedding_model_available
-from config import SEMANTIC_SEARCH
+from thingdb.database import get_db_connection
+from thingdb.utils.helpers import clean_search_query, extract_tags_from_query, paginate_results
+from thingdb.services.embedding_service import generate_embedding, cosine_similarity, parse_embedding_from_db, is_embedding_model_available
+from thingdb.config import SEMANTIC_SEARCH
 
 search_bp = Blueprint('search', __name__)
 

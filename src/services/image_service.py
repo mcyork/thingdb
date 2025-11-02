@@ -5,7 +5,7 @@ import io
 import os
 import uuid
 from PIL import Image
-from config import IMAGE_SETTINGS, IMAGE_DIR
+from thingdb.config import IMAGE_SETTINGS, IMAGE_DIR
 
 
 def save_image_to_file(image_data, thumbnail_data, preview_data,

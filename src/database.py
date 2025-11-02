@@ -2,7 +2,7 @@
 Database connection and initialization for Flask Inventory Management System
 """
 import psycopg2
-from config import DB_CONFIG, IMAGE_STORAGE_METHOD
+from thingdb.config import DB_CONFIG, IMAGE_STORAGE_METHOD
 
 # Connection pool for database connections
 _connection_pool = []

@@ -35,21 +35,20 @@ load_env_file()
 
 # Now import modules that depend on environment variables
 from flask import Flask, render_template
-import config
-from database import init_database
-from models import image_cache, thumbnail_cache
-from services.embedding_service import initialize_embedding_model
+from thingdb import config
+from thingdb.database import init_database
+from thingdb.models import image_cache, thumbnail_cache
+from thingdb.services.embedding_service import initialize_embedding_model
 
 # Import all blueprints
-from routes.core_routes import core_bp
-from routes.image_routes import image_bp
-from routes.item_routes import item_bp
-from routes.search_routes import search_bp
-from routes.relationship_routes import relationship_bp
-from routes.admin_routes import admin_bp
-# from routes.printing_routes import printing_bp  # COMMENTED OUT - BROKE NETWORK
-from routes.backup_routes import backup_bp
-from routes.remote_access_routes import remote_access_bp
+from thingdb.routes.core_routes import core_bp
+from thingdb.routes.image_routes import image_bp
+from thingdb.routes.item_routes import item_bp
+from thingdb.routes.search_routes import search_bp
+from thingdb.routes.relationship_routes import relationship_bp
+from thingdb.routes.admin_routes import admin_bp
+# from thingdb.routes.printing_routes import printing_bp  # COMMENTED OUT - BROKE NETWORK
+from thingdb.routes.backup_routes import backup_bp
 
 
 def create_app():
@@ -75,7 +74,6 @@ def create_app():
     app.register_blueprint(admin_bp)
     # app.register_blueprint(printing_bp)  # COMMENTED OUT - BROKE NETWORK
     app.register_blueprint(backup_bp)
-    app.register_blueprint(remote_access_bp)
     
     # Error handlers
     @app.errorhandler(404)

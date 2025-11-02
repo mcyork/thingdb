@@ -3,7 +3,7 @@ Data models and cache classes for Flask Inventory Management System
 """
 import time
 from collections import OrderedDict
-from config import CACHE_SETTINGS
+from thingdb.config import CACHE_SETTINGS
 
 class ImageCache:
     """In-memory LRU cache for images with TTL expiration"""

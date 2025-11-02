@@ -3,7 +3,7 @@ Embedding service for semantic search functionality
 """
 import json
 import numpy as np
-from config import SEMANTIC_SEARCH
+from thingdb.config import SEMANTIC_SEARCH
 
 # Global embedding model instance (pre-loaded)
 _embedding_model = None

@@ -3,9 +3,9 @@ Printing routes for Flask Inventory Management System
 Handles printing operations for inventory lists, QR codes, and item details
 """
 from flask import Blueprint, request, jsonify, render_template
-from database import get_db_connection
-from services.printing_service import PrintingService
-from utils.helpers import is_valid_guid
+from thingdb.database import get_db_connection
+from thingdb.services.printing_service import PrintingService
+from thingdb.utils.helpers import is_valid_guid
 
 printing_bp = Blueprint('printing', __name__)
 printing_service = PrintingService()
