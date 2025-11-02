@@ -7,7 +7,7 @@ This is the **easiest and recommended** way to install ThingDB on Raspberry Pi, 
 ### Step 1: Clone Repository
 
 ```bash
-git clone https://github.com/yourusername/thingdb.git
+git clone https://github.com/mcyork/thingdb.git
 cd thingdb
 ```
 
@@ -248,6 +248,6 @@ For production use:
 ## Getting Help
 
 - Check `README.md` for usage information
-- Visit [GitHub Issues](https://github.com/yourusername/thingdb/issues)
+- Visit [GitHub Issues](https://github.com/mcyork/thingdb/issues)
 - Read the docs in `docs/` folder
 

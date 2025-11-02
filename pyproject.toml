@@ -67,10 +67,10 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/thingdb"
-Documentation = "https://github.com/yourusername/thingdb#readme"
-Repository = "https://github.com/yourusername/thingdb"
-Issues = "https://github.com/yourusername/thingdb/issues"
+Homepage = "https://github.com/mcyork/thingdb"
+Documentation = "https://github.com/mcyork/thingdb#readme"
+Repository = "https://github.com/mcyork/thingdb"
+Issues = "https://github.com/mcyork/thingdb/issues"
 
 [project.scripts]
 thingdb = "thingdb.cli:main"

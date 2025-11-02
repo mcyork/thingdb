@@ -19,7 +19,7 @@ A powerful, searchable inventory system with semantic search, image support, and
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/thingdb.git
+git clone https://github.com/mcyork/thingdb.git
 cd thingdb
 
 # Run the complete installer
@@ -68,7 +68,7 @@ Visit `http://localhost:5000` 🎉
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/thingdb.git
+git clone https://github.com/mcyork/thingdb.git
 cd thingdb
 
 # Start with Docker Compose
