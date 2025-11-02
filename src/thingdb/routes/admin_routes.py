@@ -894,7 +894,7 @@ def api_install_package():
         logger.info(f"Starting package installation from: {bundle_path}")
 
         # Define paths based on the Pi's directory structure
-        inventory_root = Path('/var/lib/inventory')
+        inventory_root = Path('/var/lib/thingdb')
         app_dir = inventory_root / 'app'
         logs_dir = inventory_root / 'logs'
         backup_dir = inventory_root / 'backup'
@@ -954,7 +954,7 @@ def api_install_package():
         # Copy environment file if it exists in the package
         env_file_in_package = temp_src_dir / 'deploy' / 'config' / 'environment.env'
         if env_file_in_package.exists():
-            config_dir = Path('/var/lib/inventory/config')
+            config_dir = Path('/var/lib/thingdb/config')
             config_dir.mkdir(exist_ok=True)
             # Use sudo to copy the environment file since it needs root permissions
             import subprocess
@@ -1046,7 +1046,7 @@ def api_install_unsigned_package():
         logger.info(f"Starting unsigned package installation from: {temp_package_path}")
 
         # Define paths based on the Pi's directory structure
-        inventory_root = Path('/var/lib/inventory')
+        inventory_root = Path('/var/lib/thingdb')
         app_dir = inventory_root / 'app'
         logs_dir = inventory_root / 'logs'
         backup_dir = inventory_root / 'backup'
@@ -1106,7 +1106,7 @@ def api_install_unsigned_package():
         # Copy environment file if it exists in the package
         env_file_in_package = temp_src_dir / 'deploy' / 'config' / 'environment.env'
         if env_file_in_package.exists():
-            config_dir = Path('/var/lib/inventory/config')
+            config_dir = Path('/var/lib/thingdb/config')
             config_dir.mkdir(exist_ok=True)
             # Use sudo to copy the environment file since it needs root permissions
             import subprocess
@@ -1231,7 +1231,7 @@ def api_rollback_package():
         logger.warning(f"Starting rollback from: {backup_location}")
 
         # Define paths based on the Pi's directory structure
-        inventory_root = Path('/var/lib/inventory')
+        inventory_root = Path('/var/lib/thingdb')
         app_dir = inventory_root / 'app'
 
         # Create a temporary location for the current broken app directory

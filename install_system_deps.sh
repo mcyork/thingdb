@@ -184,8 +184,8 @@ FLASK_DEBUG=0
 SECRET_KEY=CHANGE_ME_TO_RANDOM_STRING
 
 # Image Storage
-IMAGE_STORAGE_METHOD=filesystem
-IMAGE_DIR=./images
+IMAGE_STORAGE_METHOD=database
+IMAGE_DIR=/var/lib/thingdb/images
 
 # Application
 APP_VERSION=1.4.17
@@ -229,12 +229,14 @@ main() {
     
     create_env_file
     
-    # Create ML model cache directory
+    # Create ThingDB data directories
     echo ""
-    echo "🤖 Setting up ML model cache directory..."
+    echo "🤖 Setting up ThingDB data directories..."
     sudo mkdir -p /var/lib/thingdb/cache/models
+    sudo mkdir -p /var/lib/thingdb/backups
+    sudo mkdir -p /var/lib/thingdb/images
     sudo chown -R $USER:$USER /var/lib/thingdb
-    echo -e "${GREEN}✓${NC} ML cache directory created"
+    echo -e "${GREEN}✓${NC} ThingDB directories created"
     
     setup_systemd_service
     

@@ -26,22 +26,13 @@ def get_db_config():
         }
     
     # Fallback to internal PostgreSQL settings
-    if os.environ.get('SKIP_DB_INIT') == 'true':
-        return {
-            'host': 'localhost',
-            'database': 'docker_dev',
-            'user': 'docker',
-            'password': 'docker',
-            'port': 5432
-        }
-    else:
-        return {
-            'host': os.environ.get('POSTGRES_HOST', 'localhost'),
-            'database': os.environ.get('POSTGRES_DB', 'docker_dev'),
-            'user': os.environ.get('POSTGRES_USER', 'docker'),
-            'password': os.environ.get('POSTGRES_PASSWORD', 'docker'),
-            'port': int(os.environ.get('POSTGRES_PORT', '5432'))
-        }
+    return {
+        'host': os.environ.get('POSTGRES_HOST', 'localhost'),
+        'database': os.environ.get('POSTGRES_DB', 'thingdb'),
+        'user': os.environ.get('POSTGRES_USER', 'thingdb'),
+        'password': os.environ.get('POSTGRES_PASSWORD', 'thingdb_default_pass'),
+        'port': int(os.environ.get('POSTGRES_PORT', '5432'))
+    }
 
 # Initialize DB_CONFIG
 DB_CONFIG = get_db_config()
@@ -60,7 +51,7 @@ CACHE_SETTINGS = {
 
 # Image processing settings
 IMAGE_STORAGE_METHOD = os.environ.get('IMAGE_STORAGE_METHOD', 'database') # 'database' or 'filesystem'
-IMAGE_DIR = os.environ.get('IMAGE_DIR', '/var/lib/inventory/images')
+IMAGE_DIR = os.environ.get('IMAGE_DIR', '/var/lib/thingdb/images')
 
 IMAGE_SETTINGS = {
     'thumbnail_size': (200, 200),

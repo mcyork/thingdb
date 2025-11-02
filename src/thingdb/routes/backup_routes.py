@@ -19,7 +19,7 @@ from thingdb.config import IMAGE_DIR, IMAGE_STORAGE_METHOD
 backup_bp = Blueprint('backup', __name__)
 
 # Backup configuration
-BACKUP_DIR = '/var/lib/inventory/backups'
+BACKUP_DIR = '/var/lib/thingdb/backups'
 
 
 @backup_bp.route('/backup')
@@ -174,11 +174,13 @@ def create_database_backup(db_file):
         # Get database config from environment variables (same as config.py)
         db_host = os.environ.get('POSTGRES_HOST', 'localhost')
         db_port = os.environ.get('POSTGRES_PORT', '5432')
-        db_user = os.environ.get('POSTGRES_USER', 'docker')
-        db_password = os.environ.get('POSTGRES_PASSWORD', 'docker')
-        db_name = os.environ.get('POSTGRES_DB', 'docker_dev')
+        db_user = os.environ.get('POSTGRES_USER', 'thingdb')
+        db_password = os.environ.get('POSTGRES_PASSWORD', 'thingdb_default_pass')
+        db_name = os.environ.get('POSTGRES_DB', 'thingdb')
         
         # Build pg_dump command
+        # NOTE: We don't use --create to avoid database-level commands
+        # This makes backups portable across different database names
         cmd = [
             '/usr/bin/pg_dump',
             '--host', db_host,
@@ -188,9 +190,8 @@ def create_database_backup(db_file):
             '--no-password',  # Use .pgpass or environment
             '--no-owner',     # Don't set ownership
             '--no-privileges', # Don't set privileges
-            '--clean',        # Add DROP statements
+            '--clean',        # Add DROP TABLE statements
             '--if-exists',    # Use IF EXISTS with DROP
-            '--create',       # Add CREATE DATABASE statement
             '--verbose',      # Verbose output
             '--file', db_file
         ]
@@ -375,11 +376,39 @@ def restore_database(db_file):
         # Get database config from environment variables (same as config.py)
         db_host = os.environ.get('POSTGRES_HOST', 'localhost')
         db_port = os.environ.get('POSTGRES_PORT', '5432')
-        db_user = os.environ.get('POSTGRES_USER', 'docker')
-        db_password = os.environ.get('POSTGRES_PASSWORD', 'docker')
-        db_name = os.environ.get('POSTGRES_DB', 'docker_dev')
+        db_user = os.environ.get('POSTGRES_USER', 'thingdb')
+        db_password = os.environ.get('POSTGRES_PASSWORD', 'thingdb_default_pass')
+        db_name = os.environ.get('POSTGRES_DB', 'thingdb')
+        
+        # Set environment variables for password
+        env = os.environ.copy()
+        env['PGPASSWORD'] = db_password
+        
+        # Clean the SQL file to work with current database
+        # Remove database-level commands that would cause issues
+        cleaned_sql_file = db_file + '.cleaned'
+        with open(db_file, 'r') as infile:
+            with open(cleaned_sql_file, 'w') as outfile:
+                skip_until_connect = False
+                for line in infile:
+                    # Skip problematic commands
+                    if any(cmd in line for cmd in [
+                        'DROP DATABASE',
+                        'CREATE DATABASE',
+                        '\\connect'
+                    ]):
+                        skip_until_connect = True
+                        continue
+                    
+                    # After \connect, we can continue
+                    if skip_until_connect and 'SET ' in line:
+                        skip_until_connect = False
+                    
+                    if not skip_until_connect:
+                        outfile.write(line)
         
         # First, drop existing tables to ensure clean restore
+        print("Dropping existing tables...")
         drop_cmd = [
             '/usr/bin/psql',
             '--host', db_host,
@@ -390,17 +419,13 @@ def restore_database(db_file):
             '--command', 'DROP TABLE IF EXISTS items CASCADE; DROP TABLE IF EXISTS images CASCADE; DROP TABLE IF EXISTS categories CASCADE; DROP TABLE IF EXISTS text_content CASCADE; DROP TABLE IF EXISTS qr_aliases CASCADE;'
         ]
         
-        # Set environment variables for password
-        env = os.environ.copy()
-        env['PGPASSWORD'] = db_password
-        
-        # Drop existing tables
         drop_result = subprocess.run(drop_cmd, env=env, capture_output=True, text=True)
         if drop_result.returncode != 0:
-            print(f"Drop tables error: {drop_result.stderr}")
-            # Continue anyway, as the restore might still work
+            print(f"Drop tables warning: {drop_result.stderr}")
+            # Continue anyway
         
-        # Build psql command for restore
+        # Restore using the cleaned SQL file
+        print(f"Restoring to database: {db_name}")
         cmd = [
             '/usr/bin/psql',
             '--host', db_host,
@@ -408,16 +433,20 @@ def restore_database(db_file):
             '--username', db_user,
             '--dbname', db_name,
             '--no-password',
-            '--file', db_file
+            '--file', cleaned_sql_file
         ]
         
         # Run psql restore
         result = subprocess.run(cmd, env=env, capture_output=True, text=True)
         
+        # Clean up temp file
+        os.unlink(cleaned_sql_file)
+        
         if result.returncode != 0:
             print(f"psql restore error: {result.stderr}")
             return False
         
+        print("Database restore completed successfully")
         return True
         
     except Exception as e:
