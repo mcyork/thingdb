@@ -34,6 +34,11 @@ This script automatically:
 python3 -m venv venv
 source venv/bin/activate
 
+# Raspberry Pi only: Set temp directory to disk (not RAM-based /tmp)
+# This prevents "No space left on device" errors during large downloads
+mkdir -p ~/tmp
+export TMPDIR=~/tmp
+
 # Install ThingDB (includes all ML dependencies)
 pip install -e .
 ```
@@ -146,17 +151,31 @@ Visit: `http://localhost:5000` (or your custom port)
 # Update system
 sudo apt update && sudo apt upgrade -y
 
-# Install dependencies
-sudo apt install python3-pip python3-venv postgresql libpq-dev -y
+# Install git and dependencies
+sudo apt install git python3-pip python3-venv postgresql libpq-dev -y
+
+# Clone repository
+git clone https://github.com/mcyork/thingdb.git
+cd thingdb
+
+# Install system dependencies
+./install_system_deps.sh
 
 # Create virtual environment
 python3 -m venv venv
 source venv/bin/activate
 
-# Install ThingDB
-pip install -e .[ml]
+# Set temp directory to disk (prevents RAM-based /tmp from filling up)
+mkdir -p ~/tmp
+export TMPDIR=~/tmp
 
-# Follow steps 2-6 above
+# Install ThingDB
+pip install -e .
+
+# Initialize and start
+thingdb init
+sudo systemctl enable thingdb
+sudo systemctl start thingdb
 ```
 
 **Note:** ML features work but may be slow on Pi 3 or older. Consider using `pip install -e .` without ML on older hardware.
