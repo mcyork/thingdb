@@ -16,7 +16,7 @@ Restart=always
 RestartSec=10
 
 # Security settings
-NoNewPrivileges=true
+# NoNewPrivileges removed to allow sudo for power management
 PrivateTmp=true
 
 # Logging
