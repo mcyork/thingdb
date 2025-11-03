@@ -1347,11 +1347,11 @@ def api_shutdown_system():
         
         # First, sync filesystems for extra safety
         logger.info("Syncing filesystems...")
-        subprocess.run(['/usr/bin/sudo', 'sync'], check=True)
+        subprocess.run(['/usr/bin/sudo', '/bin/sync'])
         
         # Then shutdown the system using sudo (non-blocking)
         logger.info("Initiating system shutdown...")
-        subprocess.Popen(['/usr/bin/sudo', 'shutdown', '-h', 'now'], 
+        subprocess.Popen(['/usr/bin/sudo', '/sbin/shutdown', '-h', 'now'], 
                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         
         # Return immediately - the system will shutdown
@@ -1381,11 +1381,11 @@ def api_reboot_system():
         
         # First, sync filesystems for extra safety
         logger.info("Syncing filesystems...")
-        subprocess.run(['/usr/bin/sudo', 'sync'], check=True)
+        subprocess.run(['/usr/bin/sudo', '/bin/sync'])
         
         # Then reboot the system using sudo (non-blocking)
         logger.info("Initiating system reboot...")
-        subprocess.Popen(['/usr/bin/sudo', 'reboot'], 
+        subprocess.Popen(['/usr/bin/sudo', '/sbin/reboot'], 
                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         
         # Return immediately - the system will reboot

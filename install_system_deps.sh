@@ -243,7 +243,7 @@ main() {
     echo "🔐 Setting up sudo permissions for system control..."
     sudo tee /etc/sudoers.d/010_thingdb_power > /dev/null << 'SUDOERSEOF'
 # Allow pi user to run power management commands without password
-pi ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart thingdb, /usr/bin/systemctl stop thingdb, /usr/bin/systemctl start thingdb, /usr/bin/shutdown, /usr/bin/reboot, /usr/bin/sync
+pi ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart thingdb, /usr/bin/systemctl stop thingdb, /usr/bin/systemctl start thingdb, /sbin/shutdown, /sbin/reboot, /bin/sync
 SUDOERSEOF
     sudo chmod 440 /etc/sudoers.d/010_thingdb_power
     echo -e "${GREEN}✓${NC} Sudo permissions configured"
