@@ -11,12 +11,9 @@ def load_env_file():
     """Load environment variables from .env file using python-dotenv"""
     # Try multiple possible locations for .env file
     possible_paths = [
-        Path('.env'),  # Current directory
-        Path('/var/lib/thingdb/app/.env'),  # Pi deployment (absolute)
-        Path('/var/lib/thingdb/config/.env'),  # Pi deployment
-        Path('/var/lib/thingdb/config/environment.env'),  # Pi deployment (fallback)
-        Path('../config/.env'),  # Relative to src/
-        Path('../config/environment.env'),  # Relative to src/ (fallback)
+        Path('/var/lib/thingdb/app/.env'),  # System deployment (production)
+        Path('.env'),  # Current directory (development)
+        Path('../.env'),  # One level up from src/
     ]
     
     for env_path in possible_paths:

@@ -5,18 +5,18 @@ Wants=postgresql.service
 
 [Service]
 Type=simple
-User=pi
-Group=pi
-WorkingDirectory=/home/pi/thingdb
-Environment="PATH=/home/pi/thingdb/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-ExecStart=/home/pi/thingdb/venv/bin/thingdb serve --host 0.0.0.0
+User=thingdb
+Group=thingdb
+WorkingDirectory=/var/lib/thingdb/app
+Environment="PATH=/var/lib/thingdb/app/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/var/lib/thingdb/app/venv/bin/thingdb serve --host 0.0.0.0
 
 # Restart policy
 Restart=always
 RestartSec=10
 
 # Security settings
-# NoNewPrivileges removed to allow sudo for power management
+NoNewPrivileges=true
 PrivateTmp=true
 
 # Logging

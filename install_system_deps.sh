@@ -199,6 +199,19 @@ EOF
     fi
 }
 
+# Create dedicated thingdb system user
+create_thingdb_user() {
+    echo ""
+    echo "👤 Creating thingdb system user..."
+    
+    if ! id -u "thingdb" &>/dev/null; then
+        sudo useradd -r -s /bin/false -M thingdb
+        echo -e "${GREEN}✓${NC} User 'thingdb' created"
+    else
+        echo -e "${GREEN}✓${NC} User 'thingdb' already exists"
+    fi
+}
+
 # Main installation
 main() {
     detect_os
@@ -227,26 +240,27 @@ main() {
             ;;
     esac
     
+    create_thingdb_user
     create_env_file
     
     # Create ThingDB data directories
     echo ""
     echo "🤖 Setting up ThingDB data directories..."
+    sudo mkdir -p /var/lib/thingdb/app
     sudo mkdir -p /var/lib/thingdb/cache/models
     sudo mkdir -p /var/lib/thingdb/backups
     sudo mkdir -p /var/lib/thingdb/images
-    sudo chown -R $USER:$USER /var/lib/thingdb
     echo -e "${GREEN}✓${NC} ThingDB directories created"
     
-    # Configure sudo permissions for power management
+    # Configure sudo permissions for power management (thingdb user only)
     echo ""
-    echo "🔐 Setting up sudo permissions for system control..."
+    echo "🔐 Setting up sudo permissions for thingdb user..."
     sudo tee /etc/sudoers.d/010_thingdb_power > /dev/null << 'SUDOERSEOF'
-# Allow pi user to run power management commands without password
-pi ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart thingdb, /usr/bin/systemctl stop thingdb, /usr/bin/systemctl start thingdb, /sbin/shutdown, /sbin/reboot, /bin/sync
+# Allow thingdb system user to run power management commands without password
+thingdb ALL=(ALL) NOPASSWD: /sbin/shutdown, /sbin/reboot, /bin/sync, /usr/bin/systemctl restart thingdb
 SUDOERSEOF
     sudo chmod 440 /etc/sudoers.d/010_thingdb_power
-    echo -e "${GREEN}✓${NC} Sudo permissions configured"
+    echo -e "${GREEN}✓${NC} Sudo permissions configured for thingdb user"
     
     setup_systemd_service
     
