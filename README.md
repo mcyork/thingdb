@@ -21,9 +21,11 @@ A powerful, searchable inventory system with semantic search, image support, and
 wget -qO- https://raw.githubusercontent.com/mcyork/thingdb/main/bootstrap.sh | bash
 ```
 
-**That's it!** Visit `http://YOUR_IP:5000` 🎉
+**That's it!** Visit `https://YOUR_IP:5000` 🎉
 
-This downloads, installs, and starts ThingDB automatically. Works on Raspberry Pi, Ubuntu, Debian, and macOS.
+This downloads, installs, and starts ThingDB with HTTPS automatically. Works on Raspberry Pi, Ubuntu, Debian, and macOS.
+
+**Note:** You'll see a one-time certificate warning (self-signed cert) - just click through it.
 
 **See [INSTALL.md](INSTALL.md) for other installation options** (manual install, Docker, development setup, etc.)
 
