@@ -15,69 +15,17 @@ A powerful, searchable inventory system with semantic search, image support, and
 
 ## Quick Start
 
-### One-Command Installation (Recommended)
+### ⚡ Super Quick Install (One Command!)
 
 ```bash
-# Download and extract
-wget https://github.com/mcyork/thingdb/archive/refs/heads/main.zip
-unzip main.zip
-cd thingdb-main
-
-# Run the complete installer
-./install.sh
+wget -qO- https://raw.githubusercontent.com/mcyork/thingdb/main/bootstrap.sh | bash
 ```
 
-This single command:
-- ✅ Installs PostgreSQL and system dependencies
-- ✅ Creates database and user automatically
-- ✅ Generates `.env` configuration file
-- ✅ Installs ThingDB Python package
-- ✅ Initializes database tables
-- ✅ Sets up systemd service (Linux only)
-- ✅ Starts ThingDB automatically
+**That's it!** Visit `http://YOUR_IP:5000` 🎉
 
-**Done!** Visit `http://YOUR_PI_IP:5000` 🎉
+This downloads, installs, and starts ThingDB automatically. Works on Raspberry Pi, Ubuntu, Debian, and macOS.
 
-### Manual Installation (3 Steps)
-
-If you prefer to install step-by-step:
-
-**Step 1: Install System Dependencies**
-```bash
-./install_system_deps.sh
-```
-
-**Step 2: Install ThingDB Package**
-```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -e .
-```
-
-**Step 3: Initialize and Start Service**
-```bash
-thingdb init
-sudo systemctl enable thingdb
-sudo systemctl start thingdb
-```
-
-Visit `http://localhost:5000` 🎉
-
----
-
-### Alternative: Docker (No System Setup Required)
-
-```bash
-# Download and extract
-wget https://github.com/mcyork/thingdb/archive/refs/heads/main.zip
-unzip main.zip
-cd thingdb-main
-
-# Start with Docker Compose
-docker-compose -f docker/docker-compose.yml up -d
-```
-
-Visit `http://localhost`
+**See [INSTALL.md](INSTALL.md) for other installation options** (manual install, Docker, development setup, etc.)
 
 ## Service Management (Linux/Raspberry Pi)
 

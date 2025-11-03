@@ -1,8 +1,34 @@
 # ThingDB Installation Guide
 
-## Recommended: Automated Installation (3 Steps)
+## ⚡ Quick Install (Recommended)
 
-This is the **easiest and recommended** way to install ThingDB on Raspberry Pi, Ubuntu, Debian, or macOS:
+**One command. That's it.**
+
+```bash
+wget -qO- https://raw.githubusercontent.com/mcyork/thingdb/main/bootstrap.sh | bash
+```
+
+This downloads, extracts, and installs ThingDB automatically. Works on:
+- ✅ Raspberry Pi (all models)
+- ✅ Ubuntu/Debian
+- ✅ macOS (with Homebrew)
+
+**What it does:**
+1. Downloads ThingDB from GitHub
+2. Creates dedicated `thingdb` system user
+3. Installs PostgreSQL and dependencies
+4. Sets up Python environment with ML support
+5. Initializes database
+6. Configures systemd service (auto-start on boot)
+7. Starts ThingDB immediately
+
+**Access:** `http://YOUR_IP:5000` (displayed after install)
+
+---
+
+## 📦 Manual Installation (3 Steps)
+
+If you prefer to see what's happening or want more control:
 
 ### Step 1: Download ThingDB
 
@@ -13,26 +39,31 @@ unzip main.zip
 cd thingdb-main
 ```
 
-### Step 2: Install System Dependencies
+### Step 2: Run Installer
 
 ```bash
-./install_system_deps.sh
+./install.sh
 ```
 
-This script automatically:
-- ✅ Detects your operating system
-- ✅ Installs PostgreSQL 12+
-- ✅ Installs Python development tools
-- ✅ Installs required system libraries
-- ✅ Creates `thingdb` database and user
-- ✅ Generates `.env` configuration file
+That's it! The installer handles everything automatically.
 
-**No manual setup required!**
+---
 
-### Step 3: Install ThingDB
+## 🔧 Advanced Installation
+
+### For Developers
+
+If you want to customize or develop:
 
 ```bash
-# Recommended: Use a virtual environment
+# Clone repository
+git clone https://github.com/mcyork/thingdb.git
+cd thingdb
+
+# Install system dependencies
+./install_system_deps.sh
+
+# Create virtual environment
 python3 -m venv venv
 source venv/bin/activate
 
@@ -43,15 +74,11 @@ export TMPDIR=~/tmp
 
 # Install ThingDB (includes all ML dependencies)
 pip install -e .
-```
 
-### Step 4: Run
-
-```bash
-# Initialize database tables
+# Initialize database
 thingdb init
 
-# Start the server
+# Start server
 thingdb serve
 ```
 
@@ -59,214 +86,266 @@ Open `http://localhost:5000` in your browser 🎉
 
 ---
 
-## Step-by-Step Installation
+## 🍓 Raspberry Pi Notes
 
-### 1. Prerequisites
+### Recommended Hardware
+- **Raspberry Pi 4 or 5** (4GB+ RAM) - Best performance
+- **Pi Zero 2 W** (512MB RAM) - Works, but slower ML operations
 
-**Python 3.9 or higher:**
+### Pi-Specific Tips
+
+**RAM Management:**
+- Pi Zero/older models may use swap heavily
+- ML semantic search works but takes longer
+- Consider Pi 4+ for best experience
+
+**Installation:**
 ```bash
-python3 --version  # Should be 3.9+
-```
-
-**PostgreSQL 12 or higher:**
-```bash
-# Ubuntu/Debian
-sudo apt update
-sudo apt install postgresql postgresql-contrib
-
-# macOS
-brew install postgresql
-
-# Start PostgreSQL
-sudo systemctl start postgresql  # Linux
-brew services start postgresql   # macOS
-```
-
-### 2. Database Setup
-
-```bash
-# Create database and user
-sudo -u postgres psql
-
-# In PostgreSQL prompt:
-CREATE DATABASE thingdb;
-CREATE USER thingdb WITH PASSWORD 'your_secure_password';
-GRANT ALL PRIVILEGES ON DATABASE thingdb TO thingdb;
-\q
-```
-
-### 3. Environment Configuration
-
-```bash
-# Copy example environment file
-cp .env.example .env
-
-# Edit with your settings
-nano .env  # or vim, code, etc.
-```
-
-Update these key settings:
-- `POSTGRES_PASSWORD` - Your database password
-- `SECRET_KEY` - A random secure string
-- `FLASK_DEBUG` - Set to 0 for production
-
-### 4. Install ThingDB
-
-```bash
-pip install -e .
-```
-
-This installs:
-- Core Flask application
-- PyTorch (CPU-only, ~500MB)
-- Sentence transformers for semantic search (~80MB)
-- All dependencies (~600MB total)
-
-**Note:** ML dependencies are required (not optional). Semantic search is a core feature of ThingDB.
-
-### 5. Initialize Database
-
-```bash
-thingdb init
-```
-
-This creates all necessary database tables.
-
-### 6. Start the Application
-
-```bash
-thingdb serve
-```
-
-Or with custom settings:
-```bash
-thingdb serve --host 0.0.0.0 --port 8080
-```
-
-Visit: `http://localhost:5000` (or your custom port)
-
-## Installation on Raspberry Pi
-
-### Recommended: Raspberry Pi 4 (4GB+ RAM)
-
-```bash
-# Update system
+# Update system first
 sudo apt update && sudo apt upgrade -y
 
-# Download ThingDB (wget is pre-installed on Raspberry Pi OS)
-wget https://github.com/mcyork/thingdb/archive/refs/heads/main.zip
-unzip main.zip
-cd thingdb-main
-
-# Install system dependencies
-./install_system_deps.sh
-
-# Create virtual environment
-python3 -m venv venv
-source venv/bin/activate
-
-# Set temp directory to disk (prevents RAM-based /tmp from filling up)
-mkdir -p ~/tmp
-export TMPDIR=~/tmp
-
-# Install ThingDB
-pip install -e .
-
-# Initialize and start
-thingdb init
-sudo systemctl enable thingdb
-sudo systemctl start thingdb
+# Use the one-command installer
+wget -qO- https://raw.githubusercontent.com/mcyork/thingdb/main/bootstrap.sh | bash
 ```
 
-**Note:** ML features work but may be slow on Pi 3 or older. Consider using `pip install -e .` without ML on older hardware.
+**After Installation:**
+```bash
+# Check status
+sudo systemctl status thingdb
 
-## Docker Installation
+# View logs
+sudo journalctl -u thingdb -f
+
+# Restart if needed
+sudo systemctl restart thingdb
+```
+
+---
+
+## 🔐 HTTPS Setup (iPhone Camera Support)
+
+iPhone requires HTTPS for camera access. Run this after installation:
+
+```bash
+cd /var/lib/thingdb/app
+sudo ./setup_ssl.sh
+```
+
+This generates a self-signed certificate (you'll see a browser warning - that's normal).
+
+**Access via HTTPS:** `https://YOUR_IP:5000`
+
+---
+
+## 🐳 Docker Installation
 
 ```bash
 # Using Docker Compose (easiest)
-docker-compose -f docker/docker-compose.yml up -d
+cd docker
+docker-compose up -d
 
-# Access at: http://localhost
+# Access at: http://localhost:5000
 ```
 
-## Upgrading
+The Docker image includes PostgreSQL, Python, and all dependencies in one container.
+
+---
+
+## 📋 System Requirements
+
+### Minimum
+- **OS:** Raspberry Pi OS, Ubuntu 20.04+, Debian 11+, macOS 12+
+- **Python:** 3.9 or higher
+- **PostgreSQL:** 12 or higher
+- **RAM:** 512MB (1GB+ recommended)
+- **Disk:** 2GB free space
+
+### Dependencies (auto-installed)
+- PostgreSQL database
+- Python 3 + pip + venv
+- Build tools (gcc, make, etc.)
+- libpq-dev (PostgreSQL headers)
+- PyTorch (CPU-only, ~500MB)
+- Sentence Transformers (~80MB)
+
+**Total download:** ~600MB
+
+---
+
+## ⚙️ Configuration
+
+### Database Settings
+
+Default credentials (automatically configured):
+- **Database:** `thingdb`
+- **User:** `thingdb`
+- **Password:** `thingdb_default_pass`
+
+**⚠️ Change the password in production!**
+
+Edit `.env` file:
+```bash
+# Location depends on installation method:
+# Quick install: /var/lib/thingdb/app/.env
+# Manual install: ./env
+
+nano /var/lib/thingdb/app/.env
+```
+
+Update these settings:
+```env
+POSTGRES_PASSWORD=your_secure_password
+SECRET_KEY=your_random_secret_key
+FLASK_DEBUG=0
+```
+
+Restart after changes:
+```bash
+sudo systemctl restart thingdb
+```
+
+### Image Storage
+
+By default, images are stored in filesystem:
+```env
+IMAGE_STORAGE_METHOD=filesystem
+IMAGE_DIR=/var/lib/thingdb/images
+```
+
+---
+
+## 🔄 Upgrading
 
 ```bash
-# Pull latest code
+cd /var/lib/thingdb/app
 git pull
-
-# Reinstall
-pip install -e .[ml] --upgrade
-
-# Restart service
-# (or docker-compose restart if using Docker)
+pip install -e . --upgrade
+sudo systemctl restart thingdb
 ```
 
-## Uninstalling
+---
 
+## 🗑️ Uninstalling
+
+### Remove Application
 ```bash
+# Stop service
+sudo systemctl stop thingdb
+sudo systemctl disable thingdb
+
+# Remove files
+sudo rm -rf /var/lib/thingdb
+sudo rm /etc/systemd/system/thingdb.service
+sudo systemctl daemon-reload
+
+# Remove user
+sudo userdel thingdb
+
+# Uninstall Python package
 pip uninstall thingdb
 ```
 
-To completely remove including database:
+### Remove Database (optional)
 ```bash
-pip uninstall thingdb
 sudo -u postgres psql -c "DROP DATABASE thingdb;"
 sudo -u postgres psql -c "DROP USER thingdb;"
 ```
 
-## Troubleshooting
+---
+
+## 🐛 Troubleshooting
+
+### Service Won't Start
+
+**Check logs:**
+```bash
+sudo journalctl -u thingdb -n 50
+```
+
+**Common issues:**
+- PostgreSQL not running: `sudo systemctl start postgresql`
+- Port 5000 in use: Change port in `.env`
+- Permission errors: Check file ownership (`sudo chown -R thingdb:thingdb /var/lib/thingdb`)
+
+### Database Connection Error
+
+**Verify PostgreSQL is running:**
+```bash
+sudo systemctl status postgresql
+```
+
+**Check database exists:**
+```bash
+sudo -u postgres psql -l | grep thingdb
+```
+
+**Verify `.env` settings match database credentials**
 
 ### Import Error: No module named 'thingdb'
 
 Make sure you installed with `-e` flag:
 ```bash
-pip install -e .[ml]
-```
-
-### Database Connection Error
-
-Check PostgreSQL is running:
-```bash
-sudo systemctl status postgresql  # Linux
-brew services list                # macOS
-```
-
-Verify `.env` settings match your database.
-
-### Port Already in Use
-
-Change the port:
-```bash
-thingdb serve --port 8080
-```
-
-### Slow Performance on Raspberry Pi
-
-Try without ML features:
-```bash
-pip uninstall thingdb
 pip install -e .
 ```
 
-Or use Docker with memory limits.
+And activate the virtual environment:
+```bash
+source venv/bin/activate  # or: source /var/lib/thingdb/app/venv/bin/activate
+```
 
-## Production Deployment
+### Raspberry Pi: "No space left on device"
+
+On Pi Zero/older models, `/tmp` is RAM-based and too small for PyTorch:
+
+```bash
+mkdir -p ~/tmp
+export TMPDIR=~/tmp
+pip install -e .
+```
+
+Or use the quick installer which handles this automatically.
+
+### Camera Not Working on iPhone
+
+iPhone requires HTTPS for camera access. See [HTTPS Setup](#-https-setup-iphone-camera-support) above.
+
+---
+
+## 📚 Additional Resources
+
+- **README.md** - Project overview and features
+- **docker/README.md** - Docker deployment guide
+- **GitHub Issues** - https://github.com/mcyork/thingdb/issues
+
+---
+
+## 🚀 Production Deployment
 
 For production use:
 
-1. **Set `FLASK_DEBUG=0`** in `.env`
-2. **Use a strong `SECRET_KEY`**
-3. **Use Gunicorn** instead of Flask dev server:
-   ```bash
-   gunicorn -w 4 -b 0.0.0.0:5000 thingdb.main:app
-   ```
-4. **Set up systemd service** (see `docs/systemd-service.md`)
-5. **Use Nginx** as reverse proxy (see `docker/nginx.conf`)
+1. **Change default passwords** in `.env`
+2. **Use HTTPS** (run `setup_ssl.sh`)
+3. **Set `FLASK_DEBUG=0`** in `.env`
+4. **Configure firewall** (open port 5000 or use reverse proxy)
+5. **Set up backups** (use Admin → Backup feature)
+6. **Monitor logs** (`journalctl -u thingdb -f`)
 
-## Getting Help
+The installer already uses Gunicorn (production WSGI server) with 2 workers and proper timeouts.
 
-- Check `README.md` for usage information
-- Visit [GitHub Issues](https://github.com/mcyork/thingdb/issues)
-- Read the docs in `docs/` folder
+---
 
+## 💬 Getting Help
+
+- Check the logs: `sudo journalctl -u thingdb -n 50`
+- Review this guide's Troubleshooting section
+- Open an issue: https://github.com/mcyork/thingdb/issues
+- Check existing issues for solutions
+
+---
+
+**Quick Install Reminder:**
+```bash
+wget -qO- https://raw.githubusercontent.com/mcyork/thingdb/main/bootstrap.sh | bash
+```
+
+**That's all you need!** 🎉
