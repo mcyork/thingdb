@@ -184,7 +184,7 @@ FLASK_DEBUG=0
 SECRET_KEY=CHANGE_ME_TO_RANDOM_STRING
 
 # Image Storage
-IMAGE_STORAGE_METHOD=database
+IMAGE_STORAGE_METHOD=filesystem
 IMAGE_DIR=/var/lib/thingdb/images
 
 # Application

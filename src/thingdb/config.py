@@ -50,7 +50,7 @@ CACHE_SETTINGS = {
 }
 
 # Image processing settings
-IMAGE_STORAGE_METHOD = os.environ.get('IMAGE_STORAGE_METHOD', 'database') # 'database' or 'filesystem'
+IMAGE_STORAGE_METHOD = os.environ.get('IMAGE_STORAGE_METHOD', 'filesystem') # Always use filesystem
 IMAGE_DIR = os.environ.get('IMAGE_DIR', '/var/lib/thingdb/images')
 
 IMAGE_SETTINGS = {
