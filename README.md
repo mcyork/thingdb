@@ -18,9 +18,10 @@ A powerful, searchable inventory system with semantic search, image support, and
 ### One-Command Installation (Recommended)
 
 ```bash
-# Clone the repository
-git clone https://github.com/mcyork/thingdb.git
-cd thingdb
+# Download and extract
+wget https://github.com/mcyork/thingdb/archive/refs/heads/main.zip
+unzip main.zip
+cd thingdb-main
 
 # Run the complete installer
 ./install.sh
@@ -67,9 +68,10 @@ Visit `http://localhost:5000` 🎉
 ### Alternative: Docker (No System Setup Required)
 
 ```bash
-# Clone the repository
-git clone https://github.com/mcyork/thingdb.git
-cd thingdb
+# Download and extract
+wget https://github.com/mcyork/thingdb/archive/refs/heads/main.zip
+unzip main.zip
+cd thingdb-main
 
 # Start with Docker Compose
 docker-compose -f docker/docker-compose.yml up -d
@@ -288,8 +290,8 @@ MIT License - see LICENSE file for details
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/thingdb/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/thingdb/discussions)
+- **Issues**: [GitHub Issues](https://github.com/mcyork/thingdb/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/mcyork/thingdb/discussions)
 
 ## Roadmap
 

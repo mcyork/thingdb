@@ -4,11 +4,13 @@
 
 This is the **easiest and recommended** way to install ThingDB on Raspberry Pi, Ubuntu, Debian, or macOS:
 
-### Step 1: Clone Repository
+### Step 1: Download ThingDB
 
 ```bash
-git clone https://github.com/mcyork/thingdb.git
-cd thingdb
+# Download from GitHub (no git required!)
+wget https://github.com/mcyork/thingdb/archive/refs/heads/main.zip
+unzip main.zip
+cd thingdb-main
 ```
 
 ### Step 2: Install System Dependencies
@@ -151,12 +153,10 @@ Visit: `http://localhost:5000` (or your custom port)
 # Update system
 sudo apt update && sudo apt upgrade -y
 
-# Install git and dependencies
-sudo apt install git python3-pip python3-venv postgresql libpq-dev -y
-
-# Clone repository
-git clone https://github.com/mcyork/thingdb.git
-cd thingdb
+# Download ThingDB (wget is pre-installed on Raspberry Pi OS)
+wget https://github.com/mcyork/thingdb/archive/refs/heads/main.zip
+unzip main.zip
+cd thingdb-main
 
 # Install system dependencies
 ./install_system_deps.sh
