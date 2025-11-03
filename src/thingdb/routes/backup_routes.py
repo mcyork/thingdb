@@ -78,6 +78,11 @@ def backup_status():
         image_count = cursor.fetchone()[0]
         conn.close()
         
+        # Get current upload limit from Flask config
+        from flask import current_app
+        max_upload = current_app.config.get('MAX_CONTENT_LENGTH', 0)
+        max_upload_human = format_file_size(max_upload) if max_upload else 'Unlimited'
+        
         return jsonify({
             'success': True,
             'backups': backups,
@@ -86,7 +91,9 @@ def backup_status():
                 'item_count': item_count,
                 'image_count': image_count
             },
-            'backup_dir': BACKUP_DIR
+            'backup_dir': BACKUP_DIR,
+            'max_upload_size': max_upload,
+            'max_upload_size_human': max_upload_human
         })
     except Exception as e:
         return jsonify({
