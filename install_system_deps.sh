@@ -238,6 +238,16 @@ main() {
     sudo chown -R $USER:$USER /var/lib/thingdb
     echo -e "${GREEN}✓${NC} ThingDB directories created"
     
+    # Configure sudo permissions for power management
+    echo ""
+    echo "🔐 Setting up sudo permissions for system control..."
+    sudo tee /etc/sudoers.d/010_thingdb_power > /dev/null << 'SUDOERSEOF'
+# Allow pi user to run power management commands without password
+pi ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart thingdb, /usr/bin/systemctl stop thingdb, /usr/bin/systemctl start thingdb, /usr/bin/shutdown, /usr/bin/reboot, /usr/bin/sync
+SUDOERSEOF
+    sudo chmod 440 /etc/sudoers.d/010_thingdb_power
+    echo -e "${GREEN}✓${NC} Sudo permissions configured"
+    
     setup_systemd_service
     
     echo ""

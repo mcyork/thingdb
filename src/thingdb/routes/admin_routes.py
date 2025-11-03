@@ -1277,7 +1277,7 @@ def api_restart_service():
         
         # Restart the service using full path to sudo (non-blocking)
         logger.info("Initiating service restart...")
-        subprocess.Popen(['/usr/bin/sudo', 'systemctl', 'restart', 'inventory-app'], 
+        subprocess.Popen(['/usr/bin/sudo', 'systemctl', 'restart', 'thingdb'], 
                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         
         # Return immediately - the service will restart and this process will be killed
