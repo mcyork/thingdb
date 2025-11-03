@@ -123,7 +123,8 @@
     }
     .modal.active { display: flex; }
     .scanner-header {
-        padding: env(safe-area-inset-top, 20px) 20px 16px; 
+        /* Extra padding for iOS camera permission banner (44px) + notch + spacing */
+        padding: calc(env(safe-area-inset-top, 20px) + 60px) 20px 16px; 
         display: flex;
         justify-content: space-between; 
         align-items: center; 
