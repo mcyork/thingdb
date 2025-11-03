@@ -117,12 +117,30 @@
         position: fixed; top: 0; left: 0; right: 0; bottom: 0;
         background: rgba(0,0,0,0.8); z-index: 2000; display: none;
     }
-    .scanner-modal.active, .modal.active { display: flex; }
-    .scanner-header {
-        padding: env(safe-area-inset-top) 16px 16px; display: flex;
-        justify-content: space-between; align-items: center; color: white;
+    .scanner-modal.active { 
+        display: flex; 
+        flex-direction: column;
     }
-    .scanner-video { width: 100%; max-width: 400px; border-radius: 12px; }
+    .modal.active { display: flex; }
+    .scanner-header {
+        padding: env(safe-area-inset-top, 20px) 20px 16px; 
+        display: flex;
+        justify-content: space-between; 
+        align-items: center; 
+        color: white;
+        flex-shrink: 0;
+    }
+    .scanner-header h2 {
+        font-size: 20px;
+        margin: 0;
+        font-weight: 600;
+    }
+    .scanner-video { 
+        width: 90%; 
+        max-width: 500px; 
+        border-radius: 16px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
     .modal-content {
         background: white; margin: auto; border-radius: 16px; width: 90%;
         max-width: 600px; max-height: 80vh; overflow-y: auto;
