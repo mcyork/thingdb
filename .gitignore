@@ -53,4 +53,5 @@ logs/
 aaa/
 docs/
 docker/
-legacy_backup
+legacy_backupbackup_*.zip
+*.backup
