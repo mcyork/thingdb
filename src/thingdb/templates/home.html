@@ -547,16 +547,39 @@ function toggleTreeItem(guid) {
 // --- QR Scanner ---
 function openScanner() {
     const modal = document.getElementById('scanner-modal');
+    const video = document.getElementById('scanner-video');
+    
+    // Check if we're on HTTPS or localhost (required for camera access on iOS)
+    const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    
+    if (!isSecure && /iPhone|iPad|iPod/.test(navigator.userAgent)) {
+        alert('⚠️ Camera access requires HTTPS on iPhone.\n\nTo use the scanner:\n1. Access via https:// (not http://)\n2. Or type/paste the QR code into the search box');
+        return;
+    }
+    
     modal.classList.add('active');
-    qrScanner = new QrScanner(document.getElementById('scanner-video'), result => handleQRCode(result.data), {
+    qrScanner = new QrScanner(video, result => handleQRCode(result.data), {
         highlightScanRegion: true,
         highlightCodeOutline: true,
     });
-    qrScanner.start().catch(err => showScannerError('Could not start scanner.'));
+    
+    qrScanner.start().catch(err => {
+        console.error('Scanner error:', err);
+        closeScanner();
+        alert('❌ Camera Error\n\n' + 
+              'Could not access camera. Please check:\n' +
+              '• Camera permissions are granted\n' +
+              '• No other app is using the camera\n' +
+              '• You\'re using HTTPS (required on iPhone)\n\n' +
+              'You can also type or paste QR codes directly into the search box.');
+    });
 }
 
 function closeScanner() {
-    if (qrScanner) qrScanner.stop();
+    if (qrScanner) {
+        qrScanner.stop();
+        qrScanner = null;
+    }
     document.getElementById('scanner-modal').classList.remove('active');
 }
 
