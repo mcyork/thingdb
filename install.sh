@@ -77,7 +77,7 @@ fi
 
 # Step 6: Start the service
 echo ""
-echo -e "${BLUE}Step 6/6: Starting ThingDB service...${NC}"
+echo -e "${BLUE}Step 6/7: Starting ThingDB service...${NC}"
 sudo systemctl start thingdb
 
 echo ""
@@ -93,16 +93,37 @@ else
     exit 1
 fi
 
+# Step 7: Setup HTTPS (for iPhone camera support)
+echo ""
+echo -e "${BLUE}Step 7/7: Setting up HTTPS (enables camera on iPhone)...${NC}"
+if [ -f "$APP_DIR/setup_ssl.sh" ]; then
+    cd "$APP_DIR"
+    sudo ./setup_ssl.sh
+    echo -e "${GREEN}✓${NC} HTTPS configured!"
+else
+    echo -e "${YELLOW}!${NC} setup_ssl.sh not found, skipping HTTPS setup"
+fi
+
 # Final summary
 echo ""
 echo "╔════════════════════════════════════════════════════════════════╗"
 echo "║              🎉 Installation Complete! 🎉                      ║"
 echo "╚════════════════════════════════════════════════════════════════╝"
 echo ""
-echo "ThingDB is now running as a system service!"
+echo "ThingDB is now running with HTTPS!"
 echo ""
 echo "Access your inventory system:"
-echo "  http://$(hostname -I | awk '{print $1}'):5000"
+echo "  https://$(hostname -I | awk '{print $1}'):5000"
+echo ""
+echo -e "${YELLOW}📱 First-time setup (one-time only):${NC}"
+echo "  Your browser will show a certificate warning."
+echo "  This is normal for self-signed certificates."
+echo "  Click 'Advanced' → 'Proceed' to continue."
+echo ""
+echo "  On iPhone: Tap 'Show Details' → 'visit this website'"
+echo ""
+echo "  This warning only appears once - Safari/Chrome will remember."
+echo ""
 echo ""
 echo "Service Management:"
 echo "  sudo systemctl status thingdb   - Check status"

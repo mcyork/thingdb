@@ -122,18 +122,25 @@ sudo systemctl restart thingdb
 
 ---
 
-## 🔐 HTTPS Setup (iPhone Camera Support)
+## 🔐 HTTPS Setup
 
-iPhone requires HTTPS for camera access. Run this after installation:
+**Good news:** HTTPS is automatically configured during installation! 
+
+The installer generates a self-signed SSL certificate, which enables:
+- ✅ Camera access on iPhone (required by iOS)
+- ✅ Secure connections
+- ✅ Modern browser features
+
+**Already configured!** Just access `https://YOUR_IP:5000`
+
+### Manual SSL Setup (if needed)
+
+If you need to regenerate certificates:
 
 ```bash
 cd /var/lib/thingdb/app
 sudo ./setup_ssl.sh
 ```
-
-This generates a self-signed certificate (you'll see a browser warning - that's normal).
-
-**Access via HTTPS:** `https://YOUR_IP:5000`
 
 ---
 
