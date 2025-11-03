@@ -6,7 +6,7 @@ import os
 # Application configuration
 APP_VERSION = "1.4.17"
 APP_RELEASE_CANDIDATE = os.environ.get('RELEASE_CANDIDATE')
-MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
+MAX_CONTENT_LENGTH = 500 * 1024 * 1024  # 500MB max file size (for large backups)
 
 # Database configuration - prioritize external PostgreSQL settings
 def get_db_config():
