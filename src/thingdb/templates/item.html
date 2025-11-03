@@ -386,6 +386,182 @@
 {% endblock %}
 
 {% block app_content %}
+
+{% if show_association %}
+<!-- QR Code Association Banner -->
+<div class="association-banner" id="association-banner">
+    <div class="association-banner-content">
+        <div class="association-banner-icon">🔗</div>
+        <div class="association-banner-text">
+            <h3>New QR code scanned</h3>
+            <p>This QR code hasn't been seen before. What would you like to do?</p>
+        </div>
+    </div>
+    <div class="association-banner-actions">
+        <button onclick="dismissAssociation()" class="btn btn-primary" style="font-size: 16px; padding: 12px 20px;">
+            Create new item
+        </button>
+        <button onclick="showAssociationSearch()" class="btn btn-secondary" style="font-size: 14px; padding: 10px 16px;">
+            Add to existing item
+        </button>
+        <button onclick="cancelAndDelete()" class="btn btn-danger" style="font-size: 14px; padding: 10px 16px;">
+            Cancel
+        </button>
+    </div>
+    
+    <!-- Association Search (hidden by default) -->
+    <div class="association-search" id="association-search" style="display: none;">
+        <div class="association-search-header">
+            <h4>Search for the existing item:</h4>
+        </div>
+        <div class="association-autocomplete-wrapper">
+            <input type="text" 
+                   id="association-search-input" 
+                   class="form-input" 
+                   placeholder="Type item name to search..." 
+                   autocomplete="off"
+                   style="font-size: 16px; padding: 14px;">
+            <div id="association-autocomplete-dropdown" class="autocomplete-dropdown"></div>
+        </div>
+        <button onclick="cancelAssociation()" class="btn btn-secondary" style="margin-top: 12px; width: 100%;">
+            Back
+        </button>
+    </div>
+</div>
+
+<style>
+.association-banner {
+    background: #e3f2fd;
+    border: 1px solid #1976d2;
+    border-radius: 12px;
+    margin: 16px;
+    padding: 20px;
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        transform: translateY(-20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.association-banner-content {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.association-banner-icon {
+    font-size: 32px;
+    line-height: 1;
+}
+
+.association-banner-text h3 {
+    margin: 0 0 8px 0;
+    font-size: 18px;
+    color: #1565c0;
+}
+
+.association-banner-text p {
+    margin: 0;
+    color: #555;
+    font-size: 14px;
+}
+
+.association-banner-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.association-search {
+    margin-top: 20px;
+}
+
+.association-search-header h4 {
+    margin: 0 0 12px 0;
+    font-size: 16px;
+    color: #1565c0;
+}
+
+.association-autocomplete-wrapper {
+    position: relative;
+}
+
+.association-autocomplete-wrapper .autocomplete-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    margin-top: 4px;
+    max-height: 300px;
+    overflow-y: auto;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 1000;
+    display: none;
+}
+
+.association-autocomplete-wrapper .autocomplete-dropdown.show {
+    display: block;
+}
+
+.autocomplete-item {
+    padding: 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.autocomplete-item:last-child {
+    border-bottom: none;
+}
+
+.autocomplete-item:hover {
+    background: #f8f9fa;
+}
+
+.autocomplete-item-thumbnail {
+    width: 48px;
+    height: 48px;
+    object-fit: cover;
+    border-radius: 6px;
+    background: #e9ecef;
+}
+
+.autocomplete-item-info {
+    flex: 1;
+}
+
+.autocomplete-item-name {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 4px;
+}
+
+.autocomplete-item-meta {
+    font-size: 12px;
+    color: #666;
+}
+
+.autocomplete-loading {
+    padding: 16px;
+    text-align: center;
+    color: #666;
+}
+</style>
+{% endif %}
+
 <!-- Using sub-header from base.html for consistency -->
 <div class="sub-header">
     <div class="sub-header-content">
@@ -1126,5 +1302,146 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+{% if show_association %}
+// ========================
+// QR Code Association Functions
+// ========================
+
+function showAssociationSearch() {
+    document.querySelector('.association-banner-actions').style.display = 'none';
+    document.getElementById('association-search').style.display = 'block';
+    document.getElementById('association-search-input').focus();
+    
+    // Initialize association autocomplete
+    initAssociationAutocomplete();
+}
+
+function dismissAssociation() {
+    // User chose to keep as new item - just hide banner
+    document.getElementById('association-banner').style.display = 'none';
+}
+
+function cancelAndDelete() {
+    // User chose to cancel - delete the temporary item and go home
+    const banner = document.getElementById('association-banner');
+    banner.innerHTML = '<div style="text-align: center; padding: 20px;"><div class="loading"></div><p>Cancelling...</p></div>';
+    
+    fetch(`/delete-item/{{ guid }}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        window.location.href = '/';
+    })
+    .catch(error => {
+        // Silent fail - just go home
+        window.location.href = '/';
+    });
+}
+
+function cancelAssociation() {
+    // Go back to main banner (don't delete)
+    document.getElementById('association-search').style.display = 'none';
+    document.querySelector('.association-banner-actions').style.display = 'flex';
+}
+
+// Association autocomplete
+let associationTimeout;
+let associationResults = [];
+
+function initAssociationAutocomplete() {
+    const input = document.getElementById('association-search-input');
+    const dropdown = document.getElementById('association-autocomplete-dropdown');
+    
+    input.addEventListener('input', function() {
+        const query = this.value.trim();
+        
+        if (!query || query.length < 2) {
+            dropdown.classList.remove('show');
+            return;
+        }
+        
+        clearTimeout(associationTimeout);
+        
+        // Show loading state
+        dropdown.innerHTML = '<div class="autocomplete-loading">Searching...</div>';
+        dropdown.classList.add('show');
+        
+        // Debounce search
+        associationTimeout = setTimeout(() => {
+            fetch(`/api/semantic-search?q=${encodeURIComponent(query)}&limit=10&exclude={{ guid }}`)
+                .then(response => response.json())
+                .then(results => {
+                    associationResults = results;
+                    renderAssociationResults(results);
+                })
+                .catch(error => {
+                    console.error('Search error:', error);
+                    dropdown.classList.remove('show');
+                });
+        }, 300);
+    });
+}
+
+function renderAssociationResults(results) {
+    const dropdown = document.getElementById('association-autocomplete-dropdown');
+    
+    if (results.length === 0) {
+        dropdown.innerHTML = '<div class="autocomplete-loading">No items found</div>';
+        return;
+    }
+    
+    dropdown.innerHTML = results.map(item => `
+        <div class="autocomplete-item" onclick="associateWithItem('${item.guid}')">
+            ${item.has_image ? 
+                `<img src="/thumbnail/${item.image_id}" class="autocomplete-item-thumbnail">` :
+                `<div class="autocomplete-item-thumbnail" style="display: flex; align-items: center; justify-content: center; font-size: 20px;">📦</div>`
+            }
+            <div class="autocomplete-item-info">
+                <div class="autocomplete-item-name">${item.name}</div>
+                <div class="autocomplete-item-meta">
+                    ${item.label_number ? `#${item.label_number}` : ''}
+                    ${item.contained_count > 0 ? ` • ${item.contained_count} items inside` : ''}
+                </div>
+            </div>
+        </div>
+    `).join('');
+    
+    dropdown.classList.add('show');
+}
+
+function associateWithItem(targetGuid) {
+    const banner = document.getElementById('association-banner');
+    banner.innerHTML = '<div style="text-align: center; padding: 20px;"><div class="loading"></div><p>Linking QR code...</p></div>';
+    
+    // Call the association endpoint
+    fetch(`/associate-item/{{ guid }}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            target_guid: targetGuid
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Redirect to the target item
+            window.location.href = `/item/${targetGuid}`;
+        } else {
+            alert('Failed to link QR code: ' + (data.error || 'Unknown error'));
+            window.location.href = '/';
+        }
+    })
+    .catch(error => {
+        console.error('Association error:', error);
+        alert('Failed to link QR code. Please try again.');
+        window.location.href = '/';
+    });
+}
+{% endif %}
+
 </script>
 {% endblock %}
