@@ -7,59 +7,205 @@
     .stats-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-        gap: 16px;
+        gap: 12px;
         margin-bottom: 16px;
     }
     .stat-card {
         background: var(--background-light);
         border-radius: 8px;
-        padding: 16px;
+        padding: 12px;
         text-align: center;
     }
     .stat-value {
-        font-size: 24px;
+        font-size: 20px;
         font-weight: 700;
         color: var(--primary-color);
     }
     .stat-label {
-        font-size: 13px;
+        font-size: 12px;
         color: var(--text-light);
         margin-top: 4px;
     }
-    .actions-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 16px;
+    
+    /* File Upload Zone with Visual States */
+    .file-upload {
+        border: 2px dashed var(--border-color);
+        border-radius: 8px;
+        padding: 32px 16px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s;
+        position: relative;
+        min-height: 120px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
     }
+    .file-upload:hover { 
+        border-color: var(--primary-color); 
+        background: var(--background-light); 
+    }
+    .file-upload.dragover { 
+        border-color: var(--primary-color); 
+        background: #e3f2fd;
+        transform: scale(1.02);
+    }
+    .file-upload.has-file {
+        border-color: #4caf50;
+        background: #e8f5e9;
+        border-style: solid;
+    }
+    .file-upload-icon {
+        font-size: 32px;
+        opacity: 0.6;
+    }
+    .file-upload.has-file .file-upload-icon {
+        opacity: 1;
+    }
+    .file-upload-text {
+        font-size: 14px;
+        color: var(--text-light);
+    }
+    .file-upload.has-file .file-upload-text {
+        color: #2e7d32;
+        font-weight: 600;
+    }
+    .file-selected-info {
+        display: none;
+        background: white;
+        border-radius: 6px;
+        padding: 12px;
+        margin-top: 8px;
+    }
+    .file-selected-info.show {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+    .file-info-text {
+        flex: 1;
+        text-align: left;
+        font-size: 13px;
+    }
+    .file-name {
+        font-weight: 600;
+        color: #333;
+    }
+    .file-size {
+        color: #666;
+        font-size: 12px;
+    }
+    
+    /* Progress Bar */
+    .progress-container {
+        display: none;
+        margin-top: 12px;
+    }
+    .progress-container.show {
+        display: block;
+    }
+    .progress-bar-wrapper {
+        background: #e0e0e0;
+        border-radius: 4px;
+        height: 8px;
+        overflow: hidden;
+        margin-bottom: 8px;
+    }
+    .progress-bar {
+        height: 100%;
+        background: linear-gradient(90deg, #4caf50, #81c784);
+        transition: width 0.3s;
+        border-radius: 4px;
+    }
+    .progress-text {
+        font-size: 12px;
+        color: var(--text-light);
+        text-align: center;
+    }
+    
+    /* Status Messages */
+    .status-message {
+        padding: 10px 12px;
+        border-radius: 6px;
+        font-size: 13px;
+        margin-top: 12px;
+        display: none;
+        animation: slideIn 0.3s;
+    }
+    .status-message.show {
+        display: block;
+    }
+    .status-success {
+        background: #d4edda;
+        border: 1px solid #c3e6cb;
+        color: #155724;
+    }
+    .status-error {
+        background: #f8d7da;
+        border: 1px solid #f5c6cb;
+        color: #721c24;
+    }
+    .status-info {
+        background: #d1ecf1;
+        border: 1px solid #bee5eb;
+        color: #0c5460;
+    }
+    .status-warning {
+        background: #fff3cd;
+        border: 1px solid #ffc107;
+        color: #856404;
+    }
+    
+    /* Backup List */
     .backup-item {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 12px 0;
+        padding: 12px;
         border-bottom: 1px solid var(--border-color);
+        transition: background 0.2s;
+    }
+    .backup-item:hover {
+        background: var(--background-light);
     }
     .backup-item:last-child { border-bottom: none; }
     .backup-info { flex: 1; }
-    .backup-name { font-weight: 600; }
-    .backup-meta { font-size: 13px; color: var(--text-light); }
-    .backup-actions-item { display: flex; gap: 8px; }
-    .file-upload {
-        border: 2px dashed var(--border-color);
-        border-radius: 8px;
-        padding: 24px;
-        text-align: center;
-        cursor: pointer;
-        transition: all 0.2s;
+    .backup-name { font-weight: 600; font-size: 14px; }
+    .backup-meta { font-size: 12px; color: var(--text-light); margin-top: 2px; }
+    .backup-actions-item { 
+        display: flex; 
+        gap: 6px;
     }
-    .file-upload:hover { border-color: var(--primary-color); background: var(--background-light); }
-    .file-upload.dragover { border-color: var(--primary-color); background: #e3f2fd; }
-    .loading { text-align: center; padding: 16px; display: none; }
-    .alert {
-        padding: 12px; border-radius: 8px; margin-top: 16px;
-        border: 1px solid;
+    
+    /* Action Buttons */
+    .btn-icon {
+        padding: 8px 12px;
+        font-size: 16px;
     }
-    .alert-success { background: #d4edda; border-color: #c3e6cb; color: #155724; }
-    .alert-danger { background: #f8d7da; border-color: #f5c6cb; color: #721c24; }
+    
+    /* Inline Confirmation */
+    .confirm-actions {
+        display: none;
+        gap: 8px;
+        margin-top: 8px;
+    }
+    .confirm-actions.show {
+        display: flex;
+    }
+    
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
 </style>
 {% endblock %}
 
@@ -72,8 +218,7 @@
 </div>
 
 <div class="app-content">
-    <div id="messages"></div>
-
+    <!-- Stats Overview -->
     <div class="card">
         <div class="stats-grid" id="backup-stats">
             <div class="stat-card"><div class="stat-value" id="db-size">-</div><div class="stat-label">DB Size</div></div>
@@ -81,48 +226,81 @@
             <div class="stat-card"><div class="stat-value" id="image-count">-</div><div class="stat-label">Images</div></div>
             <div class="stat-card"><div class="stat-value" id="backup-count">-</div><div class="stat-label">Backups</div></div>
         </div>
-        <div class="actions-grid">
-            <button class="btn btn-primary" onclick="createBackup()" id="create-backup-btn">💾 Create Backup</button>
-            <button class="btn btn-secondary" onclick="loadBackupStatus()" id="refresh-btn">🔄 Refresh</button>
+        <button class="btn btn-primary btn-block" onclick="createBackup()" id="create-backup-btn">💾 Create New Backup</button>
+    </div>
+
+    <!-- Restore Section -->
+    <div class="card">
+        <h3 style="margin-bottom: 16px;">🔄 Restore Backup</h3>
+        
+        <!-- File Upload with Visual Feedback -->
+        <div class="file-upload" id="file-upload-zone" 
+             onclick="document.getElementById('restore-file').click()" 
+             ondrop="handleFileDrop(event)" 
+             ondragover="handleDragOver(event)" 
+             ondragleave="handleDragLeave(event)">
+            <input type="file" id="restore-file" accept=".zip" onchange="handleFileSelect(event)" style="display:none;">
+            <div class="file-upload-icon" id="upload-icon">📁</div>
+            <div class="file-upload-text" id="upload-text">Drop backup file here or click to select</div>
+            <div style="font-size: 11px; color: #999; margin-top: 4px;">Maximum upload size: <span id="upload-limit-display">Loading...</span></div>
+        </div>
+        
+        <!-- Selected File Info -->
+        <div class="file-selected-info" id="file-selected-info">
+            <div class="file-info-text">
+                <div class="file-name" id="selected-file-name">-</div>
+                <div class="file-size" id="selected-file-size-text">-</div>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="clearSelectedFile()">✕ Clear</button>
+        </div>
+        
+        <!-- Progress Bar -->
+        <div class="progress-container" id="progress-container">
+            <div class="progress-bar-wrapper">
+                <div class="progress-bar" id="progress-bar" style="width: 0%"></div>
+            </div>
+            <div class="progress-text" id="progress-text">Uploading...</div>
+        </div>
+        
+        <!-- Status Messages -->
+        <div class="status-message" id="status-message"></div>
+        
+        <!-- Inline Confirmation -->
+        <div class="confirm-actions" id="confirm-actions">
+            <button class="btn btn-danger btn-block" onclick="confirmRestore()">⚠️ Yes, Replace All Data</button>
+            <button class="btn btn-secondary btn-block" onclick="cancelRestore()">Cancel</button>
+        </div>
+        
+        <!-- Restore Button -->
+        <button class="btn btn-primary btn-block" style="margin-top: 12px;" onclick="initiateRestore()" id="restore-btn" disabled>
+            Restore from File
+        </button>
+        
+        <!-- Or restore from existing -->
+        <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color);">
+            <label class="form-label" style="font-size: 13px; margin-bottom: 8px;">Or restore from saved backup:</label>
+            <select id="restore-backup-select" class="form-input" style="margin-bottom: 8px;">
+                <option value="">Select a backup...</option>
+            </select>
+            <button class="btn btn-secondary btn-block" onclick="restoreFromExisting()" id="restore-existing-btn" disabled>
+                Restore Selected
+            </button>
         </div>
     </div>
 
+    <!-- Available Backups List -->
     <div class="card">
-        <h3>🔄 Restore from File</h3>
-        <div style="background: #e3f2fd; border: 1px solid #1976d2; border-radius: 8px; padding: 12px; margin-bottom: 16px; font-size: 13px;">
-            <strong>ℹ️ Upload Limit:</strong> <span id="upload-limit-display">Loading...</span>
-            <div style="margin-top: 4px; color: #555;">
-                If your backup is larger, contact your administrator to increase the limit.
-            </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h3 style="margin: 0;">📋 Saved Backups</h3>
+            <button class="btn btn-secondary btn-sm" onclick="loadBackupStatus()">🔄 Refresh</button>
         </div>
-        <div class="form-group">
-            <label for="restore-backup-select" class="form-label">Restore from an existing backup:</label>
-            <select id="restore-backup-select" class="form-input" style="margin-bottom: 8px;"><option value="">Select a backup...</option></select>
-            <button class="btn btn-secondary btn-block" onclick="restoreFromExisting()" id="restore-existing-btn" disabled>Restore from Selection</button>
-        </div>
-        <div class="form-group">
-            <label class="form-label">Or upload a new backup file:</label>
-            <div class="file-upload" onclick="document.getElementById('restore-file').click()" ondrop="handleFileDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
-                <input type="file" id="restore-file" accept=".zip" onchange="handleFileSelect(event)" style="display:none;">
-                <span>📁 Drop backup file or click to select</span>
-            </div>
-            <div id="file-size-warning" style="display: none; background: #fff3cd; border: 1px solid #ffc107; border-radius: 6px; padding: 8px; margin-top: 8px; font-size: 13px; color: #856404;">
-                ⚠️ <strong>File too large!</strong> Your file is <span id="selected-file-size"></span>, but the upload limit is <span id="limit-size"></span>.
-            </div>
-            <button class="btn btn-secondary btn-block" onclick="restoreFromUpload()" id="restore-upload-btn" style="margin-top: 8px;" disabled>Upload and Restore</button>
-        </div>
-    </div>
-
-    <div class="card">
-        <h3>📋 Available Backups</h3>
         <div id="backup-list">
-            <div class="no-backups" style="text-align: center; padding: 20px; color: var(--text-light);">
-                <span>📦</span>
-                <p>No backups found</p>
+            <div style="text-align: center; padding: 20px; color: var(--text-light);">
+                <span style="font-size: 32px;">📦</span>
+                <p>Loading backups...</p>
             </div>
         </div>
     </div>
-    <div class="loading" id="loading"><span>⏳</span> Processing...</div>
 </div>
 {% endblock %}
 
@@ -141,9 +319,9 @@ function loadBackupStatus() {
                 updateBackupStats(data);
                 updateBackupList(data.backups);
             } else {
-                showMessage('Error loading backup status: ' + data.error, 'danger');
+                showStatus('Error loading backup status: ' + data.error, 'error');
             }
-        }).catch(err => showMessage('Failed to load backup status', 'danger'));
+        }).catch(err => showStatus('Failed to load backup status', 'error'));
 }
 
 function updateBackupStats(data) {
@@ -157,6 +335,38 @@ function updateBackupStats(data) {
     document.getElementById('upload-limit-display').textContent = data.max_upload_size_human || 'Unknown';
 }
 
+function showStatus(message, type) {
+    const statusEl = document.getElementById('status-message');
+    statusEl.textContent = message;
+    statusEl.className = 'status-message status-' + type + ' show';
+    
+    // Auto-hide success messages
+    if (type === 'success') {
+        setTimeout(() => {
+            statusEl.classList.remove('show');
+        }, 5000);
+    }
+}
+
+function hideStatus() {
+    document.getElementById('status-message').classList.remove('show');
+}
+
+function showProgress(percent, text) {
+    const container = document.getElementById('progress-container');
+    const bar = document.getElementById('progress-bar');
+    const textEl = document.getElementById('progress-text');
+    
+    container.classList.add('show');
+    bar.style.width = percent + '%';
+    textEl.textContent = text || `${percent}%`;
+}
+
+function hideProgress() {
+    document.getElementById('progress-container').classList.remove('show');
+    document.getElementById('progress-bar').style.width = '0%';
+}
+
 function updateBackupList(backups) {
     const listEl = document.getElementById('backup-list');
     const selectEl = document.getElementById('restore-backup-select');
@@ -164,7 +374,7 @@ function updateBackupList(backups) {
     selectEl.innerHTML = '<option value="">Select a backup...</option>';
 
     if (backups.length === 0) {
-        listEl.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-light);">📦 No backups found</div>';
+        listEl.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-light);"><span style="font-size: 32px;">📦</span><p style="margin-top: 8px;">No backups found</p></div>';
         return;
     }
 
@@ -177,8 +387,8 @@ function updateBackupList(backups) {
                 <div class="backup-meta">${new Date(backup.created).toLocaleString()} • ${backup.size_human}</div>
             </div>
             <div class="backup-actions-item">
-                <button class="btn btn-secondary" onclick="downloadBackup('${backup.filename}')">📥</button>
-                <button class="btn btn-danger" onclick="deleteBackup('${backup.filename}')">🗑️</button>
+                <button class="btn btn-secondary btn-icon" onclick="downloadBackup('${backup.filename}')" title="Download">📥</button>
+                <button class="btn btn-danger btn-icon" onclick="confirmDeleteBackup('${backup.filename}')" title="Delete">🗑️</button>
             </div>
         `;
         listEl.appendChild(itemEl);
@@ -190,40 +400,52 @@ function updateBackupList(backups) {
     });
 }
 
+function confirmDeleteBackup(filename) {
+    if (confirm(`Delete backup "${filename}"?\n\nThis cannot be undone.`)) {
+        deleteBackup(filename);
+    }
+}
+
 function createBackup() {
     const btn = document.getElementById('create-backup-btn');
     const originalHtml = btn.innerHTML;
     btn.disabled = true;
-    btn.innerHTML = 'Creating...';
+    btn.innerHTML = '⏳ Creating Backup...';
+    
+    showStatus('📦 Creating backup...', 'info');
     
     fetch('/api/backup/create', { method: 'POST' })
         .then(res => res.json())
         .then(data => {
             if (data.success) {
-                showMessage(`Backup created: ${data.backup_file}`, 'success');
+                showStatus(`✅ Backup created: ${data.backup_file}`, 'success');
                 loadBackupStatus();
             } else {
-                showMessage('Failed to create backup: ' + data.error, 'danger');
+                showStatus('❌ Failed to create backup: ' + data.error, 'error');
             }
         })
-        .catch(err => showMessage('Failed to create backup', 'danger'))
-        .finally(() => { btn.disabled = false; btn.innerHTML = originalHtml; });
+        .catch(err => showStatus('❌ Failed to create backup', 'error'))
+        .finally(() => { 
+            btn.disabled = false; 
+            btn.innerHTML = originalHtml; 
+        });
 }
 
 function downloadBackup(filename) { window.location.href = `/api/backup/download/${filename}`; }
 
 function deleteBackup(filename) {
-    if (!confirm(`Delete backup "${filename}"?`)) return;
+    showStatus(`🗑️ Deleting ${filename}...`, 'info');
+    
     fetch(`/api/backup/delete/${filename}`, { method: 'DELETE' })
         .then(res => res.json())
         .then(data => {
             if (data.success) {
-                showMessage('Backup deleted.', 'success');
+                showStatus('✅ Backup deleted', 'success');
                 loadBackupStatus();
             } else {
-                showMessage('Failed to delete backup: ' + data.error, 'danger');
+                showStatus('❌ Failed to delete backup: ' + data.error, 'error');
             }
-        }).catch(err => showMessage('Failed to delete backup.', 'danger'));
+        }).catch(err => showStatus('❌ Failed to delete backup', 'error'));
 }
 
 document.getElementById('restore-backup-select').addEventListener('change', function() {
@@ -232,81 +454,180 @@ document.getElementById('restore-backup-select').addEventListener('change', func
 
 function restoreFromExisting() {
     const filename = document.getElementById('restore-backup-select').value;
-    if (!filename) return showMessage('Please select a backup file.', 'danger');
-    if (!confirm(`Restore from "${filename}"? This will replace all current data.`)) return;
+    if (!filename) return showStatus('⚠️ Please select a backup file', 'warning');
+    if (!confirm(`Restore from "${filename}"?\n\nThis will replace ALL current data!`)) return;
     
     const btn = document.getElementById('restore-existing-btn');
     btn.disabled = true;
-    btn.innerHTML = 'Restoring...';
+    btn.innerHTML = '⏳ Restoring...';
+    
+    showStatus('📦 Restoring from backup...', 'info');
 
     fetch(`/api/backup/restore-existing/${filename}`, { method: 'POST' })
         .then(res => res.json())
         .then(data => {
             if (data.success) {
-                showMessage(data.message, 'success');
-                if (data.message.includes('restart')) {
-                    setTimeout(() => showMessage('Page will refresh when the app restarts.', 'info'), 3000);
-                }
+                showStatus('✅ ' + data.message, 'success');
+                setTimeout(() => loadBackupStatus(), 2000);
             } else {
-                showMessage('Restore failed: ' + data.error, 'danger');
+                showStatus('❌ Restore failed: ' + data.error, 'error');
             }
         })
-        .catch(err => showMessage('Restore failed.', 'danger'))
-        .finally(() => { btn.disabled = false; btn.innerHTML = 'Restore from Selection'; });
+        .catch(err => showStatus('❌ Restore failed', 'error'))
+        .finally(() => { 
+            btn.disabled = false; 
+            btn.innerHTML = 'Restore Selected'; 
+        });
 }
 
-function restoreFromUpload() {
-    if (!selectedFile) return showMessage('Please select a backup file to upload.', 'danger');
-    if (!confirm(`Restore from uploaded file "${selectedFile.name}"? This will replace all current data.`)) return;
+// Step 1: User clicks "Restore from File" - show inline confirmation
+function initiateRestore() {
+    if (!selectedFile) return showStatus('No file selected', 'error');
+    
+    // Hide restore button, show confirmation
+    document.getElementById('restore-btn').style.display = 'none';
+    document.getElementById('confirm-actions').classList.add('show');
+    showStatus(`⚠️ This will replace ALL current data with backup: ${selectedFile.name}`, 'warning');
+}
 
-    const btn = document.getElementById('restore-upload-btn');
-    btn.disabled = true;
-    btn.innerHTML = 'Restoring...';
-
+// Step 2: User confirms - start upload
+function confirmRestore() {
+    if (!selectedFile) return;
+    
+    // Hide confirmation
+    document.getElementById('confirm-actions').classList.remove('show');
+    
+    // Disable all controls
+    const restoreBtn = document.getElementById('restore-btn');
+    restoreBtn.disabled = true;
+    restoreBtn.textContent = 'Restoring...';
+    
+    // Show progress
+    showProgress(0, 'Starting upload...');
+    showStatus('📤 Uploading backup file...', 'info');
+    
     const formData = new FormData();
     formData.append('backup_file', selectedFile);
-
-    fetch('/api/backup/restore', { method: 'POST', body: formData })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                showMessage(data.message, 'success');
-                if (data.message.includes('restart')) {
-                    setTimeout(() => showMessage('Page will refresh when the app restarts.', 'info'), 3000);
+    
+    // Create XMLHttpRequest for progress tracking
+    const xhr = new XMLHttpRequest();
+    
+    xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+            const percent = Math.round((e.loaded / e.total) * 100);
+            showProgress(percent, `Uploading: ${percent}%`);
+        }
+    });
+    
+    xhr.addEventListener('load', () => {
+        if (xhr.status === 200) {
+            try {
+                const data = JSON.parse(xhr.responseText);
+                if (data.success) {
+                    showProgress(100, 'Restore complete!');
+                    showStatus('✅ ' + data.message, 'success');
+                    setTimeout(() => {
+                        clearSelectedFile();
+                        loadBackupStatus();
+                    }, 2000);
+                } else {
+                    showStatus('❌ Restore failed: ' + data.error, 'error');
+                    hideProgress();
                 }
-            } else {
-                showMessage('Restore failed: ' + data.error, 'danger');
+            } catch (e) {
+                showStatus('❌ Restore failed: Invalid response', 'error');
+                hideProgress();
             }
-        })
-        .catch(err => showMessage('Restore failed.', 'danger'))
-        .finally(() => { btn.disabled = false; btn.innerHTML = 'Upload and Restore'; });
+        } else {
+            showStatus(`❌ Restore failed: HTTP ${xhr.status}`, 'error');
+            hideProgress();
+        }
+        
+        // Re-enable controls
+        restoreBtn.disabled = false;
+        restoreBtn.textContent = 'Restore from File';
+        restoreBtn.style.display = 'block';
+    });
+    
+    xhr.addEventListener('error', () => {
+        showStatus('❌ Network error during restore', 'error');
+        hideProgress();
+        restoreBtn.disabled = false;
+        restoreBtn.textContent = 'Restore from File';
+        restoreBtn.style.display = 'block';
+    });
+    
+    xhr.open('POST', '/api/backup/restore');
+    xhr.send(formData);
+}
+
+// Step 3: User cancels - hide confirmation
+function cancelRestore() {
+    document.getElementById('confirm-actions').classList.remove('show');
+    document.getElementById('restore-btn').style.display = 'block';
+    showStatus('Restore cancelled', 'info');
 }
 
 function handleFileSelect(event) {
     const file = event.target.files[0];
     if (file) {
-        selectedFile = file;
-        checkFileSize(file);
+        selectFile(file);
     }
 }
 
-function checkFileSize(file) {
-    const warning = document.getElementById('file-size-warning');
-    const uploadBtn = document.getElementById('restore-upload-btn');
+function selectFile(file) {
+    selectedFile = file;
+    
+    // Update visual state of upload zone
+    const uploadZone = document.getElementById('file-upload-zone');
+    const icon = document.getElementById('upload-icon');
+    const text = document.getElementById('upload-text');
+    
+    uploadZone.classList.add('has-file');
+    icon.textContent = '✅';
+    text.textContent = 'File ready to restore';
+    
+    // Show file info
+    const fileInfo = document.getElementById('file-selected-info');
+    document.getElementById('selected-file-name').textContent = file.name;
+    document.getElementById('selected-file-size-text').textContent = formatBytes(file.size);
+    fileInfo.classList.add('show');
+    
+    // Check size and enable/disable restore button
+    const restoreBtn = document.getElementById('restore-btn');
     
     if (maxUploadSize > 0 && file.size > maxUploadSize) {
         // File too large
-        warning.style.display = 'block';
-        document.getElementById('selected-file-size').textContent = formatBytes(file.size);
-        document.getElementById('limit-size').textContent = formatBytes(maxUploadSize);
-        uploadBtn.disabled = true;
-        showMessage(`File "${file.name}" is too large (${formatBytes(file.size)}). Limit is ${formatBytes(maxUploadSize)}.`, 'danger');
+        restoreBtn.disabled = true;
+        showStatus(`⚠️ File too large! ${formatBytes(file.size)} exceeds ${formatBytes(maxUploadSize)} limit.`, 'warning');
     } else {
         // File OK
-        warning.style.display = 'none';
-        uploadBtn.disabled = false;
-        showMessage(`Selected file: ${file.name} (${formatBytes(file.size)})`, 'success');
+        restoreBtn.disabled = false;
+        showStatus(`✓ Selected: ${file.name} (${formatBytes(file.size)})`, 'success');
     }
+}
+
+function clearSelectedFile() {
+    selectedFile = null;
+    
+    // Reset upload zone
+    const uploadZone = document.getElementById('file-upload-zone');
+    const icon = document.getElementById('upload-icon');
+    const text = document.getElementById('upload-text');
+    
+    uploadZone.classList.remove('has-file');
+    icon.textContent = '📁';
+    text.textContent = 'Drop backup file here or click to select';
+    
+    // Hide file info
+    document.getElementById('file-selected-info').classList.remove('show');
+    document.getElementById('restore-btn').disabled = true;
+    
+    // Reset file input
+    document.getElementById('restore-file').value = '';
+    
+    hideStatus();
+    hideProgress();
 }
 
 function formatBytes(bytes) {
@@ -317,17 +638,24 @@ function formatBytes(bytes) {
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
 }
 
-function handleDragOver(event) { event.preventDefault(); event.currentTarget.classList.add('dragover'); }
-function handleDragLeave(event) { event.preventDefault(); event.currentTarget.classList.remove('dragover'); }
+function handleDragOver(event) { 
+    event.preventDefault(); 
+    event.currentTarget.classList.add('dragover'); 
+}
+
+function handleDragLeave(event) { 
+    event.preventDefault(); 
+    event.currentTarget.classList.remove('dragover'); 
+}
+
 function handleFileDrop(event) {
     event.preventDefault();
     event.currentTarget.classList.remove('dragover');
     const file = event.dataTransfer.files[0];
     if (file && file.name.endsWith('.zip')) {
-        selectedFile = file;
-        checkFileSize(file);
+        selectFile(file);
     } else {
-        showMessage('Please select a .zip backup file.', 'danger');
+        showStatus('⚠️ Please select a .zip backup file', 'warning');
     }
 }
 </script>
