@@ -47,12 +47,23 @@ if [ -f "$CERT_FILE" ] && [ -f "$KEY_FILE" ]; then
             fi
         fi
     else
-        echo -e "${YELLOW}⚠${NC}  Found existing SSL certificates (not ThingDB-generated)"
-        echo "  Skipping certificate generation to preserve custom certificates"
-        echo ""
-        echo "  To use ThingDB-generated certificates: sudo rm $CERT_FILE $KEY_FILE && sudo ./setup_ssl.sh"
-        echo ""
-        exit 0
+        # Check if this is an upgrade scenario from old version
+        # Old version used Flask dev server (thingdb serve), new uses Gunicorn
+        if grep -q "thingdb serve" /etc/systemd/system/thingdb.service 2>/dev/null; then
+            echo -e "${YELLOW}⚠${NC}  Detected upgrade from old version (HTTP-only)"
+            echo "  Regenerating SSL certificates and updating service to HTTPS..."
+            echo ""
+            # Remove old certs and regenerate with marker
+            sudo rm -f "$CERT_FILE" "$KEY_FILE"
+        else
+            # Truly custom certificates (external)
+            echo -e "${YELLOW}⚠${NC}  Found existing SSL certificates (not ThingDB-generated)"
+            echo "  Skipping certificate generation to preserve custom certificates"
+            echo ""
+            echo "  To use ThingDB-generated certificates: sudo rm $CERT_FILE $KEY_FILE && sudo ./setup_ssl.sh"
+            echo ""
+            exit 0
+        fi
     fi
 fi
 
