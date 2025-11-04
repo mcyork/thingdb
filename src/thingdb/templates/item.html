@@ -775,13 +775,21 @@
         {% if item_data.contained_items and item_data.contained_items|length > 0 %}
         <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color);">
             <p style="font-size: 13px; color: var(--text-light); margin-bottom: 8px;">
-                This container has <strong>{{ item_data.contained_items|length }}</strong> item{{ 's' if item_data.contained_items|length != 1 else '' }} inside.
+                This container has <strong>{{ item_data.contained_items|length }}</strong> direct item{{ 's' if item_data.contained_items|length != 1 else '' }} inside.
             </p>
+            
+            <div style="margin-bottom: 12px;">
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+                    <input type="checkbox" id="include-nested-checkbox" onchange="updateContainerQRCount()" style="cursor: pointer;">
+                    <span>Include all nested items (children, grandchildren, etc.)</span>
+                </label>
+            </div>
+            
             <button onclick="downloadContainerQRSheet()" class="btn btn-primary btn-block" id="container-qr-btn">
-                📦 Print All Container Labels ({{ item_data.contained_items|length + 1 }} QR codes)
+                📦 <span id="container-qr-text">Print Container Labels ({{ item_data.contained_items|length + 1 }} codes)</span>
             </button>
-            <p style="font-size: 11px; color: var(--text-light); margin-top: 6px;">
-                Generates a {{ ((item_data.contained_items|length + 1) / 24)|round(0, 'ceil')|int }}-page PDF with this item + all contained items
+            <p style="font-size: 11px; color: var(--text-light); margin-top: 6px;" id="container-qr-info">
+                <span id="page-count">{{ ((item_data.contained_items|length + 1) / 24)|round(0, 'ceil')|int }}</span>-page PDF with this item + direct children
             </p>
         </div>
         {% endif %}
@@ -1530,15 +1538,42 @@ function downloadQRCode(format) {
         });
 }
 
+// Update container QR count when checkbox changes
+function updateContainerQRCount() {
+    const checkbox = document.getElementById('include-nested-checkbox');
+    const recursive = checkbox.checked;
+    
+    // Fetch count from server
+    fetch(`/api/item/{{ guid }}/container-count?recursive=${recursive}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const total = data.total_count;
+                const pages = Math.ceil(total / 24);
+                
+                document.getElementById('container-qr-text').textContent = 
+                    `Print Container Labels (${total} code${total !== 1 ? 's' : ''})`;
+                document.getElementById('page-count').textContent = pages;
+                document.getElementById('container-qr-info').innerHTML = 
+                    `${pages}-page PDF with this item + ${recursive ? 'all nested items' : 'direct children'}`;
+            }
+        })
+        .catch(error => {
+            console.error('Count error:', error);
+        });
+}
+
 // Download container QR sheet (parent + all children)
 function downloadContainerQRSheet() {
     const btn = document.getElementById('container-qr-btn');
     const originalHtml = btn.innerHTML;
+    const checkbox = document.getElementById('include-nested-checkbox');
+    const recursive = checkbox ? checkbox.checked : false;
     
     btn.disabled = true;
     btn.innerHTML = '⏳ Generating...';
     
-    const url = `/api/item/{{ guid }}/container-qr-sheet.pdf`;
+    const url = `/api/item/{{ guid }}/container-qr-sheet.pdf?recursive=${recursive}`;
     
     fetch(url)
         .then(response => {
@@ -1550,7 +1585,7 @@ function downloadContainerQRSheet() {
             const objectUrl = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = objectUrl;
-            a.download = `qr_container_{{ item_data.item[1]|replace(" ", "_") or guid[:8] }}.pdf`;
+            a.download = `qr_container_{{ item_data.item[1]|replace(" ", "_") or guid[:8] }}${recursive ? '_all' : ''}.pdf`;
             
             document.body.appendChild(a);
             a.click();

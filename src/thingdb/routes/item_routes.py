@@ -609,12 +609,82 @@ def get_item_qr_pdf(guid):
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+def get_all_descendants(cursor, parent_guid):
+    """Recursively get all descendants of an item"""
+    descendants = []
+    
+    # Get direct children
+    cursor.execute('''
+        SELECT guid, item_name, label_number 
+        FROM items 
+        WHERE parent_guid = %s
+        ORDER BY label_number ASC NULLS LAST, item_name ASC
+    ''', (parent_guid,))
+    children = cursor.fetchall()
+    
+    for child in children:
+        # Add this child
+        descendants.append({
+            'guid': child[0],
+            'item_name': child[1] or f'Item {child[0][:8]}',
+            'label_number': child[2]
+        })
+        
+        # Recursively get this child's descendants
+        grandchildren = get_all_descendants(cursor, child[0])
+        descendants.extend(grandchildren)
+    
+    return descendants
+
+
+@item_bp.route('/api/item/<guid>/container-count', methods=['GET'])
+def get_container_count(guid):
+    """Get count of items for container QR sheet"""
+    try:
+        if not is_valid_guid(guid):
+            return jsonify({"success": False, "error": "Invalid GUID"}), 400
+        
+        recursive = request.args.get('recursive', 'false').lower() == 'true'
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Check parent exists
+        cursor.execute('SELECT guid FROM items WHERE guid = %s', (guid,))
+        if not cursor.fetchone():
+            conn.close()
+            return jsonify({"success": False, "error": "Item not found"}), 404
+        
+        if recursive:
+            # Get all descendants recursively
+            descendants = get_all_descendants(cursor, guid)
+            total_count = 1 + len(descendants)  # Parent + all descendants
+        else:
+            # Get direct children only
+            cursor.execute('SELECT COUNT(*) FROM items WHERE parent_guid = %s', (guid,))
+            child_count = cursor.fetchone()[0]
+            total_count = 1 + child_count  # Parent + direct children
+        
+        conn.close()
+        
+        return jsonify({
+            "success": True,
+            "total_count": total_count,
+            "recursive": recursive
+        })
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @item_bp.route('/api/item/<guid>/container-qr-sheet.pdf', methods=['GET'])
 def get_container_qr_sheet(guid):
     """Generate QR code sheet for this item + all items it contains"""
     try:
         if not is_valid_guid(guid):
             return jsonify({"success": False, "error": "Invalid GUID"}), 400
+        
+        recursive = request.args.get('recursive', 'false').lower() == 'true'
         
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -631,33 +701,35 @@ def get_container_qr_sheet(guid):
             conn.close()
             return jsonify({"success": False, "error": "Item not found"}), 404
         
-        # Get all items contained in this item (direct children only)
-        cursor.execute('''
-            SELECT guid, item_name, label_number 
-            FROM items 
-            WHERE parent_guid = %s
-            ORDER BY label_number ASC NULLS LAST, item_name ASC
-        ''', (guid,))
-        children = cursor.fetchall()
-        conn.close()
-        
-        # Build items list: parent first, then children
-        items_data = []
-        
-        # Add parent item first
-        items_data.append({
+        # Build items list: parent first
+        items_data = [{
             'guid': parent[0],
             'item_name': parent[1] or f'Item {parent[0][:8]}',
             'label_number': parent[2]
-        })
+        }]
         
-        # Add all children
-        for child in children:
-            items_data.append({
-                'guid': child[0],
-                'item_name': child[1] or f'Item {child[0][:8]}',
-                'label_number': child[2]
-            })
+        if recursive:
+            # Get ALL descendants recursively
+            descendants = get_all_descendants(cursor, guid)
+            items_data.extend(descendants)
+        else:
+            # Get direct children only
+            cursor.execute('''
+                SELECT guid, item_name, label_number 
+                FROM items 
+                WHERE parent_guid = %s
+                ORDER BY label_number ASC NULLS LAST, item_name ASC
+            ''', (guid,))
+            children = cursor.fetchall()
+            
+            for child in children:
+                items_data.append({
+                    'guid': child[0],
+                    'item_name': child[1] or f'Item {child[0][:8]}',
+                    'label_number': child[2]
+                })
+        
+        conn.close()
         
         # Generate multi-page PDF
         pdf_buffer = qr_pdf_service.generate_hierarchy_qr_sheet(items_data)
@@ -665,7 +737,8 @@ def get_container_qr_sheet(guid):
         
         # Create filename
         parent_name = parent[1].replace(' ', '_') if parent[1] else guid[:8]
-        filename = f'qr_container_{parent_name}_{len(items_data)}_labels.pdf'
+        suffix = 'all' if recursive else 'direct'
+        filename = f'qr_container_{parent_name}_{len(items_data)}_labels_{suffix}.pdf'
         
         # Return PDF
         response = Response(pdf_data, mimetype='application/pdf')
