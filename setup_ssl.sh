@@ -18,10 +18,54 @@ echo ""
 SSL_DIR="/var/lib/thingdb/ssl"
 CERT_FILE="$SSL_DIR/cert.pem"
 KEY_FILE="$SSL_DIR/key.pem"
+MARKER_FILE="$SSL_DIR/.thingdb_marker"
 
 # Get hostname and IP
 HOSTNAME=$(hostname)
 IP_ADDRESS=$(hostname -I | awk '{print $1}')
+
+# Check if certificates exist and are valid
+if [ -f "$CERT_FILE" ] && [ -f "$KEY_FILE" ]; then
+    # Check if this is a ThingDB-generated certificate
+    if [ -f "$MARKER_FILE" ]; then
+        # Check certificate expiry
+        EXPIRY_DATE=$(openssl x509 -in "$CERT_FILE" -noout -enddate 2>/dev/null | cut -d= -f2)
+        if [ -n "$EXPIRY_DATE" ]; then
+            EXPIRY_EPOCH=$(date -d "$EXPIRY_DATE" +%s 2>/dev/null || date -j -f "%b %d %T %Y %Z" "$EXPIRY_DATE" +%s 2>/dev/null)
+            NOW_EPOCH=$(date +%s)
+            DAYS_LEFT=$(( ($EXPIRY_EPOCH - $NOW_EPOCH) / 86400 ))
+            
+            if [ $DAYS_LEFT -gt 30 ]; then
+                echo -e "${GREEN}✓${NC} SSL certificate already exists and is valid for $DAYS_LEFT more days"
+                echo "  Skipping certificate generation"
+                echo ""
+                echo "  To force regeneration: sudo rm $MARKER_FILE && sudo ./setup_ssl.sh"
+                echo ""
+                exit 0
+            else
+                echo -e "${YELLOW}⚠${NC}  SSL certificate expires in $DAYS_LEFT days - regenerating..."
+            fi
+        fi
+    else
+        # Check if this is an upgrade scenario from old version
+        # Old version used Flask dev server (thingdb serve), new uses Gunicorn
+        if grep -q "thingdb serve" /etc/systemd/system/thingdb.service 2>/dev/null; then
+            echo -e "${YELLOW}⚠${NC}  Detected upgrade from old version (HTTP-only)"
+            echo "  Regenerating SSL certificates and updating service to HTTPS..."
+            echo ""
+            # Remove old certs and regenerate with marker
+            sudo rm -f "$CERT_FILE" "$KEY_FILE"
+        else
+            # Truly custom certificates (external)
+            echo -e "${YELLOW}⚠${NC}  Found existing SSL certificates (not ThingDB-generated)"
+            echo "  Skipping certificate generation to preserve custom certificates"
+            echo ""
+            echo "  To use ThingDB-generated certificates: sudo rm $CERT_FILE $KEY_FILE && sudo ./setup_ssl.sh"
+            echo ""
+            exit 0
+        fi
+    fi
+fi
 
 echo -e "${BLUE}🔐 Generating self-signed SSL certificate...${NC}"
 echo ""
@@ -43,6 +87,10 @@ sudo openssl req -x509 -newkey rsa:4096 -nodes \
 sudo chown thingdb:thingdb "$KEY_FILE" "$CERT_FILE"
 sudo chmod 600 "$KEY_FILE"
 sudo chmod 644 "$CERT_FILE"
+
+# Create marker file to identify ThingDB-generated certificates
+echo "thingdb-autogen-v1" | sudo tee "$SSL_DIR/.thingdb_marker" > /dev/null
+sudo chown thingdb:thingdb "$SSL_DIR/.thingdb_marker"
 
 echo -e "${GREEN}✓${NC} SSL certificate generated!"
 echo ""

@@ -29,6 +29,29 @@ This downloads, installs, and starts ThingDB with HTTPS automatically. Works on 
 
 **See [INSTALL.md](INSTALL.md) for other installation options** (manual install, Docker, development setup, etc.)
 
+---
+
+## 🧪 Development Branch (Bleeding Edge)
+
+Want to test new features before they're released? Use the `dev` branch:
+
+```bash
+# Dev branch one-liner:
+wget -qO- https://raw.githubusercontent.com/mcyork/thingdb/dev/bootstrap.sh | bash
+```
+
+Or manual install:
+```bash
+wget https://github.com/mcyork/thingdb/archive/refs/heads/dev.zip
+unzip dev.zip
+cd thingdb-dev
+./install.sh
+```
+
+**Note:** Dev branch may have experimental features. Use `main` branch for stability.
+
+---
+
 ## Service Management (Linux/Raspberry Pi)
 
 Once installed with `./install.sh`, ThingDB runs as a systemd service:
