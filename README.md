@@ -35,60 +35,6 @@ This downloads, installs, and starts ThingDB with HTTPS automatically. **Tested 
 
 ---
 
-## 🧪 Development Branch (Bleeding Edge)
-
-Want to test new features before they're released? Use the `dev` branch:
-
-```bash
-# Dev branch one-liner:
-wget -qO- https://raw.githubusercontent.com/mcyork/thingdb/dev/bootstrap.sh | bash
-```
-
-Or manual install:
-```bash
-wget https://github.com/mcyork/thingdb/archive/refs/heads/dev.zip
-unzip dev.zip
-cd thingdb-dev
-./install.sh
-```
-
-**Note:** Dev branch may have experimental features. Use `main` branch for stability.
-
----
-
-## Service Management (Linux/Raspberry Pi)
-
-Once installed with `./install.sh`, ThingDB runs as a systemd service:
-
-```bash
-# Check status
-sudo systemctl status thingdb
-
-# Start service
-sudo systemctl start thingdb
-
-# Stop service
-sudo systemctl stop thingdb
-
-# Restart service
-sudo systemctl restart thingdb
-
-# View live logs
-sudo journalctl -u thingdb -f
-
-# Disable auto-start on boot
-sudo systemctl disable thingdb
-
-# Enable auto-start on boot
-sudo systemctl enable thingdb
-```
-
-The service automatically:
-- ✅ Starts on system boot
-- ✅ Restarts if it crashes
-- ✅ Logs to system journal
-- ✅ Runs as unprivileged user
-
 ## Requirements
 
 ### System Requirements
@@ -106,28 +52,7 @@ The service automatically:
 The `install_system_deps.sh` script handles all system dependencies automatically.
 No manual PostgreSQL setup required!
 
-## Configuration
-
-Create a `.env` file in the root directory:
-
-```bash
-# Database Configuration
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=inventory_db
-POSTGRES_USER=inventory
-POSTGRES_PASSWORD=your_secure_password
-
-# Flask Configuration
-FLASK_DEBUG=0
-SECRET_KEY=your_secret_key_here
-
-# Optional: External PostgreSQL
-# EXTERNAL_POSTGRES_HOST=your_external_host
-# EXTERNAL_POSTGRES_DB=inventory_db
-# EXTERNAL_POSTGRES_USER=inventory
-# EXTERNAL_POSTGRES_PASSWORD=secure_password
-```
+---
 
 ## Usage
 
@@ -157,60 +82,48 @@ SECRET_KEY=your_secret_key_here
 - Create backups before major changes
 - Restore from previous backups if needed
 
-## Architecture
+---
 
+## Service Management
+
+Once installed, ThingDB runs as a systemd service:
+
+```bash
+# Check status
+sudo systemctl status thingdb
+
+# Start/stop/restart
+sudo systemctl start thingdb
+sudo systemctl stop thingdb
+sudo systemctl restart thingdb
+
+# View live logs
+sudo journalctl -u thingdb -f
+
+# Enable/disable auto-start on boot
+sudo systemctl enable thingdb
+sudo systemctl disable thingdb
 ```
-thingdb/
-├── src/
-│   ├── main.py              # Flask application entry point
-│   ├── config.py            # Configuration settings
-│   ├── database.py          # Database connection
-│   ├── models.py            # Data models
-│   ├── routes/              # API routes
-│   │   ├── core_routes.py
-│   │   ├── item_routes.py
-│   │   ├── search_routes.py
-│   │   └── ...
-│   ├── services/            # Business logic
-│   │   ├── embedding_service.py
-│   │   ├── image_service.py
-│   │   └── ...
-│   └── templates/           # HTML templates
-├── docker/                  # Docker configuration
-├── requirements/            # Python dependencies
-└── scripts/                 # Utility scripts
-```
 
-## Database Schema
+The service automatically:
+- ✅ Starts on system boot
+- ✅ Restarts if it crashes
+- ✅ Logs to system journal
+- ✅ Runs as unprivileged user
 
-### Core Tables
+---
 
-- **items**: Main inventory items (GUID, name, description, parent)
-- **images**: Item photos with thumbnails
-- **qr_aliases**: QR code to item mappings
-- **categories**: Tags and categories
-- **embeddings**: Semantic search vectors
+## For Developers
 
-## Semantic Search
+Want to contribute, test experimental features, or understand internals?
 
-ThingDB uses [sentence-transformers](https://www.sbert.net/) for semantic search:
-
-- **Model**: `all-MiniLM-L6-v2` (80MB)
-- **Vector Size**: 384 dimensions
-- **Search Method**: Cosine similarity
-- **Performance**: Sub-second searches on 10,000+ items
-
-The better your item descriptions, the better the search results!
-
-## Contributing
-
-Contributions welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+See **[DEVELOPER.md](DEVELOPER.md)** for:
+- Development branch access
+- Architecture overview
+- API endpoints
+- Database schema
+- Contributing guidelines
+- Troubleshooting
 
 ## License
 
