@@ -214,7 +214,8 @@ install_byo_certs() {
     sudo chmod 644 "$CERT_FILE"
     sudo chmod 600 "$KEY_FILE"
     
-    # DO NOT create marker file (marks as custom cert)
+    # Remove any old marker file (marks as custom cert - NOT auto-generated)
+    sudo rm -f "$MARKER_FILE"
     
     # Get certificate info
     CERT_SUBJECT=$(openssl x509 -in "$CERT_FILE" -noout -subject 2>/dev/null | sed 's/subject=//')
