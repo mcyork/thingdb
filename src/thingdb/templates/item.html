@@ -748,6 +748,30 @@
             <p style="margin-top: 8px; font-size: 12px; color: #999;">Start typing to search for items by name. Select the container you want to move this item into.</p>
         </div>
     </div>
+    
+    <!-- QR Code Label -->
+    <div class="content-card">
+        <h2 class="section-title">QR Code Label</h2>
+        <p style="font-size: 13px; color: var(--text-light); margin-bottom: 12px;">
+            Scan this code to quickly access this item from your phone.
+        </p>
+        <div style="text-align: center; padding: 20px; background: var(--background-light); border-radius: 8px;">
+            <img src="/api/item/{{ guid }}/qr-code.png" 
+                 alt="QR Code for {{ item_data.item[1] or guid[:8] }}" 
+                 style="max-width: 200px; width: 100%; height: auto; border: 1px solid var(--border-color); border-radius: 4px; background: white; padding: 8px;">
+            <div style="margin-top: 8px; font-size: 12px; color: var(--text-light);">
+                {{ guid_display }} {% if item_data.item[1] %}{{ item_data.item[1] }}{% else %}Item # ______{% endif %}
+            </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px;">
+            <a href="/api/item/{{ guid }}/qr-code.png" download="qr_{{ guid[:8] }}.png" class="btn btn-secondary" style="text-decoration: none; text-align: center;">
+                📥 Download PNG
+            </a>
+            <a href="/api/item/{{ guid }}/qr-code.pdf" download class="btn btn-primary" style="text-decoration: none; text-align: center;">
+                📄 Download PDF Label
+            </a>
+        </div>
+    </div>
 </div>
 
 <!-- Fixed Action Bar -->

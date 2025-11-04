@@ -4,10 +4,11 @@ Handles item creation, editing, deletion, and relationship management
 """
 import json
 import os
-from flask import Blueprint, request, jsonify, redirect, url_for
+from flask import Blueprint, request, jsonify, redirect, url_for, send_file
 from thingdb.database import get_db_connection
 from thingdb.utils.helpers import is_valid_guid, validate_item_data, generate_guid
 from thingdb.services.embedding_service import generate_embedding
+from thingdb.services.qr_pdf_service import qr_pdf_service
 from thingdb.config import IMAGE_STORAGE_METHOD, IMAGE_DIR
 
 item_bp = Blueprint('item', __name__)
@@ -539,6 +540,70 @@ def delete_category(category_id):
         conn.close()
         
         return jsonify({"success": True, "deleted_category": category_name}), 200
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@item_bp.route('/api/item/<guid>/qr-code.png', methods=['GET'])
+def get_item_qr_png(guid):
+    """Serve QR code as PNG image for display on item page"""
+    try:
+        if not is_valid_guid(guid):
+            return jsonify({"success": False, "error": "Invalid GUID"}), 400
+        
+        # Get item name for label
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT item_name FROM items WHERE guid = %s', (guid,))
+        result = cursor.fetchone()
+        conn.close()
+        
+        item_name = result[0] if result else None
+        
+        # Generate PNG
+        png_buffer = qr_pdf_service.generate_single_qr_png(guid, item_name)
+        
+        return send_file(
+            png_buffer,
+            mimetype='image/png',
+            as_attachment=False,
+            download_name=f'qr_{guid[:8]}.png'
+        )
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@item_bp.route('/api/item/<guid>/qr-code.pdf', methods=['GET'])
+def get_item_qr_pdf(guid):
+    """Download QR code as PDF label for printing"""
+    try:
+        if not is_valid_guid(guid):
+            return jsonify({"success": False, "error": "Invalid GUID"}), 400
+        
+        # Get item name for label
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT item_name FROM items WHERE guid = %s', (guid,))
+        result = cursor.fetchone()
+        conn.close()
+        
+        item_name = result[0] if result else None
+        
+        # Generate PDF
+        pdf_buffer = qr_pdf_service.generate_single_qr_pdf(guid, item_name)
+        
+        # Create filename
+        safe_name = item_name.replace(' ', '_') if item_name else guid[:8]
+        filename = f'qr_label_{safe_name}.pdf'
+        
+        return send_file(
+            pdf_buffer,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='application/pdf'
+        )
         
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
