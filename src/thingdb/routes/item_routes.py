@@ -564,8 +564,17 @@ def get_item_qr_png(guid):
         # Generate PNG
         png_buffer = qr_pdf_service.generate_single_qr_png(guid, item_name)
         
+        # Read into bytes to prevent buffer issues
+        png_bytes = png_buffer.read()
+        png_buffer.close()
+        
+        # Create new buffer with the bytes
+        import io
+        final_buffer = io.BytesIO(png_bytes)
+        final_buffer.seek(0)
+        
         return send_file(
-            png_buffer,
+            final_buffer,
             mimetype='image/png',
             as_attachment=False,
             download_name=f'qr_{guid[:8]}.png'
@@ -594,12 +603,21 @@ def get_item_qr_pdf(guid):
         # Generate PDF
         pdf_buffer = qr_pdf_service.generate_single_qr_pdf(guid, item_name)
         
+        # Read into bytes to prevent buffer issues
+        pdf_bytes = pdf_buffer.read()
+        pdf_buffer.close()
+        
+        # Create new buffer with the bytes
+        import io
+        final_buffer = io.BytesIO(pdf_bytes)
+        final_buffer.seek(0)
+        
         # Create filename
         safe_name = item_name.replace(' ', '_') if item_name else guid[:8]
         filename = f'qr_label_{safe_name}.pdf'
         
         return send_file(
-            pdf_buffer,
+            final_buffer,
             as_attachment=True,
             download_name=filename,
             mimetype='application/pdf'
