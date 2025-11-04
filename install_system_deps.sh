@@ -102,6 +102,15 @@ setup_postgresql() {
         fi
     fi
     
+    # Get password from .env if it exists, or use default for upgrades
+    if [ -f .env ]; then
+        # Extract password from existing .env
+        DB_PASSWORD=$(grep "^POSTGRES_PASSWORD=" .env | cut -d'=' -f2)
+    else
+        # Generate new password (will be created in .env later)
+        DB_PASSWORD="thingdb_default_pass"
+    fi
+    
     # Create database and user
     echo "Creating ThingDB database and user..."
     echo ""
@@ -112,7 +121,13 @@ setup_postgresql() {
     else
         # Linux uses postgres user
         sudo -u postgres psql -c "CREATE DATABASE thingdb;" 2>/dev/null || echo "Database 'thingdb' may already exist"
-        sudo -u postgres psql -c "CREATE USER thingdb WITH PASSWORD 'thingdb_default_pass';" 2>/dev/null || echo "User 'thingdb' may already exist"
+        sudo -u postgres psql -c "CREATE USER thingdb WITH PASSWORD '${DB_PASSWORD}';" 2>/dev/null || echo "User 'thingdb' may already exist"
+        
+        # If user exists, update password to match .env
+        if [ -f .env ]; then
+            sudo -u postgres psql -c "ALTER USER thingdb WITH PASSWORD '${DB_PASSWORD}';" 2>/dev/null || true
+        fi
+        
         sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE thingdb TO thingdb;" 2>/dev/null || true
         sudo -u postgres psql -c "ALTER DATABASE thingdb OWNER TO thingdb;" 2>/dev/null || true
         # PostgreSQL 15+ requires explicit schema permissions
@@ -122,13 +137,6 @@ setup_postgresql() {
     
     echo ""
     echo -e "${GREEN}✓${NC} PostgreSQL database configured!"
-    echo ""
-    echo -e "${YELLOW}⚠${NC}  Default database credentials:"
-    echo "    Database: thingdb"
-    echo "    User: thingdb"
-    echo "    Password: thingdb_default_pass"
-    echo ""
-    echo "    ${RED}CHANGE THIS PASSWORD IN PRODUCTION!${NC}"
 }
 
 # Setup systemd service
@@ -162,26 +170,43 @@ setup_systemd_service() {
     echo "  sudo systemctl start thingdb"
 }
 
+# Generate secure random secrets
+generate_secret_key() {
+    # 64 bytes = 128 hex characters for Flask SECRET_KEY
+    openssl rand -hex 64
+}
+
+generate_db_password() {
+    # 32 character alphanumeric password (safe for PostgreSQL)
+    openssl rand -base64 32 | tr -d '/+=' | head -c 32
+}
+
 # Create .env file if it doesn't exist
 create_env_file() {
     if [ ! -f .env ]; then
         echo ""
+        echo "🔐 Generating secure secrets..."
+        
+        # Generate unique secrets for this installation
+        SECRET_KEY=$(generate_secret_key)
+        DB_PASSWORD=$(generate_db_password)
+        
         echo "📝 Creating .env configuration file..."
         
-        cat > .env << 'EOF'
+        cat > .env << EOF
 # ThingDB Environment Configuration
-# IMPORTANT: Change these values for production!
+# Auto-generated on $(date)
 
 # Database Configuration
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
 POSTGRES_DB=thingdb
 POSTGRES_USER=thingdb
-POSTGRES_PASSWORD=thingdb_default_pass
+POSTGRES_PASSWORD=${DB_PASSWORD}
 
 # Flask Configuration
 FLASK_DEBUG=0
-SECRET_KEY=CHANGE_ME_TO_RANDOM_STRING
+SECRET_KEY=${SECRET_KEY}
 
 # Image Storage
 IMAGE_STORAGE_METHOD=filesystem
@@ -191,11 +216,17 @@ IMAGE_DIR=/var/lib/thingdb/images
 APP_VERSION=1.4.17
 EOF
         
-        echo -e "${GREEN}✓${NC} Created .env file"
-        echo -e "${YELLOW}⚠${NC}  Please edit .env and set a secure SECRET_KEY and POSTGRES_PASSWORD!"
+        echo -e "${GREEN}✓${NC} Created .env file with secure generated secrets"
+        echo ""
+        echo "🔐 Generated Secure Secrets:"
+        echo "   SECRET_KEY:         ✓ 128 characters (random hex)"
+        echo "   POSTGRES_PASSWORD:  ✓ 32 characters (random)"
+        echo ""
+        echo -e "${YELLOW}⚠${NC}  These secrets are stored in .env"
+        echo "   Keep a backup for disaster recovery!"
     else
         echo ""
-        echo -e "${GREEN}✓${NC} .env file already exists"
+        echo -e "${GREEN}✓${NC} .env file already exists (preserving existing secrets)"
     fi
 }
 

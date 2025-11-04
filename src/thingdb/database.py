@@ -33,9 +33,22 @@ def return_db_connection(conn):
         conn.close()
 
 def init_database():
-    """Initialize database tables and columns"""
+    """Initialize database tables and columns (idempotent - safe to run multiple times)"""
     conn = get_db_connection()
     cursor = conn.cursor()
+    
+    # Create schema version tracking table first
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS _schema_version (
+            version INTEGER PRIMARY KEY,
+            description TEXT,
+            applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Get current schema version
+    cursor.execute('SELECT COALESCE(MAX(version), 0) FROM _schema_version')
+    current_version = cursor.fetchone()[0]
     
     # Create items table
     cursor.execute('''
@@ -126,6 +139,15 @@ def init_database():
             created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    
+    # Record schema version if this is initial setup
+    if current_version == 0:
+        cursor.execute('''
+            INSERT INTO _schema_version (version, description)
+            VALUES (1, 'Initial schema with items, images, categories, qr_aliases')
+            ON CONFLICT (version) DO NOTHING
+        ''')
+        print("[DEBUG] Schema version 1 recorded (initial setup)")
     
     conn.commit()
     conn.close()
