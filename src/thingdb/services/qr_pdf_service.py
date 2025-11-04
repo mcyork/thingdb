@@ -194,6 +194,82 @@ class QRPDFService:
         pdf_buffer.seek(0)
         
         return pdf_buffer
+    
+    def generate_hierarchy_qr_sheet(self, items_data):
+        """
+        Generate multi-page PDF with QR codes for a container and its contents
+        items_data: List of dicts with 'guid', 'item_name', 'label_number'
+        """
+        # Create PDF in memory
+        pdf_buffer = io.BytesIO()
+        c = canvas.Canvas(pdf_buffer, pagesize=letter)
+        
+        total_items = len(items_data)
+        total_pages = (total_items + self.total_codes_per_page - 1) // self.total_codes_per_page
+        
+        for page_num in range(total_pages):
+            # Calculate items for this page
+            start_idx = page_num * self.total_codes_per_page
+            end_idx = min(start_idx + self.total_codes_per_page, total_items)
+            page_items = items_data[start_idx:end_idx]
+            
+            # Draw QR codes for this page
+            for i, item_data in enumerate(page_items):
+                row = i // self.codes_per_row
+                col = i % self.codes_per_row
+                
+                # Calculate position
+                x, y = self.calculate_position(row, col)
+                
+                # Create QR code image
+                qr_image = self.create_qr_code_image(item_data['guid'])
+                
+                # Draw QR code
+                c.drawImage(ImageReader(qr_image), x, y, 
+                           width=self.qr_size, height=self.qr_size)
+                
+                # Draw label below QR code
+                guid_display = self.get_guid_display(item_data['guid'])
+                item_name = item_data.get('item_name', '')
+                
+                # Format: "XX-XX Item Name" or "XX-XX #123 Item Name" if has label number
+                if item_data.get('label_number'):
+                    label_text = f"{guid_display} #{item_data['label_number']} {item_name}"
+                elif item_name:
+                    label_text = f"{guid_display} {item_name}"
+                else:
+                    label_text = f"{guid_display} Item # ______"
+                
+                # Truncate if too long (max ~30 chars for grid size)
+                if len(label_text) > 30:
+                    label_text = label_text[:27] + "..."
+                
+                label_x = x + self.qr_size / 2
+                label_y = y - 0.2 * inch
+                
+                c.setFont("Helvetica-Bold", 9)  # Slightly smaller for long names
+                text_width = c.stringWidth(label_text, "Helvetica-Bold", 9)
+                c.drawString(label_x - text_width/2, label_y, label_text)
+            
+            # Add page title
+            c.setFont("Helvetica-Bold", 16)
+            if total_pages > 1:
+                title_text = f"Container QR Codes - Page {page_num + 1} of {total_pages}"
+            else:
+                title_text = "Container QR Codes"
+            title_width = c.stringWidth(title_text, "Helvetica-Bold", 16)
+            c.drawString(self.page_width / 2 - title_width/2, self.page_height - 0.3 * inch, 
+                         title_text)
+            
+            # Add next page if needed
+            if page_num < total_pages - 1:
+                c.showPage()
+        
+        # Save PDF
+        c.save()
+        pdf_buffer.seek(0)
+        
+        return pdf_buffer
 
 
 # Global service instance

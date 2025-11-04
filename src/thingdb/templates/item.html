@@ -771,6 +771,20 @@
                 📄 Download PDF Label
             </button>
         </div>
+        
+        {% if item_data.contained_items and item_data.contained_items|length > 0 %}
+        <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color);">
+            <p style="font-size: 13px; color: var(--text-light); margin-bottom: 8px;">
+                This container has <strong>{{ item_data.contained_items|length }}</strong> item{{ 's' if item_data.contained_items|length != 1 else '' }} inside.
+            </p>
+            <button onclick="downloadContainerQRSheet()" class="btn btn-primary btn-block" id="container-qr-btn">
+                📦 Print All Container Labels ({{ item_data.contained_items|length + 1 }} QR codes)
+            </button>
+            <p style="font-size: 11px; color: var(--text-light); margin-top: 6px;">
+                Generates a {{ ((item_data.contained_items|length + 1) / 24)|round(0, 'ceil')|int }}-page PDF with this item + all contained items
+            </p>
+        </div>
+        {% endif %}
     </div>
 </div>
 
@@ -1509,6 +1523,47 @@ function downloadQRCode(format) {
         .catch(error => {
             console.error('Download error:', error);
             alert('Download failed. Please try again.');
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        });
+}
+
+// Download container QR sheet (parent + all children)
+function downloadContainerQRSheet() {
+    const btn = document.getElementById('container-qr-btn');
+    const originalHtml = btn.innerHTML;
+    
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Generating...';
+    
+    const url = `/api/item/{{ guid }}/container-qr-sheet.pdf`;
+    
+    fetch(url)
+        .then(response => {
+            if (!response.ok) throw new Error('Generation failed');
+            return response.blob();
+        })
+        .then(blob => {
+            // Create object URL and trigger download
+            const objectUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = objectUrl;
+            a.download = `qr_container_{{ item_data.item[1]|replace(" ", "_") or guid[:8] }}.pdf`;
+            
+            document.body.appendChild(a);
+            a.click();
+            
+            // Cleanup
+            setTimeout(() => {
+                window.URL.revokeObjectURL(objectUrl);
+                document.body.removeChild(a);
+            }, 100);
+        })
+        .catch(error => {
+            console.error('Download error:', error);
+            alert('Failed to generate container QR sheet. Please try again.');
         })
         .finally(() => {
             btn.disabled = false;

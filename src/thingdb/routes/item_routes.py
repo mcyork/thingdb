@@ -607,3 +607,71 @@ def get_item_qr_pdf(guid):
         
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@item_bp.route('/api/item/<guid>/container-qr-sheet.pdf', methods=['GET'])
+def get_container_qr_sheet(guid):
+    """Generate QR code sheet for this item + all items it contains"""
+    try:
+        if not is_valid_guid(guid):
+            return jsonify({"success": False, "error": "Invalid GUID"}), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get the parent item itself
+        cursor.execute('''
+            SELECT guid, item_name, label_number 
+            FROM items 
+            WHERE guid = %s
+        ''', (guid,))
+        parent = cursor.fetchone()
+        
+        if not parent:
+            conn.close()
+            return jsonify({"success": False, "error": "Item not found"}), 404
+        
+        # Get all items contained in this item (direct children only)
+        cursor.execute('''
+            SELECT guid, item_name, label_number 
+            FROM items 
+            WHERE parent_guid = %s
+            ORDER BY label_number ASC NULLS LAST, item_name ASC
+        ''', (guid,))
+        children = cursor.fetchall()
+        conn.close()
+        
+        # Build items list: parent first, then children
+        items_data = []
+        
+        # Add parent item first
+        items_data.append({
+            'guid': parent[0],
+            'item_name': parent[1] or f'Item {parent[0][:8]}',
+            'label_number': parent[2]
+        })
+        
+        # Add all children
+        for child in children:
+            items_data.append({
+                'guid': child[0],
+                'item_name': child[1] or f'Item {child[0][:8]}',
+                'label_number': child[2]
+            })
+        
+        # Generate multi-page PDF
+        pdf_buffer = qr_pdf_service.generate_hierarchy_qr_sheet(items_data)
+        pdf_data = pdf_buffer.read()
+        
+        # Create filename
+        parent_name = parent[1].replace(' ', '_') if parent[1] else guid[:8]
+        filename = f'qr_container_{parent_name}_{len(items_data)}_labels.pdf'
+        
+        # Return PDF
+        response = Response(pdf_data, mimetype='application/pdf')
+        response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response.headers['Content-Length'] = len(pdf_data)
+        return response
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
