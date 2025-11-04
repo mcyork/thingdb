@@ -29,7 +29,7 @@ This downloads, installs, and starts ThingDB with HTTPS automatically. **Tested 
 
 **⚠️ Pi Zero 2 W:** Installs successfully but has significant memory limitations (512MB RAM). The ML semantic search features consume too much memory for long-term functionality. **Recommended: Pi 4 or Pi 5** with 2GB+ RAM.
 
-**Alternative:** Use Docker - see [INSTALL.md](INSTALL.md) for Docker Compose setup.
+**🐳 Docker:** Docker Compose configuration available but not yet tested. See [INSTALL.md](INSTALL.md) for Docker setup.
 
 **See [INSTALL.md](INSTALL.md) for other installation options** (manual install, Docker, development setup, etc.)
 
@@ -98,9 +98,9 @@ The service automatically:
 - **Disk Space**: ~2GB (includes ML models)
 - **Recommended Hardware**: Raspberry Pi 4 or Pi 5 (2GB+ RAM)
 - **Tested Platforms**: 
-  - ✅ Raspberry Pi 5 (recommended)
-  - ⚠️ Pi Zero 2 W (installs but limited by 512MB RAM - not suitable for ML features)
-- **Docker**: Alternative deployment option (see [INSTALL.md](INSTALL.md))
+  - ✅ Raspberry Pi 5 (fully tested, recommended)
+  - ⚠️ Pi Zero 2 W (installs but 512MB RAM insufficient for ML features)
+  - 🐳 Docker (configuration available, not yet tested)
 
 ### Automatic Installation
 The `install_system_deps.sh` script handles all system dependencies automatically.
