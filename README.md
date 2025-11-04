@@ -1,6 +1,6 @@
 # ThingDB - Smart Inventory Management
 
-A powerful, searchable inventory system with semantic search, image support, and hierarchical organization.
+A powerful, searchable inventory system with semantic search, image support, and hierarchical organization. **Designed for Raspberry Pi 5.** 🐳 Docker coming soon.
 
 ## Features
 
