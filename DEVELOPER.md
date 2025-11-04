@@ -34,9 +34,9 @@ cd thingdb-dev
 ### Workflow
 
 1. All development happens on `dev`
-2. Features are tested thoroughly
-3. When stable, `dev` is merged to `main`
-4. Users get stable, tested code from `main`
+2. Features are tested haphazardly
+3. When stable enough, `dev` is merged to `main`
+4. Users get stable, mostly-tested code from `main`
 
 ---
 
@@ -228,14 +228,14 @@ When you update item descriptions:
    - Creates Python virtual environment
    - Installs dependencies (PyTorch, Flask, etc.)
    - Initializes database schema
-   - Sets up systemd service
-   - Generates SSL certificates
+   - Sets up systemd service (HTTP mode initially)
+   - Calls `setup_ssl.sh` to enable HTTPS
 
-3. **HTTPS Setup** (`setup_ssl.sh`)
-   - Generates self-signed SSL certificate (365 days)
-   - Updates service to use Gunicorn with SSL
+3. **HTTPS Setup** (`setup_ssl.sh`) - Called by install.sh
+   - Generates self-signed SSL certificate (365 days valid)
+   - Updates service file to use Gunicorn with SSL
    - Preserves existing custom certificates
-   - Smart regeneration (only when needed)
+   - Smart regeneration (only when needed - <30 days or upgrade)
 
 ### Idempotent Installation
 
