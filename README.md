@@ -191,59 +191,6 @@ thingdb/
 - **categories**: Tags and categories
 - **embeddings**: Semantic search vectors
 
-## Development
-
-### Running Tests
-
-```bash
-# Test the application
-python -m pytest tests/
-
-# Check linting
-flake8 src/
-
-# Type checking
-mypy src/
-```
-
-### Building for Production
-
-```bash
-# Build Docker image
-docker build -f docker/Dockerfile -t thingdb:latest .
-
-# Run production
-docker-compose -f docker/docker-compose-prod.yml up -d
-```
-
-## API Endpoints
-
-### Items
-
-- `GET /` - Home page with item list
-- `GET /item/<guid>` - Item detail page
-- `POST /api/create-item` - Create new item
-- `PUT /api/update-item/<guid>` - Update item
-- `DELETE /api/delete-item/<guid>` - Delete item
-
-### Search
-
-- `GET /api/search?q=<query>` - Semantic search
-- `GET /api/search?traditional=<query>` - Traditional search
-
-### Images
-
-- `POST /api/upload-image` - Upload item image
-- `GET /api/image/<guid>` - Get full image
-- `GET /api/thumbnail/<guid>` - Get thumbnail
-
-### Admin
-
-- `GET /admin` - Admin panel
-- `POST /api/reindex-embeddings` - Regenerate search indexes
-- `POST /api/optimize-database` - Database maintenance
-- `GET /backup` - Backup management
-
 ## Semantic Search
 
 ThingDB uses [sentence-transformers](https://www.sbert.net/) for semantic search:
@@ -274,15 +221,6 @@ MIT License - see LICENSE file for details
 - **Issues**: [GitHub Issues](https://github.com/mcyork/thingdb/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/mcyork/thingdb/discussions)
 
-## Roadmap
-
-- [ ] PyPI package distribution (`pip install thingdb`)
-- [ ] Mobile app (iOS/Android)
-- [ ] Multi-user support
-- [ ] Advanced reporting
-- [ ] Import/Export (CSV, JSON)
-- [ ] API authentication
-- [ ] Barcode support
 
 ---
 
