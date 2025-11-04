@@ -4,7 +4,7 @@ Handles item creation, editing, deletion, and relationship management
 """
 import json
 import os
-from flask import Blueprint, request, jsonify, redirect, url_for, send_file
+from flask import Blueprint, request, jsonify, redirect, url_for, send_file, Response
 from thingdb.database import get_db_connection
 from thingdb.utils.helpers import is_valid_guid, validate_item_data, generate_guid
 from thingdb.services.embedding_service import generate_embedding
@@ -563,22 +563,13 @@ def get_item_qr_png(guid):
         
         # Generate PNG
         png_buffer = qr_pdf_service.generate_single_qr_png(guid, item_name)
+        png_data = png_buffer.read()
         
-        # Read into bytes to prevent buffer issues
-        png_bytes = png_buffer.read()
-        png_buffer.close()
-        
-        # Create new buffer with the bytes
-        import io
-        final_buffer = io.BytesIO(png_bytes)
-        final_buffer.seek(0)
-        
-        return send_file(
-            final_buffer,
-            mimetype='image/png',
-            as_attachment=False,
-            download_name=f'qr_{guid[:8]}.png'
-        )
+        # Use Response instead of send_file (same as image serving)
+        response = Response(png_data, mimetype='image/png')
+        response.headers['Content-Disposition'] = f'inline; filename="qr_{guid[:8]}.png"'
+        response.headers['Cache-Control'] = 'public, max-age=3600'
+        return response
         
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -602,26 +593,17 @@ def get_item_qr_pdf(guid):
         
         # Generate PDF
         pdf_buffer = qr_pdf_service.generate_single_qr_pdf(guid, item_name)
-        
-        # Read into bytes to prevent buffer issues
-        pdf_bytes = pdf_buffer.read()
-        pdf_buffer.close()
-        
-        # Create new buffer with the bytes
-        import io
-        final_buffer = io.BytesIO(pdf_bytes)
-        final_buffer.seek(0)
+        pdf_data = pdf_buffer.read()
         
         # Create filename
         safe_name = item_name.replace(' ', '_') if item_name else guid[:8]
         filename = f'qr_label_{safe_name}.pdf'
         
-        return send_file(
-            final_buffer,
-            as_attachment=True,
-            download_name=filename,
-            mimetype='application/pdf'
-        )
+        # Use Response with attachment header (same pattern as images)
+        response = Response(pdf_data, mimetype='application/pdf')
+        response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response.headers['Content-Length'] = len(pdf_data)
+        return response
         
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
