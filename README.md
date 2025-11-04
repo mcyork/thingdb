@@ -13,9 +13,7 @@ A powerful, searchable inventory system with semantic search, image support, and
 - 📊 **Statistics** - View insights about your inventory
 - 🐳 **Docker Ready** - Easy deployment with Docker Compose
 
-## Quick Start
-
-### ⚡ Super Quick Install (One Command!)
+## Super Quick Install (One Command!)
 
 ```bash
 wget -qO- https://raw.githubusercontent.com/mcyork/thingdb/main/bootstrap.sh | bash
@@ -32,25 +30,6 @@ This downloads, installs, and starts ThingDB with HTTPS automatically. **Tested 
 **🐳 Docker:** Docker Compose configuration available but not yet tested. See [INSTALL.md](INSTALL.md) for Docker setup.
 
 **See [INSTALL.md](INSTALL.md) for other installation options** (manual install, Docker, development setup, etc.)
-
----
-
-## Requirements
-
-### System Requirements
-- **Python**: 3.9-3.13
-- **PostgreSQL**: 12+
-- **RAM**: 2GB minimum (4GB recommended for ML features)
-- **Disk Space**: ~2GB (includes ML models)
-- **Recommended Hardware**: Raspberry Pi 4 or Pi 5 (2GB+ RAM)
-- **Tested Platforms**: 
-  - ✅ Raspberry Pi 5 (fully tested, recommended)
-  - ⚠️ Pi Zero 2 W (installs but 512MB RAM insufficient for ML features)
-  - 🐳 Docker (configuration available, not yet tested)
-
-### Automatic Installation
-The `install_system_deps.sh` script handles all system dependencies automatically.
-No manual PostgreSQL setup required!
 
 ---
 
@@ -81,6 +60,20 @@ No manual PostgreSQL setup required!
 - Visit the **Admin Panel** → **Backup & Restore**
 - Create backups before major changes
 - Restore from previous backups if needed
+
+---
+
+## System Requirements
+
+- **Python**: 3.9-3.13
+- **PostgreSQL**: 12+
+- **RAM**: 2GB minimum (4GB recommended for ML features)
+- **Disk Space**: ~2GB (includes ML models)
+- **Recommended Hardware**: Raspberry Pi 4 or Pi 5 (2GB+ RAM)
+- **Tested Platforms**: 
+  - ✅ Raspberry Pi 5 (fully tested, recommended)
+  - ⚠️ Pi Zero 2 W (installs but 512MB RAM insufficient for ML features)
+  - 🐳 Docker (configuration available, not yet tested)
 
 ---
 

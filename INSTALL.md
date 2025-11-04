@@ -133,13 +133,103 @@ The installer generates a self-signed SSL certificate, which enables:
 
 **Already configured!** Just access `https://YOUR_IP:5000`
 
-### Manual SSL Setup (if needed)
+### Bring Your Own Certificate (BYO)
 
-If you need to regenerate certificates:
+Want to use a certificate from **Let's Encrypt**, your company's **internal PKI**, or a **commercial CA** instead of self-signed? Easy!
+
+#### Step 1: Prepare Your Certificates
+
+You need two files:
+
+1. **cert.pem** - Your certificate + intermediate CA chain (concatenated)
+   ```bash
+   # Let's Encrypt example:
+   cat fullchain.pem > cert.pem
+   
+   # Or from separate files:
+   cat your-cert.pem intermediate-ca.pem > cert.pem
+   ```
+
+2. **key.pem** - Your unencrypted private key
+   ```bash
+   # Copy your private key
+   cp privkey.pem key.pem
+   
+   # If encrypted, decrypt it first:
+   openssl rsa -in encrypted-key.pem -out key.pem
+   ```
+
+#### Step 2: Place Certificates in Staging Directory
+
+```bash
+# Create staging directory
+sudo mkdir -p /var/lib/thingdb/certs
+
+# Copy your certificates
+sudo cp cert.pem /var/lib/thingdb/certs/
+sudo cp key.pem /var/lib/thingdb/certs/
+
+# Verify files are there
+ls -la /var/lib/thingdb/certs/
+```
+
+#### Step 3: Run SSL Setup
 
 ```bash
 cd /var/lib/thingdb/app
 sudo ./setup_ssl.sh
+```
+
+**What happens:**
+- ✅ Validates your certificates
+- ✅ Checks cert and key match
+- ✅ Installs to `/var/lib/thingdb/ssl/` with secure permissions
+- ✅ Updates service to use your certificates
+- ✅ Cleans up staging directory
+- ✅ Restarts ThingDB with HTTPS
+
+**Your certificate is now active!** Browsers will trust it (if your CA is trusted).
+
+#### Certificate Renewal
+
+When your certificate needs renewal (Let's Encrypt renews every 90 days):
+
+```bash
+# 1. Get new certificate from your CA
+# 2. Place in staging directory
+sudo cp new-fullchain.pem /var/lib/thingdb/certs/cert.pem
+sudo cp new-privkey.pem /var/lib/thingdb/certs/key.pem
+
+# 3. Run setup (same command)
+cd /var/lib/thingdb/app
+sudo ./setup_ssl.sh
+
+# Done! New certificate installed automatically
+```
+
+#### Let's Encrypt Example
+
+```bash
+# Assuming you have certbot installed and certs obtained
+sudo mkdir -p /var/lib/thingdb/certs
+sudo cp /etc/letsencrypt/live/yourdomain.com/fullchain.pem /var/lib/thingdb/certs/cert.pem
+sudo cp /etc/letsencrypt/live/yourdomain.com/privkey.pem /var/lib/thingdb/certs/key.pem
+
+cd /var/lib/thingdb/app
+sudo ./setup_ssl.sh
+```
+
+**No browser warnings, trusted by all devices!** 🎉
+
+---
+
+### Manual SSL Setup (Self-Signed)
+
+If you need to regenerate self-signed certificates:
+
+```bash
+cd /var/lib/thingdb/app
+sudo ./setup_ssl.sh --force
 ```
 
 ---
