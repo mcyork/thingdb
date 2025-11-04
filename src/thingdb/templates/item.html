@@ -767,9 +767,17 @@
             <button onclick="downloadQRCode('png')" class="btn btn-secondary" id="download-png-btn">
                 📥 Download PNG
             </button>
-            <button onclick="downloadQRCode('pdf')" class="btn btn-primary" id="download-pdf-btn">
+            <button onclick="downloadQRCode('pdf')" class="btn btn-secondary" id="download-pdf-btn">
                 📄 Download PDF
             </button>
+        </div>
+        <div style="margin-top: 8px;">
+            <button onclick="downloadFullLabel()" class="btn btn-primary btn-block" id="download-label-btn">
+                📋 Download Full Item Label
+            </button>
+            <p style="font-size: 11px; color: var(--text-light); margin-top: 4px; text-align: center;">
+                Half-page label with photo, description, location, and QR code
+            </p>
         </div>
         
         {% if item_data.contained_items and item_data.contained_items|length > 0 %}
@@ -1560,6 +1568,49 @@ function updateContainerQRCount() {
         })
         .catch(error => {
             console.error('Count error:', error);
+        });
+}
+
+// Download full item label (comprehensive half-page)
+function downloadFullLabel() {
+    const btn = document.getElementById('download-label-btn');
+    const originalHtml = btn.innerHTML;
+    
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Generating...';
+    
+    const url = `/api/item/{{ guid }}/full-label.pdf`;
+    
+    fetch(url)
+        .then(response => {
+            if (!response.ok) throw new Error('Generation failed');
+            return response.blob();
+        })
+        .then(blob => {
+            // Create object URL and trigger download
+            const objectUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = objectUrl;
+            
+            const itemName = '{{ item_data.item[1]|replace(" ", "_") }}' || '{{ guid[:8] }}';
+            a.download = `label_${itemName}.pdf`;
+            
+            document.body.appendChild(a);
+            a.click();
+            
+            // Cleanup
+            setTimeout(() => {
+                window.URL.revokeObjectURL(objectUrl);
+                document.body.removeChild(a);
+            }, 100);
+        })
+        .catch(error => {
+            console.error('Download error:', error);
+            alert('Failed to generate label. Please try again.');
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
         });
 }
 

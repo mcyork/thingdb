@@ -4,6 +4,7 @@ Generates PDF sheets with QR codes for inventory items
 """
 import uuid
 import io
+import os
 import qrcode
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
@@ -264,6 +265,131 @@ class QRPDFService:
             # Add next page if needed
             if page_num < total_pages - 1:
                 c.showPage()
+        
+        # Save PDF
+        c.save()
+        pdf_buffer.seek(0)
+        
+        return pdf_buffer
+    
+    def generate_item_label(self, item_data, breadcrumbs=None, photos=None, tags=None):
+        """
+        Generate a comprehensive half-page item label (8.5" x 5.5")
+        item_data: dict with 'guid', 'item_name', 'description', 'label_number'
+        breadcrumbs: list of parent names for location trail
+        photos: list of image file paths (up to 3)
+        tags: list of category names
+        """
+        # Create PDF in memory (landscape half-page)
+        pdf_buffer = io.BytesIO()
+        label_width = 8.5 * inch
+        label_height = 5.5 * inch
+        c = canvas.Canvas(pdf_buffer, pagesize=(label_width, label_height))
+        
+        # Layout parameters
+        margin = 0.3 * inch
+        qr_size = 2 * inch
+        
+        # QR code in upper right
+        qr_x = label_width - margin - qr_size
+        qr_y = label_height - margin - qr_size
+        qr_image = self.create_qr_code_image(item_data['guid'])
+        c.drawImage(ImageReader(qr_image), qr_x, qr_y, 
+                   width=qr_size, height=qr_size)
+        
+        # Item number (BIG and prominent - upper left if exists)
+        current_y = label_height - margin - 0.2 * inch
+        if item_data.get('label_number'):
+            c.setFont("Helvetica-Bold", 48)
+            item_num_text = f"#{item_data['label_number']}"
+            c.drawString(margin, current_y - 0.5 * inch, item_num_text)
+            current_y -= 0.7 * inch
+        
+        # Item name (large, bold)
+        c.setFont("Helvetica-Bold", 18)
+        item_name = item_data.get('item_name', 'Untitled Item')
+        # Wrap long names
+        if len(item_name) > 40:
+            item_name = item_name[:37] + "..."
+        c.drawString(margin, current_y, item_name)
+        current_y -= 0.25 * inch
+        
+        # Breadcrumb trail (location)
+        if breadcrumbs and len(breadcrumbs) > 0:
+            c.setFont("Helvetica", 10)
+            location_text = "📍 Location: " + " → ".join(breadcrumbs)
+            if len(location_text) > 90:
+                location_text = location_text[:87] + "..."
+            c.drawString(margin, current_y, location_text)
+            current_y -= 0.2 * inch
+        
+        # Separator line
+        c.setLineWidth(0.5)
+        c.line(margin, current_y, label_width - margin, current_y)
+        current_y -= 0.25 * inch
+        
+        # Description (wrapped)
+        if item_data.get('description'):
+            c.setFont("Helvetica", 10)
+            desc = item_data['description']
+            # Simple word wrapping
+            max_width = label_width - 2 * margin - (qr_size + 0.2 * inch)  # Leave space for QR
+            words = desc.split()
+            lines = []
+            current_line = ""
+            
+            for word in words:
+                test_line = current_line + word + " "
+                if c.stringWidth(test_line, "Helvetica", 10) < max_width:
+                    current_line = test_line
+                else:
+                    if current_line:
+                        lines.append(current_line.strip())
+                    current_line = word + " "
+            if current_line:
+                lines.append(current_line.strip())
+            
+            # Draw up to 4 lines of description
+            for line in lines[:4]:
+                c.drawString(margin, current_y, line)
+                current_y -= 0.15 * inch
+            
+            if len(lines) > 4:
+                c.drawString(margin, current_y, "...")
+                current_y -= 0.15 * inch
+            
+            current_y -= 0.1 * inch
+        
+        # Photos (up to 3 thumbnails, 1" each)
+        if photos and len(photos) > 0:
+            photo_size = 1 * inch
+            photo_y = current_y - photo_size
+            
+            for i, photo_path in enumerate(photos[:3]):
+                if photo_path and os.path.exists(photo_path):
+                    try:
+                        photo_x = margin + i * (photo_size + 0.1 * inch)
+                        c.drawImage(photo_path, photo_x, photo_y, 
+                                  width=photo_size, height=photo_size, 
+                                  preserveAspectRatio=True, mask='auto')
+                    except:
+                        pass  # Skip if image can't be loaded
+            
+            current_y = photo_y - 0.2 * inch
+        
+        # Tags at bottom
+        if tags and len(tags) > 0:
+            c.setFont("Helvetica", 9)
+            tags_text = "🏷️ " + " • ".join([f"#{tag}" for tag in tags[:8]])
+            if len(tags_text) > 100:
+                tags_text = tags_text[:97] + "..."
+            c.drawString(margin, current_y, tags_text)
+            current_y -= 0.2 * inch
+        
+        # GUID at bottom
+        c.setFont("Helvetica", 8)
+        guid_text = f"GUID: {self.get_guid_display(item_data['guid'])} • {item_data['guid']}"
+        c.drawString(margin, margin, guid_text)
         
         # Save PDF
         c.save()

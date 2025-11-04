@@ -10,6 +10,7 @@ from thingdb.utils.helpers import is_valid_guid, validate_item_data, generate_gu
 from thingdb.services.embedding_service import generate_embedding
 from thingdb.services.qr_pdf_service import qr_pdf_service
 from thingdb.config import IMAGE_STORAGE_METHOD, IMAGE_DIR
+from thingdb.database import return_db_connection
 
 item_bp = Blueprint('item', __name__)
 
@@ -739,6 +740,103 @@ def get_container_qr_sheet(guid):
         parent_name = parent[1].replace(' ', '_') if parent[1] else guid[:8]
         suffix = 'all' if recursive else 'direct'
         filename = f'qr_container_{parent_name}_{len(items_data)}_labels_{suffix}.pdf'
+        
+        # Return PDF
+        response = Response(pdf_data, mimetype='application/pdf')
+        response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response.headers['Content-Length'] = len(pdf_data)
+        return response
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@item_bp.route('/api/item/<guid>/full-label.pdf', methods=['GET'])
+def get_item_full_label(guid):
+    """Generate comprehensive half-page item label with all details"""
+    try:
+        if not is_valid_guid(guid):
+            return jsonify({"success": False, "error": "Invalid GUID"}), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get item data
+        cursor.execute('''
+            SELECT guid, item_name, description, label_number, parent_guid
+            FROM items 
+            WHERE guid = %s
+        ''', (guid,))
+        item = cursor.fetchone()
+        
+        if not item:
+            conn.close()
+            return jsonify({"success": False, "error": "Item not found"}), 404
+        
+        item_data = {
+            'guid': item[0],
+            'item_name': item[1],
+            'description': item[2],
+            'label_number': item[3]
+        }
+        parent_guid = item[4]
+        
+        # Get breadcrumb trail
+        breadcrumbs = []
+        if parent_guid:
+            current_guid = parent_guid
+            max_depth = 10
+            depth = 0
+            
+            while current_guid and depth < max_depth:
+                cursor.execute('SELECT item_name, parent_guid FROM items WHERE guid = %s', (current_guid,))
+                result = cursor.fetchone()
+                if result:
+                    breadcrumbs.insert(0, result[0] or 'Untitled')
+                    current_guid = result[1]
+                    depth += 1
+                else:
+                    break
+        
+        # Get photos (up to 3 thumbnails)
+        photos = []
+        if IMAGE_STORAGE_METHOD == 'filesystem':
+            cursor.execute('''
+                SELECT thumbnail_path 
+                FROM images 
+                WHERE item_guid = %s 
+                ORDER BY is_primary DESC, upload_date ASC
+                LIMIT 3
+            ''', (guid,))
+            photo_results = cursor.fetchall()
+            for photo_result in photo_results:
+                if photo_result[0]:
+                    full_path = os.path.join(IMAGE_DIR, photo_result[0])
+                    photos.append(full_path)
+        
+        # Get tags
+        cursor.execute('''
+            SELECT category_name 
+            FROM categories 
+            WHERE item_guid = %s
+            ORDER BY category_name
+        ''', (guid,))
+        tags = [row[0] for row in cursor.fetchall()]
+        
+        conn.close()
+        
+        # Generate PDF label
+        pdf_buffer = qr_pdf_service.generate_item_label(
+            item_data=item_data,
+            breadcrumbs=breadcrumbs,
+            photos=photos,
+            tags=tags
+        )
+        pdf_data = pdf_buffer.read()
+        
+        # Create filename
+        safe_name = item_data['item_name'].replace(' ', '_') if item_data['item_name'] else guid[:8]
+        filename = f'label_{safe_name}.pdf'
         
         # Return PDF
         response = Response(pdf_data, mimetype='application/pdf')
