@@ -764,12 +764,12 @@
             </div>
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px;">
-            <a href="/api/item/{{ guid }}/qr-code.png" download="qr_{{ guid[:8] }}.png" class="btn btn-secondary" style="text-decoration: none; text-align: center;">
+            <button onclick="downloadQRCode('png')" class="btn btn-secondary" id="download-png-btn">
                 📥 Download PNG
-            </a>
-            <a href="/api/item/{{ guid }}/qr-code.pdf" download class="btn btn-primary" style="text-decoration: none; text-align: center;">
+            </button>
+            <button onclick="downloadQRCode('pdf')" class="btn btn-primary" id="download-pdf-btn">
                 📄 Download PDF Label
-            </a>
+            </button>
         </div>
     </div>
 </div>
@@ -1466,6 +1466,55 @@ function associateWithItem(targetGuid) {
     });
 }
 {% endif %}
+
+// Download QR code (PNG or PDF)
+function downloadQRCode(format) {
+    const btnId = format === 'png' ? 'download-png-btn' : 'download-pdf-btn';
+    const btn = document.getElementById(btnId);
+    const originalHtml = btn.innerHTML;
+    
+    btn.disabled = true;
+    btn.innerHTML = 'Downloading...';
+    
+    const url = `/api/item/{{ guid }}/qr-code.${format}`;
+    
+    fetch(url)
+        .then(response => {
+            if (!response.ok) throw new Error('Download failed');
+            return response.blob();
+        })
+        .then(blob => {
+            // Create object URL and trigger download
+            const objectUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = objectUrl;
+            
+            // Get filename
+            const itemName = '{{ item_data.item[1]|replace(" ", "_") }}' || '{{ guid[:8] }}';
+            if (format === 'png') {
+                a.download = `qr_${itemName}.png`;
+            } else {
+                a.download = `qr_label_${itemName}.pdf`;
+            }
+            
+            document.body.appendChild(a);
+            a.click();
+            
+            // Cleanup
+            setTimeout(() => {
+                window.URL.revokeObjectURL(objectUrl);
+                document.body.removeChild(a);
+            }, 100);
+        })
+        .catch(error => {
+            console.error('Download error:', error);
+            alert('Download failed. Please try again.');
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        });
+}
 
 </script>
 {% endblock %}
