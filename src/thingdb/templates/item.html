@@ -768,7 +768,7 @@
                 📥 Download PNG
             </button>
             <button onclick="downloadQRCode('pdf')" class="btn btn-primary" id="download-pdf-btn">
-                📄 Download PDF Label
+                📄 Download PDF
             </button>
         </div>
         
@@ -786,7 +786,7 @@
             </div>
             
             <button onclick="downloadContainerQRSheet()" class="btn btn-primary btn-block" id="container-qr-btn">
-                📦 <span id="container-qr-text">Print Container Labels ({{ item_data.contained_items|length + 1 }} codes)</span>
+                📦 <span id="container-qr-text">Print Container QR Codes ({{ item_data.contained_items|length + 1 }} codes)</span>
             </button>
             <p style="font-size: 11px; color: var(--text-light); margin-top: 6px;" id="container-qr-info">
                 <span id="page-count">{{ ((item_data.contained_items|length + 1) / 24)|round(0, 'ceil')|int }}</span>-page PDF with this item + direct children
@@ -1552,7 +1552,7 @@ function updateContainerQRCount() {
                 const pages = Math.ceil(total / 24);
                 
                 document.getElementById('container-qr-text').textContent = 
-                    `Print Container Labels (${total} code${total !== 1 ? 's' : ''})`;
+                    `Print Container QR Codes (${total} code${total !== 1 ? 's' : ''})`;
                 document.getElementById('page-count').textContent = pages;
                 document.getElementById('container-qr-info').innerHTML = 
                     `${pages}-page PDF with this item + ${recursive ? 'all nested items' : 'direct children'}`;
