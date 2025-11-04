@@ -41,15 +41,15 @@
    - ✅ Generates unique 32-char POSTGRES_PASSWORD
    - ✅ No more default shared secrets!
 
-### 📝 Known Limitations
+### 📝 ~~Known Limitations~~ FIXED!
 
-1. **SSL Upgrade from main → dev**
-   - main branch: HTTP-only service file
-   - dev branch: HTTPS-ready service file
-   - **Issue**: SSL setup skips if certs exist without marker
-   - **Result**: Service file not upgraded to HTTPS
-   - **Workaround**: Manual `sudo ./setup_ssl.sh` after upgrade
-   - **Impact**: Low (HTTP still works, HTTPS opt-in)
+1. **~~SSL Upgrade from main → dev~~** ✅ FIXED
+   - ~~main branch: HTTP-only service file~~
+   - ~~dev branch: HTTPS-ready service file~~
+   - ~~**Issue**: SSL setup skips if certs exist without marker~~
+   - ~~**Result**: Service file not upgraded to HTTPS~~
+   - **FIX**: Auto-detects upgrade scenario and regenerates certs
+   - **Status**: Fully automatic now!
 
 2. **Database Password Sync**
    - If PostgreSQL password gets out of sync with .env
@@ -68,15 +68,11 @@
 | INSTALL_INFO tracking | ✅ Pass | Version tracking works |
 | Idempotence (run twice) | ✅ Pass | Safe to run multiple times |
 | HTTP functionality | ✅ Pass | App works correctly |
-| HTTPS upgrade path | ⚠️ Partial | Manual step needed |
+| HTTPS upgrade path | ✅ Pass | Auto-detects and upgrades |
 
 ### 💡 Recommendations
 
-1. **For users upgrading from main to dev:**
-   - Run `cd /var/lib/thingdb/app && sudo ./setup_ssl.sh`
-   - This will add marker and enable HTTPS
-
-2. **For fresh installs:**
+1. **For fresh installs:**
    - Everything works perfectly out of the box
    - HTTPS enabled automatically
    - Unique secrets generated
@@ -88,6 +84,6 @@
 
 ### 🚀 Conclusion
 
-**Idempotent installation is working!** Safe to run multiple times, preserves data/config, and provides a solid upgrade path. The SSL upgrade limitation is minor and has a simple workaround.
+**Idempotent installation is working perfectly!** Safe to run multiple times, preserves data/config, provides a fully automatic upgrade path from main to dev including HTTPS.
 
 **Status: READY FOR PRODUCTION** ✅
