@@ -23,9 +23,11 @@ wget -qO- https://raw.githubusercontent.com/mcyork/thingdb/main/bootstrap.sh | b
 
 **That's it!** Visit `https://YOUR_IP:5000` 🎉
 
-This downloads, installs, and starts ThingDB with HTTPS automatically. Tested on **Raspberry Pi 5** and **Pi Zero 2 W**.
+This downloads, installs, and starts ThingDB with HTTPS automatically. **Tested on Raspberry Pi 5.**
 
 **Note:** You'll see a one-time certificate warning (self-signed cert) - just click through it.
+
+**⚠️ Pi Zero 2 W:** Installs successfully but has significant memory limitations (512MB RAM). The ML semantic search features consume too much memory for long-term functionality. **Recommended: Pi 4 or Pi 5** with 2GB+ RAM.
 
 **Alternative:** Use Docker - see [INSTALL.md](INSTALL.md) for Docker Compose setup.
 
@@ -94,7 +96,10 @@ The service automatically:
 - **PostgreSQL**: 12+
 - **RAM**: 2GB minimum (4GB recommended for ML features)
 - **Disk Space**: ~2GB (includes ML models)
-- **Tested Platforms**: Raspberry Pi 5, Pi Zero 2 W (Raspberry Pi OS)
+- **Recommended Hardware**: Raspberry Pi 4 or Pi 5 (2GB+ RAM)
+- **Tested Platforms**: 
+  - ✅ Raspberry Pi 5 (recommended)
+  - ⚠️ Pi Zero 2 W (installs but limited by 512MB RAM - not suitable for ML features)
 - **Docker**: Alternative deployment option (see [INSTALL.md](INSTALL.md))
 
 ### Automatic Installation
