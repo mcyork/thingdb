@@ -11,6 +11,7 @@ set -e
 
 # Colors
 GREEN='\033[0;32m'
+RED='\033[0;31m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
@@ -24,6 +25,11 @@ SSL_DIR="/var/lib/thingdb/ssl"
 CERT_FILE="$SSL_DIR/cert.pem"
 KEY_FILE="$SSL_DIR/key.pem"
 MARKER_FILE="$SSL_DIR/.thingdb_marker"
+
+# BYO Certificate staging directory
+STAGING_DIR="/var/lib/thingdb/certs"
+STAGING_CERT="$STAGING_DIR/cert.pem"
+STAGING_KEY="$STAGING_DIR/key.pem"
 
 # Parse command line arguments
 FORCE_REGEN=false
@@ -161,6 +167,78 @@ needs_service_update() {
     return 1  # Up to date
 }
 
+# Function to validate BYO certificates
+validate_byo_certs() {
+    if [ ! -f "$STAGING_CERT" ] || [ ! -f "$STAGING_KEY" ]; then
+        return 1  # Missing files
+    fi
+    
+    # Validate certificate format
+    if ! openssl x509 -in "$STAGING_CERT" -noout -text >/dev/null 2>&1; then
+        echo -e "${RED}✗${NC} Invalid certificate file: $STAGING_CERT"
+        return 1
+    fi
+    
+    # Validate key format
+    if ! openssl rsa -in "$STAGING_KEY" -check -noout >/dev/null 2>&1; then
+        echo -e "${RED}✗${NC} Invalid private key file: $STAGING_KEY"
+        return 1
+    fi
+    
+    # Check if cert and key match
+    CERT_MODULUS=$(openssl x509 -noout -modulus -in "$STAGING_CERT" 2>/dev/null | openssl md5)
+    KEY_MODULUS=$(openssl rsa -noout -modulus -in "$STAGING_KEY" 2>/dev/null | openssl md5)
+    
+    if [ "$CERT_MODULUS" != "$KEY_MODULUS" ]; then
+        echo -e "${RED}✗${NC} Certificate and private key do not match!"
+        return 1
+    fi
+    
+    return 0
+}
+
+# Function to install BYO certificates
+install_byo_certs() {
+    echo -e "${BLUE}📥 Installing custom SSL certificates...${NC}"
+    echo ""
+    
+    # Create SSL directory
+    sudo mkdir -p "$SSL_DIR"
+    
+    # Copy certificates from staging
+    sudo cp "$STAGING_CERT" "$CERT_FILE"
+    sudo cp "$STAGING_KEY" "$KEY_FILE"
+    
+    # Set proper ownership and permissions
+    sudo chown thingdb:thingdb "$CERT_FILE" "$KEY_FILE"
+    sudo chmod 644 "$CERT_FILE"
+    sudo chmod 600 "$KEY_FILE"
+    
+    # Remove any old marker file (marks as custom cert - NOT auto-generated)
+    sudo rm -f "$MARKER_FILE"
+    
+    # Get certificate info
+    CERT_SUBJECT=$(openssl x509 -in "$CERT_FILE" -noout -subject 2>/dev/null | sed 's/subject=//')
+    CERT_ISSUER=$(openssl x509 -in "$CERT_FILE" -noout -issuer 2>/dev/null | sed 's/issuer=//')
+    EXPIRY_DATE=$(openssl x509 -in "$CERT_FILE" -noout -enddate 2>/dev/null | cut -d= -f2)
+    
+    echo -e "${GREEN}✓${NC} Custom SSL certificates installed!"
+    echo ""
+    echo "Certificate details:"
+    echo "  Subject: $CERT_SUBJECT"
+    echo "  Issuer: $CERT_ISSUER"
+    echo "  Expires: $EXPIRY_DATE"
+    echo "  Location: $CERT_FILE"
+    echo "  Key: $KEY_FILE"
+    echo ""
+    
+    # Clean up staging directory
+    echo "Cleaning up staging directory..."
+    sudo rm -rf "$STAGING_DIR"
+    echo -e "${GREEN}✓${NC} Staging directory removed"
+    echo ""
+}
+
 # Function to generate SSL certificates
 generate_certificates() {
     echo -e "${BLUE}🔐 Generating self-signed SSL certificate...${NC}"
@@ -202,9 +280,46 @@ generate_certificates() {
 # Main logic
 REGEN_CERTS=false
 UPDATE_SERVICE=false
+BYO_MODE=false
+
+# Check for BYO certificates FIRST (highest priority)
+if [ -d "$STAGING_DIR" ] && [ "$SERVICE_ONLY" != true ]; then
+    echo -e "${BLUE}📁 Bring-Your-Own certificate directory detected: $STAGING_DIR${NC}"
+    echo ""
+    
+    if validate_byo_certs; then
+        echo -e "${GREEN}✓${NC} Certificates validated successfully!"
+        echo "  Certificate and key match"
+        echo "  Files are valid"
+        echo ""
+        
+        # Install BYO certificates
+        install_byo_certs
+        BYO_MODE=true
+        UPDATE_SERVICE=true
+        REGEN_CERTS=false
+    else
+        echo -e "${RED}✗${NC} Certificate validation failed!"
+        echo ""
+        echo "Please check:"
+        echo "  - $STAGING_CERT exists and is a valid PEM certificate"
+        echo "  - $STAGING_KEY exists and is a valid unencrypted RSA private key"
+        echo "  - Certificate and key match each other"
+        echo ""
+        echo "Expected files in $STAGING_DIR:"
+        echo "  - cert.pem    (certificate + intermediate CA chain concatenated)"
+        echo "  - key.pem     (unencrypted private key)"
+        echo ""
+        exit 1
+    fi
+fi
 
 # Determine what needs to be done
-if [ "$SERVICE_ONLY" = true ]; then
+if [ "$BYO_MODE" = true ]; then
+    # Already handled BYO installation above
+    # Just need to update service
+    :
+elif [ "$SERVICE_ONLY" = true ]; then
     # Only update service file
     echo "Service-only mode: Will not touch certificates"
     UPDATE_SERVICE=true
@@ -320,27 +435,45 @@ if [ -f "$CERT_FILE" ]; then
     echo "  https://${IP_ADDRESS}:5000"
     echo "  https://${HOSTNAME}.local:5000"
     echo ""
-    echo -e "${YELLOW}⚠️  Important: Self-Signed Certificate Warning${NC}"
+    
+    # Check if this is a BYO cert or self-signed
+    if [ ! -f "$MARKER_FILE" ]; then
+        echo -e "${GREEN}✓${NC} Using custom SSL certificate (not self-signed)"
+        echo "  Your certificate is from a recognized CA or custom PKI"
+        echo "  Browsers will trust it if the CA is in their trust store"
+        echo ""
+        echo -e "${BLUE}💡 Certificate Renewal:${NC}"
+        echo "  To update your certificate in the future:"
+        echo "  1. Place new cert.pem and key.pem in /var/lib/thingdb/certs/"
+        echo "  2. Run: sudo ./setup_ssl.sh"
+        echo "  3. Your new certificates will be installed automatically"
+    else
+        echo -e "${YELLOW}⚠️  Self-Signed Certificate Warning${NC}"
+        echo ""
+        echo "Your browser will show a security warning because this is a"
+        echo "self-signed certificate. This is NORMAL and SAFE on your local network."
+        echo ""
+        echo -e "${BLUE}To bypass the warning:${NC}"
+        echo ""
+        echo "📱 ${BLUE}On iPhone/Safari:${NC}"
+        echo "   1. Tap 'Show Details'"
+        echo "   2. Tap 'visit this website'"
+        echo "   3. Tap 'Visit Website' again"
+        echo ""
+        echo "💻 ${BLUE}On Chrome/Edge:${NC}"
+        echo "   1. Click 'Advanced'"
+        echo "   2. Click 'Proceed to ${IP_ADDRESS} (unsafe)'"
+        echo ""
+        echo "🦊 ${BLUE}On Firefox:${NC}"
+        echo "   1. Click 'Advanced...'"
+        echo "   2. Click 'Accept the Risk and Continue'"
+        echo ""
+        echo -e "${BLUE}💡 Want a trusted certificate?${NC}"
+        echo "  Use a certificate from Let's Encrypt or your own CA"
+        echo "  See INSTALL.md for Bring-Your-Own Certificate instructions"
+    fi
     echo ""
-    echo "Your browser will show a security warning because this is a"
-    echo "self-signed certificate. This is NORMAL and SAFE on your local network."
-    echo ""
-    echo -e "${BLUE}To bypass the warning:${NC}"
-    echo ""
-    echo "📱 ${BLUE}On iPhone/Safari:${NC}"
-    echo "   1. Tap 'Show Details'"
-    echo "   2. Tap 'visit this website'"
-    echo "   3. Tap 'Visit Website' again"
-    echo ""
-    echo "💻 ${BLUE}On Chrome/Edge:${NC}"
-    echo "   1. Click 'Advanced'"
-    echo "   2. Click 'Proceed to ${IP_ADDRESS} (unsafe)'"
-    echo ""
-    echo "🦊 ${BLUE}On Firefox:${NC}"
-    echo "   1. Click 'Advanced...'"
-    echo "   2. Click 'Accept the Risk and Continue'"
-    echo ""
-    echo -e "${GREEN}📷 Camera scanning will now work on iPhone!${NC}"
+    echo -e "${GREEN}📷 Camera scanning will work on iPhone!${NC}"
 else
     echo -e "${GREEN}Access ThingDB with HTTP:${NC}"
     echo "  http://${IP_ADDRESS}:5000"
