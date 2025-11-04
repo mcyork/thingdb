@@ -122,7 +122,7 @@ ExecStart=/var/lib/thingdb/app/venv/bin/gunicorn \
     --certfile /var/lib/thingdb/ssl/cert.pem \
     --keyfile /var/lib/thingdb/ssl/key.pem \
     --workers 2 \
-    --timeout 120 \
+    --timeout 600 \
     --access-logfile - \
     --error-logfile - \
     "thingdb.main:app"

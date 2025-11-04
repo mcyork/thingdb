@@ -9,7 +9,13 @@ User=thingdb
 Group=thingdb
 WorkingDirectory=/var/lib/thingdb/app
 Environment="PATH=/var/lib/thingdb/app/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-ExecStart=/var/lib/thingdb/app/venv/bin/thingdb serve --host 0.0.0.0
+ExecStart=/var/lib/thingdb/app/venv/bin/gunicorn \
+    --bind 0.0.0.0:5000 \
+    --workers 2 \
+    --timeout 600 \
+    --access-logfile - \
+    --error-logfile - \
+    "thingdb.main:app"
 
 # Restart policy
 Restart=always
