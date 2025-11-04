@@ -102,10 +102,13 @@ setup_postgresql() {
         fi
     fi
     
-    # Get password from .env if it exists, or use default for upgrades
+    # Get password from .env if it exists (check both locations)
     if [ -f .env ]; then
-        # Extract password from existing .env
+        # Extract password from existing .env in current directory
         DB_PASSWORD=$(grep "^POSTGRES_PASSWORD=" .env | cut -d'=' -f2)
+    elif [ -f /var/lib/thingdb/app/.env ]; then
+        # Extract password from system app directory (upgrade scenario)
+        DB_PASSWORD=$(grep "^POSTGRES_PASSWORD=" /var/lib/thingdb/app/.env | cut -d'=' -f2)
     else
         # Generate new password (will be created in .env later)
         DB_PASSWORD="thingdb_default_pass"
@@ -183,7 +186,8 @@ generate_db_password() {
 
 # Create .env file if it doesn't exist
 create_env_file() {
-    if [ ! -f .env ]; then
+    # Check for .env in both current directory and system app directory
+    if [ ! -f .env ] && [ ! -f /var/lib/thingdb/app/.env ]; then
         echo ""
         echo "🔐 Generating secure secrets..."
         
@@ -224,6 +228,9 @@ EOF
         echo ""
         echo -e "${YELLOW}⚠${NC}  These secrets are stored in .env"
         echo "   Keep a backup for disaster recovery!"
+    elif [ -f /var/lib/thingdb/app/.env ]; then
+        echo ""
+        echo -e "${GREEN}✓${NC} .env file exists in system directory (preserving for upgrade)"
     else
         echo ""
         echo -e "${GREEN}✓${NC} .env file already exists (preserving existing secrets)"
