@@ -41,7 +41,8 @@ EOF
 }
 
 detect_installation_mode() {
-    if [ -f "$INSTALL_INFO" ]; then
+    # Upgrade if INSTALL_INFO exists OR if app directory exists
+    if [ -f "$INSTALL_INFO" ] || [ -d "$APP_DIR" ]; then
         echo "UPGRADE"
     else
         echo "FRESH"
