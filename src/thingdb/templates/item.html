@@ -749,58 +749,63 @@
         </div>
     </div>
     
-    <!-- QR Code Label -->
+    <!-- QR Code Label (Collapsible) -->
     <div class="content-card">
-        <h2 class="section-title">QR Code Label</h2>
-        <p style="font-size: 13px; color: var(--text-light); margin-bottom: 12px;">
-            Scan this code to quickly access this item from your phone.
-        </p>
-        <div style="text-align: center; padding: 20px; background: var(--background-light); border-radius: 8px;">
-            <img src="/api/item/{{ guid }}/qr-code.png" 
-                 alt="QR Code for {{ item_data.item[1] or guid[:8] }}" 
-                 style="max-width: 200px; width: 100%; height: auto; border: 1px solid var(--border-color); border-radius: 4px; background: white; padding: 8px;">
-            <div style="margin-top: 8px; font-size: 12px; color: var(--text-light);">
-                {{ guid_display }} {% if item_data.item[1] %}{{ item_data.item[1] }}{% else %}Item # ______{% endif %}
+        <div class="collapsible-header" onclick="toggleQRSection()" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h2 class="section-title" style="margin: 0;">QR Code & Labels</h2>
+            <span id="qr-toggle-icon" style="font-size: 20px; transition: transform 0.3s; color: var(--text-light);">▼</span>
+        </div>
+        <div id="qr-section-content" style="display: none; overflow: hidden;">
+            <p style="font-size: 13px; color: var(--text-light); margin-bottom: 12px;">
+                Scan this code to quickly access this item from your phone.
+            </p>
+            <div style="text-align: center; padding: 20px; background: var(--background-light); border-radius: 8px;">
+                <img src="/api/item/{{ guid }}/qr-code.png" 
+                     alt="QR Code for {{ item_data.item[1] or guid[:8] }}" 
+                     style="max-width: 200px; width: 100%; height: auto; border: 1px solid var(--border-color); border-radius: 4px; background: white; padding: 8px;">
+                <div style="margin-top: 8px; font-size: 12px; color: var(--text-light);">
+                    {{ guid_display }} {% if item_data.item[1] %}{{ item_data.item[1] }}{% else %}Item # ______{% endif %}
+                </div>
             </div>
-        </div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px;">
-            <button onclick="downloadQRCode('png')" class="btn btn-secondary" id="download-png-btn">
-                📥 Download PNG
-            </button>
-            <button onclick="downloadQRCode('pdf')" class="btn btn-secondary" id="download-pdf-btn">
-                📄 Download PDF
-            </button>
-        </div>
-        <div style="margin-top: 8px;">
-            <button onclick="downloadFullLabel()" class="btn btn-primary btn-block" id="download-label-btn">
-                📋 Download Full Item Label
-            </button>
-            <p style="font-size: 11px; color: var(--text-light); margin-top: 4px; text-align: center;">
-                Half-page label with photo, description, location, and QR code
-            </p>
-        </div>
-        
-        {% if item_data.contained_items and item_data.contained_items|length > 0 %}
-        <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color);">
-            <p style="font-size: 13px; color: var(--text-light); margin-bottom: 8px;">
-                This container has <strong>{{ item_data.contained_items|length }}</strong> direct item{{ 's' if item_data.contained_items|length != 1 else '' }} inside.
-            </p>
-            
-            <div style="margin-bottom: 12px;">
-                <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
-                    <input type="checkbox" id="include-nested-checkbox" onchange="updateContainerQRCount()" style="cursor: pointer;">
-                    <span>Include all nested items (children, grandchildren, etc.)</span>
-                </label>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px;">
+                <button onclick="downloadQRCode('png')" class="btn btn-secondary" id="download-png-btn">
+                    📥 Download PNG
+                </button>
+                <button onclick="downloadQRCode('pdf')" class="btn btn-secondary" id="download-pdf-btn">
+                    📄 Download PDF
+                </button>
+            </div>
+            <div style="margin-top: 8px;">
+                <button onclick="downloadFullLabel()" class="btn btn-primary btn-block" id="download-label-btn">
+                    📋 Download Full Item Label
+                </button>
+                <p style="font-size: 11px; color: var(--text-light); margin-top: 4px; text-align: center;">
+                    Half-page label with photo, description, location, and QR code
+                </p>
             </div>
             
-            <button onclick="downloadContainerQRSheet()" class="btn btn-primary btn-block" id="container-qr-btn">
-                📦 <span id="container-qr-text">Print Container QR Codes ({{ item_data.contained_items|length + 1 }} codes)</span>
-            </button>
-            <p style="font-size: 11px; color: var(--text-light); margin-top: 6px;" id="container-qr-info">
-                <span id="page-count">{{ ((item_data.contained_items|length + 1) / 24)|round(0, 'ceil')|int }}</span>-page PDF with this item + direct children
-            </p>
+            {% if item_data.contained_items and item_data.contained_items|length > 0 %}
+            <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color);">
+                <p style="font-size: 13px; color: var(--text-light); margin-bottom: 8px;">
+                    This container has <strong>{{ item_data.contained_items|length }}</strong> direct item{{ 's' if item_data.contained_items|length != 1 else '' }} inside.
+                </p>
+                
+                <div style="margin-bottom: 12px;">
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+                        <input type="checkbox" id="include-nested-checkbox" onchange="updateContainerQRCount()" style="cursor: pointer;">
+                        <span>Include all nested items (children, grandchildren, etc.)</span>
+                    </label>
+                </div>
+                
+                <button onclick="downloadContainerQRSheet()" class="btn btn-primary btn-block" id="container-qr-btn">
+                    📦 <span id="container-qr-text">Print Container QR Codes ({{ item_data.contained_items|length + 1 }} codes)</span>
+                </button>
+                <p style="font-size: 11px; color: var(--text-light); margin-top: 6px;" id="container-qr-info">
+                    <span id="page-count">{{ ((item_data.contained_items|length + 1) / 24)|round(0, 'ceil')|int }}</span>-page PDF with this item + direct children
+                </p>
+            </div>
+            {% endif %}
         </div>
-        {% endif %}
     </div>
 </div>
 
@@ -1496,6 +1501,20 @@ function associateWithItem(targetGuid) {
     });
 }
 {% endif %}
+
+// Toggle QR section expand/collapse
+function toggleQRSection() {
+    const content = document.getElementById('qr-section-content');
+    const icon = document.getElementById('qr-toggle-icon');
+    
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        icon.style.transform = 'rotate(180deg)';
+    } else {
+        content.style.display = 'none';
+        icon.style.transform = 'rotate(0deg)';
+    }
+}
 
 // Download QR code (PNG or PDF)
 function downloadQRCode(format) {

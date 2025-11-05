@@ -274,31 +274,36 @@ class QRPDFService:
     
     def generate_item_label(self, item_data, breadcrumbs=None, photos=None, tags=None):
         """
-        Generate a comprehensive half-page item label (8.5" x 5.5")
+        Generate a comprehensive half-page item label
+        Uses full letter page (8.5" x 11") but content in top half only
+        This prevents printer scaling issues
+        
         item_data: dict with 'guid', 'item_name', 'description', 'label_number'
         breadcrumbs: list of parent names for location trail
         photos: list of image file paths (up to 3)
         tags: list of category names
         """
-        # Create PDF in memory (landscape half-page)
+        # Create PDF in memory (FULL letter page to prevent scaling)
         pdf_buffer = io.BytesIO()
-        label_width = 8.5 * inch
-        label_height = 5.5 * inch
-        c = canvas.Canvas(pdf_buffer, pagesize=(label_width, label_height))
+        c = canvas.Canvas(pdf_buffer, pagesize=letter)
         
         # Layout parameters
         margin = 0.3 * inch
         qr_size = 2 * inch
         
+        # Work in top half only (5.5" of the 11" page)
+        label_top = self.page_height  # 11"
+        label_bottom = self.page_height / 2  # 5.5" (middle of page)
+        
         # QR code in upper right
-        qr_x = label_width - margin - qr_size
-        qr_y = label_height - margin - qr_size
+        qr_x = self.page_width - margin - qr_size
+        qr_y = label_top - margin - qr_size
         qr_image = self.create_qr_code_image(item_data['guid'])
         c.drawImage(ImageReader(qr_image), qr_x, qr_y, 
                    width=qr_size, height=qr_size)
         
         # Item number (BIG and prominent - upper left if exists)
-        current_y = label_height - margin - 0.2 * inch
+        current_y = label_top - margin - 0.2 * inch
         if item_data.get('label_number'):
             c.setFont("Helvetica-Bold", 48)
             item_num_text = f"#{item_data['label_number']}"
@@ -321,19 +326,14 @@ class QRPDFService:
             if len(location_text) > 90:
                 location_text = location_text[:87] + "..."
             c.drawString(margin, current_y, location_text)
-            current_y -= 0.2 * inch
-        
-        # Separator line
-        c.setLineWidth(0.5)
-        c.line(margin, current_y, label_width - margin, current_y)
-        current_y -= 0.25 * inch
+            current_y -= 0.3 * inch
         
         # Description (wrapped)
         if item_data.get('description'):
             c.setFont("Helvetica", 10)
             desc = item_data['description']
             # Simple word wrapping
-            max_width = label_width - 2 * margin - (qr_size + 0.2 * inch)  # Leave space for QR
+            max_width = self.page_width - 2 * margin - (qr_size + 0.2 * inch)  # Leave space for QR
             words = desc.split()
             lines = []
             current_line = ""
