@@ -71,6 +71,28 @@
     }
     .toggle-switch.active::after { transform: translateX(24px); }
 
+    /* Sort Buttons */
+    .sort-btn {
+        padding: 6px 12px;
+        font-size: 13px;
+        font-weight: 500;
+        border: 1px solid var(--border-color);
+        background: white;
+        color: var(--text-color);
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .sort-btn:hover {
+        background: var(--background-light);
+        border-color: var(--primary-color);
+    }
+    .sort-btn.active {
+        background: var(--primary-color);
+        color: white;
+        border-color: var(--primary-color);
+    }
+
     /* List & Tree Views */
     .items-list, .tree-view { background: var(--background-white); }
     .item-card, .tree-item-content {
@@ -337,7 +359,11 @@
     <!-- Items List / Tree View Container -->
     <div class="items-container card" style="padding: 0; margin: 0 16px;">
         <div class="items-header">
-            <h3>Inventory <span style="font-weight: normal; color: #999;">({{ items|length }})</span></h3>
+            <div class="sort-buttons" style="display: flex; gap: 4px;">
+                <button class="sort-btn active" data-sort="alpha" onclick="changeSort('alpha')" title="Sort A-Z">A-Z</button>
+                <button class="sort-btn" data-sort="recent" onclick="changeSort('recent')" title="Newest First">Newest</button>
+                <button class="sort-btn" data-sort="number" onclick="changeSort('number')" title="By Item Number">By #</button>
+            </div>
             <div style="display: flex; align-items: center; gap: 8px;">
                 <span style="font-size: 12px; color: #666;">List</span>
                 <div class="toggle-switch" id="view-toggle" onclick="toggleView()"></div>
@@ -449,6 +475,59 @@
 // --- Core App Logic ---
 let qrScanner;
 let isTreeView = localStorage.getItem('viewMode') === 'tree';
+let currentSort = localStorage.getItem('sortMode') || 'alpha';
+
+// --- Sort Functions ---
+function changeSort(sortMode) {
+    currentSort = sortMode;
+    localStorage.setItem('sortMode', sortMode);
+    
+    // Update button states
+    document.querySelectorAll('.sort-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.sort === sortMode);
+    });
+    
+    // Re-render current view with new sort
+    if (isTreeView) {
+        // Clear and reload tree with new sort
+        const treeContainer = document.getElementById('tree-container');
+        treeContainer.dataset.loaded = ''; // Force reload
+        treeContainer.innerHTML = '';
+        loadTreeData();
+    } else {
+        // Sort list view items
+        sortListItems();
+    }
+}
+
+function sortListItems() {
+    const itemsList = document.getElementById('items-list');
+    const items = Array.from(itemsList.querySelectorAll('.item-card'));
+    
+    items.sort((a, b) => {
+        if (currentSort === 'alpha') {
+            const nameA = a.querySelector('.item-name').textContent.toLowerCase();
+            const nameB = b.querySelector('.item-name').textContent.toLowerCase();
+            return nameA.localeCompare(nameB);
+        } else if (currentSort === 'recent') {
+            // Most recent first - parse date strings properly
+            const dateStrA = a.querySelector('.item-meta span:last-child')?.textContent || '';
+            const dateStrB = b.querySelector('.item-meta span:last-child')?.textContent || '';
+            const dateA = new Date(dateStrA);
+            const dateB = new Date(dateStrB);
+            return dateB - dateA;  // Newest first (descending)
+        } else if (currentSort === 'number') {
+            // By item number (extract # from meta)
+            const numA = parseInt(a.querySelector('.item-meta span')?.textContent.replace('#', '') || '999999');
+            const numB = parseInt(b.querySelector('.item-meta span')?.textContent.replace('#', '') || '999999');
+            return numA - numB;
+        }
+        return 0;
+    });
+    
+    // Re-append in sorted order
+    items.forEach(item => itemsList.appendChild(item));
+}
 
 // --- View Toggle ---
 function toggleView() {
@@ -461,12 +540,14 @@ function updateView() {
     const toggle = document.getElementById('view-toggle');
     const itemsList = document.getElementById('items-list');
     const treeView = document.getElementById('tree-view');
+    const treeContainer = document.getElementById('tree-container');
     
     if (isTreeView) {
         toggle.classList.add('active');
         itemsList.style.display = 'none';
         treeView.style.display = 'block';
-        if (!treeView.dataset.loaded) {
+        // Check if tree data has been loaded (using tree-container element)
+        if (!treeContainer.dataset.loaded) {
             loadTreeData();
         }
     } else {
@@ -483,26 +564,33 @@ function loadTreeData() {
     loading.style.display = 'block';
     container.innerHTML = '';
     
-    fetch('/api/tree-data')
+    fetch(`/api/tree-data?sort=${currentSort}`)
         .then(res => res.json())
         .then(data => {
             loading.style.display = 'none';
-            if (data.success && data.data.length > 0) {
-                container.dataset.loaded = true;
+            container.dataset.loaded = true; // Mark as loaded regardless of result
+            if (data.success && data.data && data.data.length > 0) {
                 renderTree(data.data, container, 0);
             } else if (data.success) {
                 container.innerHTML = `<div class="empty-state" style="padding: 20px;"><p>No top-level items to display in tree view.</p></div>`;
             } else {
-                container.innerHTML = `<div class="tree-loading">Error: ${data.error}</div>`;
+                container.innerHTML = `<div class="tree-loading" style="color: #d32f2f;">Error: ${data.error || 'Unknown error'}</div>`;
             }
         })
         .catch(err => {
             loading.style.display = 'none';
-            container.innerHTML = '<div class="tree-loading">Failed to load tree.</div>';
+            container.dataset.loaded = true; // Mark as loaded to prevent retry loop
+            container.innerHTML = '<div class="tree-loading" style="color: #d32f2f;">Failed to load tree. <a href="#" onclick="location.reload(); return false;" style="color: var(--primary-color);">Refresh page</a></div>';
+            console.error('Tree load error:', err);
         });
 }
 
 function renderTree(items, container, level) {
+    // Safety check: ensure items is an array
+    if (!Array.isArray(items) || items.length === 0) {
+        return;
+    }
+    
     items.forEach(item => {
         const itemDiv = document.createElement('div');
         itemDiv.className = 'tree-item';
@@ -547,7 +635,7 @@ function toggleTreeItem(guid) {
         expandIcon.innerHTML = '▼';
         if (!childrenContainer.dataset.loaded) {
             childrenContainer.innerHTML = '<div class="tree-loading">Loading...</div>';
-            fetch(`/api/tree-children/${guid}`)
+            fetch(`/api/tree-children/${guid}?sort=${currentSort}`)
                 .then(res => res.json())
                 .then(data => {
                     childrenContainer.innerHTML = '';
@@ -839,6 +927,19 @@ document.addEventListener('click', function(e) {
 });
 
 // --- Init ---
-document.addEventListener('DOMContentLoaded', updateView);
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize sort button states
+    document.querySelectorAll('.sort-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.sort === currentSort);
+    });
+    
+    // Apply initial sort to list view
+    if (!isTreeView) {
+        sortListItems();
+    }
+    
+    // Initialize view
+    updateView();
+});
 </script>
 {% endblock %}
