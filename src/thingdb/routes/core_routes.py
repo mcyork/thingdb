@@ -243,12 +243,26 @@ def _get_breadcrumb_trail(cursor, parent_guid):
 @core_bp.route('/api/tree-data')
 def get_tree_data():
     """API endpoint to fetch hierarchical tree data for the tree view"""
+    from flask import request
     conn = get_db_connection()
     cursor = conn.cursor()
     
+    # Get sort parameter (default to alpha)
+    sort_mode = request.args.get('sort', 'alpha')
+    
+    # Build ORDER BY clause based on sort mode (PostgreSQL syntax)
+    if sort_mode == 'alpha':
+        order_clause = 'ORDER BY LOWER(items.item_name) ASC'
+    elif sort_mode == 'recent':
+        order_clause = 'ORDER BY items.created_date DESC'
+    elif sort_mode == 'number':
+        order_clause = 'ORDER BY items.label_number ASC, LOWER(items.item_name) ASC'
+    else:
+        order_clause = 'ORDER BY LOWER(items.item_name) ASC'  # default to alpha
+    
     try:
         # Get all root items (items with no parent)
-        cursor.execute('''
+        cursor.execute(f'''
             SELECT items.guid, items.item_name, items.created_date, 
                    (SELECT COUNT(*) FROM images WHERE item_guid = items.guid) as image_count,
                    (SELECT COUNT(*) FROM text_content WHERE item_guid = items.guid) as text_count,
@@ -258,7 +272,7 @@ def get_tree_data():
             FROM items 
             LEFT JOIN images as primary_images ON items.guid = primary_images.item_guid AND primary_images.is_primary = TRUE
             WHERE items.parent_guid IS NULL
-            ORDER BY items.label_number ASC, items.created_date DESC
+            {order_clause}
         ''')
         root_items = cursor.fetchall()
         
@@ -296,6 +310,7 @@ def get_tree_data():
 @core_bp.route('/api/tree-children/<guid>')
 def get_tree_children(guid):
     """API endpoint to fetch children of a specific item for tree expansion"""
+    from flask import request
     if not is_valid_guid(guid):
         return jsonify({
             'success': False,
@@ -305,9 +320,22 @@ def get_tree_children(guid):
     conn = get_db_connection()
     cursor = conn.cursor()
     
+    # Get sort parameter (default to alpha)
+    sort_mode = request.args.get('sort', 'alpha')
+    
+    # Build ORDER BY clause based on sort mode (PostgreSQL syntax)
+    if sort_mode == 'alpha':
+        order_clause = 'ORDER BY LOWER(items.item_name) ASC'
+    elif sort_mode == 'recent':
+        order_clause = 'ORDER BY items.created_date DESC'
+    elif sort_mode == 'number':
+        order_clause = 'ORDER BY items.label_number ASC, LOWER(items.item_name) ASC'
+    else:
+        order_clause = 'ORDER BY LOWER(items.item_name) ASC'  # default to alpha
+    
     try:
         # Get children of the specified item
-        cursor.execute('''
+        cursor.execute(f'''
             SELECT items.guid, items.item_name, items.created_date, 
                    (SELECT COUNT(*) FROM images WHERE item_guid = items.guid) as image_count,
                    (SELECT COUNT(*) FROM text_content WHERE item_guid = items.guid) as text_count,
@@ -317,7 +345,7 @@ def get_tree_children(guid):
             FROM items 
             LEFT JOIN images as primary_images ON items.guid = primary_images.item_guid AND primary_images.is_primary = TRUE
             WHERE items.parent_guid = %s
-            ORDER BY items.label_number ASC, items.created_date DESC
+            {order_clause}
         ''', (guid,))
         children = cursor.fetchall()
         
