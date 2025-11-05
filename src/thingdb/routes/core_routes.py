@@ -200,8 +200,12 @@ def item_detail(guid):
         'description': item_data[2]
     }
     
+    # Format GUID display (last 4 chars in XX-XX format)
+    guid_display = f"{guid[-4:-2]}-{guid[-2:]}".upper()
+    
     return render_template('item.html', 
                          guid=guid,
+                         guid_display=guid_display,
                          item_data=item_data_dict,
                          images=images,
                          categories=categories,

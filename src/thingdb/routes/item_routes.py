@@ -4,11 +4,13 @@ Handles item creation, editing, deletion, and relationship management
 """
 import json
 import os
-from flask import Blueprint, request, jsonify, redirect, url_for
+from flask import Blueprint, request, jsonify, redirect, url_for, send_file, Response
 from thingdb.database import get_db_connection
 from thingdb.utils.helpers import is_valid_guid, validate_item_data, generate_guid
 from thingdb.services.embedding_service import generate_embedding
+from thingdb.services.qr_pdf_service import qr_pdf_service
 from thingdb.config import IMAGE_STORAGE_METHOD, IMAGE_DIR
+from thingdb.database import return_db_connection
 
 item_bp = Blueprint('item', __name__)
 
@@ -539,6 +541,308 @@ def delete_category(category_id):
         conn.close()
         
         return jsonify({"success": True, "deleted_category": category_name}), 200
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@item_bp.route('/api/item/<guid>/qr-code.png', methods=['GET'])
+def get_item_qr_png(guid):
+    """Serve QR code as PNG image for display on item page"""
+    try:
+        if not is_valid_guid(guid):
+            return jsonify({"success": False, "error": "Invalid GUID"}), 400
+        
+        # Get item name for label
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT item_name FROM items WHERE guid = %s', (guid,))
+        result = cursor.fetchone()
+        conn.close()
+        
+        item_name = result[0] if result else None
+        
+        # Generate PNG
+        png_buffer = qr_pdf_service.generate_single_qr_png(guid, item_name)
+        png_data = png_buffer.read()
+        
+        # Use Response instead of send_file (same as image serving)
+        response = Response(png_data, mimetype='image/png')
+        response.headers['Content-Disposition'] = f'inline; filename="qr_{guid[:8]}.png"'
+        response.headers['Cache-Control'] = 'public, max-age=3600'
+        return response
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@item_bp.route('/api/item/<guid>/qr-code.pdf', methods=['GET'])
+def get_item_qr_pdf(guid):
+    """Download QR code as PDF label for printing"""
+    try:
+        if not is_valid_guid(guid):
+            return jsonify({"success": False, "error": "Invalid GUID"}), 400
+        
+        # Get item name for label
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT item_name FROM items WHERE guid = %s', (guid,))
+        result = cursor.fetchone()
+        conn.close()
+        
+        item_name = result[0] if result else None
+        
+        # Generate PDF
+        pdf_buffer = qr_pdf_service.generate_single_qr_pdf(guid, item_name)
+        pdf_data = pdf_buffer.read()
+        
+        # Create filename
+        safe_name = item_name.replace(' ', '_') if item_name else guid[:8]
+        filename = f'qr_label_{safe_name}.pdf'
+        
+        # Use Response with attachment header (same pattern as images)
+        response = Response(pdf_data, mimetype='application/pdf')
+        response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response.headers['Content-Length'] = len(pdf_data)
+        return response
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+def get_all_descendants(cursor, parent_guid):
+    """Recursively get all descendants of an item"""
+    descendants = []
+    
+    # Get direct children
+    cursor.execute('''
+        SELECT guid, item_name, label_number 
+        FROM items 
+        WHERE parent_guid = %s
+        ORDER BY label_number ASC NULLS LAST, item_name ASC
+    ''', (parent_guid,))
+    children = cursor.fetchall()
+    
+    for child in children:
+        # Add this child
+        descendants.append({
+            'guid': child[0],
+            'item_name': child[1] or f'Item {child[0][:8]}',
+            'label_number': child[2]
+        })
+        
+        # Recursively get this child's descendants
+        grandchildren = get_all_descendants(cursor, child[0])
+        descendants.extend(grandchildren)
+    
+    return descendants
+
+
+@item_bp.route('/api/item/<guid>/container-count', methods=['GET'])
+def get_container_count(guid):
+    """Get count of items for container QR sheet"""
+    try:
+        if not is_valid_guid(guid):
+            return jsonify({"success": False, "error": "Invalid GUID"}), 400
+        
+        recursive = request.args.get('recursive', 'false').lower() == 'true'
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Check parent exists
+        cursor.execute('SELECT guid FROM items WHERE guid = %s', (guid,))
+        if not cursor.fetchone():
+            conn.close()
+            return jsonify({"success": False, "error": "Item not found"}), 404
+        
+        if recursive:
+            # Get all descendants recursively
+            descendants = get_all_descendants(cursor, guid)
+            total_count = 1 + len(descendants)  # Parent + all descendants
+        else:
+            # Get direct children only
+            cursor.execute('SELECT COUNT(*) FROM items WHERE parent_guid = %s', (guid,))
+            child_count = cursor.fetchone()[0]
+            total_count = 1 + child_count  # Parent + direct children
+        
+        conn.close()
+        
+        return jsonify({
+            "success": True,
+            "total_count": total_count,
+            "recursive": recursive
+        })
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@item_bp.route('/api/item/<guid>/container-qr-sheet.pdf', methods=['GET'])
+def get_container_qr_sheet(guid):
+    """Generate QR code sheet for this item + all items it contains"""
+    try:
+        if not is_valid_guid(guid):
+            return jsonify({"success": False, "error": "Invalid GUID"}), 400
+        
+        recursive = request.args.get('recursive', 'false').lower() == 'true'
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get the parent item itself
+        cursor.execute('''
+            SELECT guid, item_name, label_number 
+            FROM items 
+            WHERE guid = %s
+        ''', (guid,))
+        parent = cursor.fetchone()
+        
+        if not parent:
+            conn.close()
+            return jsonify({"success": False, "error": "Item not found"}), 404
+        
+        # Build items list: parent first
+        items_data = [{
+            'guid': parent[0],
+            'item_name': parent[1] or f'Item {parent[0][:8]}',
+            'label_number': parent[2]
+        }]
+        
+        if recursive:
+            # Get ALL descendants recursively
+            descendants = get_all_descendants(cursor, guid)
+            items_data.extend(descendants)
+        else:
+            # Get direct children only
+            cursor.execute('''
+                SELECT guid, item_name, label_number 
+                FROM items 
+                WHERE parent_guid = %s
+                ORDER BY label_number ASC NULLS LAST, item_name ASC
+            ''', (guid,))
+            children = cursor.fetchall()
+            
+            for child in children:
+                items_data.append({
+                    'guid': child[0],
+                    'item_name': child[1] or f'Item {child[0][:8]}',
+                    'label_number': child[2]
+                })
+        
+        conn.close()
+        
+        # Generate multi-page PDF
+        pdf_buffer = qr_pdf_service.generate_hierarchy_qr_sheet(items_data)
+        pdf_data = pdf_buffer.read()
+        
+        # Create filename
+        parent_name = parent[1].replace(' ', '_') if parent[1] else guid[:8]
+        suffix = 'all' if recursive else 'direct'
+        filename = f'qr_container_{parent_name}_{len(items_data)}_labels_{suffix}.pdf'
+        
+        # Return PDF
+        response = Response(pdf_data, mimetype='application/pdf')
+        response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response.headers['Content-Length'] = len(pdf_data)
+        return response
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@item_bp.route('/api/item/<guid>/full-label.pdf', methods=['GET'])
+def get_item_full_label(guid):
+    """Generate comprehensive half-page item label with all details"""
+    try:
+        if not is_valid_guid(guid):
+            return jsonify({"success": False, "error": "Invalid GUID"}), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get item data
+        cursor.execute('''
+            SELECT guid, item_name, description, label_number, parent_guid
+            FROM items 
+            WHERE guid = %s
+        ''', (guid,))
+        item = cursor.fetchone()
+        
+        if not item:
+            conn.close()
+            return jsonify({"success": False, "error": "Item not found"}), 404
+        
+        item_data = {
+            'guid': item[0],
+            'item_name': item[1],
+            'description': item[2],
+            'label_number': item[3]
+        }
+        parent_guid = item[4]
+        
+        # Get breadcrumb trail
+        breadcrumbs = []
+        if parent_guid:
+            current_guid = parent_guid
+            max_depth = 10
+            depth = 0
+            
+            while current_guid and depth < max_depth:
+                cursor.execute('SELECT item_name, parent_guid FROM items WHERE guid = %s', (current_guid,))
+                result = cursor.fetchone()
+                if result:
+                    breadcrumbs.insert(0, result[0] or 'Untitled')
+                    current_guid = result[1]
+                    depth += 1
+                else:
+                    break
+        
+        # Get photos (up to 3 thumbnails)
+        photos = []
+        if IMAGE_STORAGE_METHOD == 'filesystem':
+            cursor.execute('''
+                SELECT thumbnail_path 
+                FROM images 
+                WHERE item_guid = %s 
+                ORDER BY is_primary DESC, upload_date ASC
+                LIMIT 3
+            ''', (guid,))
+            photo_results = cursor.fetchall()
+            for photo_result in photo_results:
+                if photo_result[0]:
+                    full_path = os.path.join(IMAGE_DIR, photo_result[0])
+                    photos.append(full_path)
+        
+        # Get tags
+        cursor.execute('''
+            SELECT category_name 
+            FROM categories 
+            WHERE item_guid = %s
+            ORDER BY category_name
+        ''', (guid,))
+        tags = [row[0] for row in cursor.fetchall()]
+        
+        conn.close()
+        
+        # Generate PDF label
+        pdf_buffer = qr_pdf_service.generate_item_label(
+            item_data=item_data,
+            breadcrumbs=breadcrumbs,
+            photos=photos,
+            tags=tags
+        )
+        pdf_data = pdf_buffer.read()
+        
+        # Create filename
+        safe_name = item_data['item_name'].replace(' ', '_') if item_data['item_name'] else guid[:8]
+        filename = f'label_{safe_name}.pdf'
+        
+        # Return PDF
+        response = Response(pdf_data, mimetype='application/pdf')
+        response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response.headers['Content-Length'] = len(pdf_data)
+        return response
         
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
