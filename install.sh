@@ -112,6 +112,14 @@ if [ "$INSTALL_MODE" = "FRESH" ] && [ -f "$SCRIPT_DIR/.env" ]; then
     sudo cp "$SCRIPT_DIR/.env" "$APP_DIR/.env"
 fi
 
+# Copy demo databases if they exist
+if [ -d "$SCRIPT_DIR/demos" ]; then
+    echo "Copying demo databases..."
+    sudo mkdir -p /var/lib/thingdb/demos
+    sudo cp "$SCRIPT_DIR/demos"/*.zip /var/lib/thingdb/demos/ 2>/dev/null || true
+    sudo chown -R thingdb:thingdb /var/lib/thingdb/demos
+fi
+
 # Set ownership to thingdb user
 sudo chown -R thingdb:thingdb "$APP_DIR"
 sudo chown -R thingdb:thingdb /var/lib/thingdb
