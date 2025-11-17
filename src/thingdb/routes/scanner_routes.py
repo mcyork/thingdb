@@ -79,33 +79,110 @@ def _get_wifi_info():
     """Get Wi-Fi information (auto-detect or return empty)"""
     wifi_info = {'ssid': '', 'password': ''}
     
-    # Try to read from wpa_supplicant.conf
-    wpa_supplicant_paths = [
-        '/etc/wpa_supplicant/wpa_supplicant.conf',
-        '/etc/wpa_supplicant/wpa_supplicant-wlan0.conf'
-    ]
+    # Try NetworkManager via nmcli first (modern Raspberry Pi OS)
+    # This works even if config files aren't readable
+    try:
+        import subprocess
+        # First, get active wifi connections
+        result = subprocess.run(
+            ['nmcli', '-t', '-f', 'NAME,TYPE', 'connection', 'show', '--active'],
+            capture_output=True,
+            text=True,
+            timeout=2
+        )
+        if result.returncode == 0:
+            for line in result.stdout.strip().split('\n'):
+                if line and ('802-11-wireless' in line or ':wifi' in line.lower()):
+                    parts = line.split(':')
+                    if len(parts) >= 2:
+                        conn_name = parts[0].strip()
+                        # Get SSID for this connection
+                        ssid_result = subprocess.run(
+                            ['nmcli', '-t', '-f', '802-11-wireless.ssid', 'connection', 'show', conn_name],
+                            capture_output=True,
+                            text=True,
+                            timeout=2
+                        )
+                        if ssid_result.returncode == 0:
+                            ssid_line = ssid_result.stdout.strip()
+                            # Extract SSID value (format: "802-11-wireless.ssid:salty")
+                            if ':' in ssid_line:
+                                ssid = ssid_line.split(':', 1)[1].strip()
+                                if ssid:
+                                    wifi_info['ssid'] = ssid
+                                    break
+    except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+        # nmcli not available or failed, try file-based methods
+        pass
     
-    for wpa_path in wpa_supplicant_paths:
-        try:
-            if os.path.exists(wpa_path) and os.access(wpa_path, os.R_OK):
-                with open(wpa_path, 'r') as f:
-                    content = f.read()
-                    
-                    # Simple parsing for ssid and psk
-                    import re
-                    ssid_match = re.search(r'ssid="([^"]+)"', content)
-                    psk_match = re.search(r'psk="([^"]+)"', content)
-                    
-                    if ssid_match:
-                        wifi_info['ssid'] = ssid_match.group(1)
-                    if psk_match:
-                        wifi_info['password'] = psk_match.group(1)
-                    
-                    if wifi_info['ssid']:
-                        break
-        except Exception:
-            # If we can't read it, that's fine - user will enter manually
-            pass
+    # Fallback: Try reading NetworkManager config files directly
+    if not wifi_info['ssid']:
+        nm_connections_dir = '/etc/NetworkManager/system-connections'
+        if os.path.exists(nm_connections_dir) and os.access(nm_connections_dir, os.R_OK):
+            try:
+                import re
+                for filename in os.listdir(nm_connections_dir):
+                    if filename.endswith('.nmconnection'):
+                        nm_path = os.path.join(nm_connections_dir, filename)
+                        try:
+                            # Try to read with sudo if needed (but this may fail)
+                            with open(nm_path, 'r') as f:
+                                content = f.read()
+                                
+                                # Check if it's a wifi connection
+                                if 'type=wifi' in content or '[wifi]' in content:
+                                    # Extract SSID
+                                    ssid_match = re.search(r'^ssid=([^\n]+)', content, re.MULTILINE)
+                                    if ssid_match:
+                                        wifi_info['ssid'] = ssid_match.group(1).strip()
+                                    
+                                    # Note: NetworkManager stores PSK as hash, can't get plaintext
+                                    # Password will remain empty - user must enter manually
+                                    
+                                    if wifi_info['ssid']:
+                                        break
+                        except (PermissionError, IOError):
+                            # File not readable, skip
+                            continue
+                        except Exception:
+                            continue
+            except Exception:
+                pass
+    
+    # Fallback: Try wpa_supplicant.conf (older systems)
+    if not wifi_info['ssid']:
+        wpa_supplicant_paths = [
+            '/etc/wpa_supplicant/wpa_supplicant.conf',
+            '/etc/wpa_supplicant/wpa_supplicant-wlan0.conf'
+        ]
+        
+        for wpa_path in wpa_supplicant_paths:
+            try:
+                if os.path.exists(wpa_path) and os.access(wpa_path, os.R_OK):
+                    with open(wpa_path, 'r') as f:
+                        content = f.read()
+                        
+                        # Simple parsing for ssid and psk
+                        import re
+                        ssid_match = re.search(r'ssid="([^"]+)"', content)
+                        psk_match = re.search(r'psk="([^"]+)"', content)
+                        
+                        if ssid_match:
+                            wifi_info['ssid'] = ssid_match.group(1)
+                        if psk_match:
+                            # Check if it's a hash (64 hex chars) or plaintext
+                            psk_value = psk_match.group(1)
+                            if len(psk_value) == 64 and all(c in '0123456789abcdefABCDEF' for c in psk_value):
+                                # It's a hash, can't get plaintext
+                                pass
+                            else:
+                                wifi_info['password'] = psk_value
+                        
+                        if wifi_info['ssid']:
+                            break
+            except Exception:
+                # If we can't read it, that's fine - user will enter manually
+                pass
     
     return wifi_info
 

@@ -55,3 +55,4 @@ docs/
 docker/
 legacy_backupbackup_*.zip
 *.backup
+.claude
