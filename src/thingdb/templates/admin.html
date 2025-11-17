@@ -118,6 +118,7 @@
 <div class="admin-nav">
     <div class="admin-nav-item active" onclick="showSection('database')">🗄️ Database</div>
     <div class="admin-nav-item" onclick="showSection('system')">⚙️ System</div>
+    <div class="admin-nav-item" onclick="showSection('scanner')">📱 Scanner</div>
     <!-- <div class="admin-nav-item" onclick="showSection('packages')">📦 Packages</div> -->
     <div class="admin-nav-item" onclick="showSection('power')">⚡ Power</div>
 </div>
@@ -171,6 +172,65 @@
                 <div class="tool-card-header"><span class="tool-card-icon">📊</span><h3 class="tool-card-title">Database Statistics</h3></div>
                 <p class="tool-card-description">See detailed statistics and fun facts about your inventory data.</p>
                 <div class="tool-card-actions"><a href="/db-stats" class="btn btn-secondary">View Stats</a></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scanner Section -->
+    <div id="scanner-section" class="admin-section">
+        <div class="card" style="max-width: 800px; margin: 0 auto;">
+            <h2 style="margin-bottom: 16px;">📱 Scanner Setup</h2>
+            <p style="font-size: 14px; color: var(--text-light); margin-bottom: 24px;">
+                Configure your ESP32-based portable scanner by scanning the initialization QR code below.
+                The scanner will use this information to connect to Wi-Fi and authenticate with ThingDB.
+            </p>
+
+            <!-- Wi-Fi Configuration Form -->
+            <div style="margin-bottom: 24px;">
+                <h3 style="font-size: 16px; margin-bottom: 12px;">Wi-Fi Configuration</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                    <div>
+                        <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">SSID</label>
+                        <input type="text" id="wifi-ssid" class="form-input" placeholder="Wi-Fi Network Name" style="width: 100%;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Password</label>
+                        <input type="password" id="wifi-password" class="form-input" placeholder="Wi-Fi Password" style="width: 100%;">
+                    </div>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button onclick="autoDetectWifi()" class="btn btn-secondary" style="flex: 1;">🔍 Auto-Detect</button>
+                    <button onclick="updateQRCode()" class="btn btn-primary" style="flex: 1;">🔄 Update QR Code</button>
+                </div>
+            </div>
+
+            <!-- QR Code Display -->
+            <div style="text-align: center; margin-bottom: 24px;">
+                <h3 style="font-size: 16px; margin-bottom: 12px;">Initialization QR Code</h3>
+                <div id="qr-code-container" style="background: white; padding: 20px; border-radius: 8px; display: inline-block; border: 1px solid var(--border-color);">
+                    <div id="qr-loading" style="padding: 40px;">
+                        <div class="loading"></div>
+                        <p style="margin-top: 12px; color: var(--text-light);">Loading QR code...</p>
+                    </div>
+                    <div id="qr-display" style="display: none;">
+                        <img id="qr-image" src="" alt="Scanner Initialization QR Code" style="max-width: 300px; height: auto;">
+                        <p style="margin-top: 12px; font-size: 12px; color: var(--text-light);">
+                            Scan this QR code with your ESP32 scanner to initialize it.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Instructions -->
+            <div style="background: var(--background-light); padding: 16px; border-radius: 8px; font-size: 13px;">
+                <h4 style="margin: 0 0 8px 0; font-size: 14px;">Setup Instructions:</h4>
+                <ol style="margin: 0; padding-left: 20px; color: var(--text-light);">
+                    <li>Enter your Wi-Fi SSID and password (or use Auto-Detect)</li>
+                    <li>Click "Update QR Code" to generate the initialization QR code</li>
+                    <li>Scan the QR code with your ESP32 scanner</li>
+                    <li>The scanner will connect to Wi-Fi and authenticate with ThingDB</li>
+                    <li>The ephemeral secret persists until the system reboots</li>
+                </ol>
             </div>
         </div>
     </div>
@@ -490,5 +550,127 @@ function shutdownSystem() {
     showModal('Shutting Down', 'The system is shutting down. You will lose connection.', '⏳', false);
     fetch('/api/shutdown-system', { method: 'POST' });
 }
+
+// --- Scanner Setup ---
+function autoDetectWifi() {
+    fetch('/api/scanner/wifi-info')
+        .then(res => res.json())
+        .then(data => {
+            if (data.ssid) {
+                document.getElementById('wifi-ssid').value = data.ssid;
+            }
+            if (data.password) {
+                document.getElementById('wifi-password').value = data.password;
+            }
+            if (data.ssid || data.password) {
+                showModal('Wi-Fi Detected', `Found SSID: ${data.ssid || 'Not found'}\nPassword: ${data.password ? '***' : 'Not found'}`, '✅');
+                updateQRCode();
+            } else {
+                showModal('Auto-Detect Failed', 'Could not auto-detect Wi-Fi settings. Please enter them manually.', '⚠️');
+            }
+        })
+        .catch(err => {
+            showModal('Auto-Detect Error', 'Failed to detect Wi-Fi settings. Please enter them manually.', '❌');
+        });
+}
+
+function updateQRCode() {
+    const ssid = document.getElementById('wifi-ssid').value.trim();
+    const password = document.getElementById('wifi-password').value.trim();
+    
+    if (!ssid) {
+        showModal('Missing SSID', 'Please enter a Wi-Fi SSID.', '⚠️');
+        return;
+    }
+    
+    // Show loading
+    document.getElementById('qr-loading').style.display = 'block';
+    document.getElementById('qr-display').style.display = 'none';
+    
+    // Get initialization data
+    fetch('/api/scanner/init-qr')
+        .then(res => res.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to generate QR code');
+            }
+            
+            // Override with manual entries if provided
+            const initData = data.data;
+            if (ssid) initData.ssid = ssid;
+            if (password) initData.password = password;
+            
+            // Generate QR code using existing service (via canvas or library)
+            generateQRCodeImage(JSON.stringify(initData));
+        })
+        .catch(err => {
+            showModal('QR Code Error', 'Failed to generate QR code: ' + err.message, '❌');
+            document.getElementById('qr-loading').style.display = 'none';
+        });
+}
+
+function generateQRCodeImage(data) {
+    // Use QR code library if available, otherwise create data URL
+    // For now, we'll use a simple approach with a QR code API or library
+    // In production, you might want to use qrcode.js or similar
+    
+    // Create QR code using a simple library approach
+    // We'll use a canvas-based approach or an external service
+    const qrSize = 300;
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(data)}`;
+    
+    const img = document.getElementById('qr-image');
+    img.onload = function() {
+        document.getElementById('qr-loading').style.display = 'none';
+        document.getElementById('qr-display').style.display = 'block';
+    };
+    img.onerror = function() {
+        // Fallback: try using qrcode.js if available
+        try {
+            if (typeof QRCode !== 'undefined') {
+                const canvas = document.createElement('canvas');
+                QRCode.toCanvas(canvas, data, { width: qrSize }, function (error) {
+                    if (error) throw error;
+                    img.src = canvas.toDataURL();
+                    document.getElementById('qr-loading').style.display = 'none';
+                    document.getElementById('qr-display').style.display = 'block';
+                });
+            } else {
+                throw new Error('QR code generation failed');
+            }
+        } catch (e) {
+            showModal('QR Code Error', 'Failed to generate QR code image. Please try again.', '❌');
+            document.getElementById('qr-loading').style.display = 'none';
+        }
+    };
+    img.src = qrUrl;
+}
+
+// Load QR code on page load if scanner section is active
+document.addEventListener('DOMContentLoaded', function() {
+    // Check if scanner section should be shown
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('section') === 'scanner') {
+        showSection('scanner');
+    }
+    
+    // Auto-load QR code when scanner section is shown
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                const scannerSection = document.getElementById('scanner-section');
+                if (scannerSection && scannerSection.classList.contains('active')) {
+                    // Auto-detect and load QR code
+                    autoDetectWifi();
+                }
+            }
+        });
+    });
+    
+    const scannerSection = document.getElementById('scanner-section');
+    if (scannerSection) {
+        observer.observe(scannerSection, { attributes: true });
+    }
+});
 </script>
 {% endblock %}

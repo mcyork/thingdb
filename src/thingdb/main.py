@@ -46,6 +46,7 @@ from thingdb.routes.relationship_routes import relationship_bp
 from thingdb.routes.admin_routes import admin_bp
 # from thingdb.routes.printing_routes import printing_bp  # COMMENTED OUT - BROKE NETWORK
 from thingdb.routes.backup_routes import backup_bp
+from thingdb.routes.scanner_routes import scanner_bp
 
 
 def create_app():
@@ -71,6 +72,7 @@ def create_app():
     app.register_blueprint(admin_bp)
     # app.register_blueprint(printing_bp)  # COMMENTED OUT - BROKE NETWORK
     app.register_blueprint(backup_bp)
+    app.register_blueprint(scanner_bp)
     
     # Error handlers
     @app.errorhandler(404)

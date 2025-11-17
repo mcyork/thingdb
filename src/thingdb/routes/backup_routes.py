@@ -460,6 +460,168 @@ def restore_database(db_file):
         print(f"Database restore error: {e}")
         return False
 
+@backup_bp.route('/api/backup/reset-database', methods=['POST'])
+def reset_database():
+    """Reset database to empty state - DELETES ALL DATA"""
+    try:
+        # Require confirmation text
+        data = request.get_json()
+        confirmation = data.get('confirmation', '').strip()
+        
+        if confirmation != 'DELETE EVERYTHING':
+            return jsonify({
+                'success': False, 
+                'error': 'Confirmation text does not match. Type exactly: DELETE EVERYTHING'
+            }), 400
+        
+        # Start reset in background thread to avoid timeout
+        def do_reset():
+            time.sleep(1)  # Let response be sent
+            reset_database_to_empty()
+        
+        reset_thread = threading.Thread(target=do_reset)
+        reset_thread.daemon = True
+        reset_thread.start()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Database reset started. Reloading in a moment...'
+        })
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@backup_bp.route('/api/backup/demos')
+def get_demo_backups():
+    """Get list of available demo backup files"""
+    try:
+        # Demo directory in the application root
+        demo_dir = '/var/lib/thingdb/demos'
+        
+        if not os.path.exists(demo_dir):
+            return jsonify({
+                'success': True,
+                'demos': []
+            })
+        
+        demos = []
+        for filename in os.listdir(demo_dir):
+            if filename.endswith('.zip'):
+                filepath = os.path.join(demo_dir, filename)
+                file_size = os.path.getsize(filepath)
+                file_mtime = os.path.getmtime(filepath)
+                
+                # Extract demo name from filename (remove .zip and underscores)
+                demo_name = filename.replace('.zip', '').replace('_', ' ').title()
+                
+                demos.append({
+                    'filename': filename,
+                    'name': demo_name,
+                    'size': format_file_size(file_size),
+                    'date': datetime.fromtimestamp(file_mtime).strftime('%Y-%m-%d %H:%M:%S')
+                })
+        
+        # Sort by name
+        demos.sort(key=lambda x: x['name'])
+        
+        return jsonify({
+            'success': True,
+            'demos': demos
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@backup_bp.route('/api/backup/restore-demo/<filename>', methods=['POST'])
+def restore_demo_backup(filename):
+    """Restore from a demo backup file"""
+    try:
+        # Security check
+        if not allowed_file(filename) or '..' in filename:
+            return jsonify({'success': False, 'error': 'Invalid filename'}), 400
+        
+        demo_path = os.path.join('/var/lib/thingdb/demos', filename)
+        if not os.path.exists(demo_path):
+            return jsonify({'success': False, 'error': 'Demo backup not found'}), 404
+        
+        # Restore from the demo backup file
+        restore_success = restore_from_zip(demo_path)
+        
+        if restore_success:
+            # Start application restart
+            restart_application()
+            return jsonify({
+                'success': True,
+                'message': f'Demo "{filename}" loaded successfully. The application will restart automatically in a few seconds.'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to restore demo backup'
+            }), 500
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+def reset_database_to_empty():
+    """Drop all tables and reinitialize empty database"""
+    try:
+        # Get database config
+        db_host = os.environ.get('POSTGRES_HOST', 'localhost')
+        db_port = os.environ.get('POSTGRES_PORT', '5432')
+        db_user = os.environ.get('POSTGRES_USER', 'thingdb')
+        db_password = os.environ.get('POSTGRES_PASSWORD', 'thingdb_default_pass')
+        db_name = os.environ.get('POSTGRES_DB', 'thingdb')
+        
+        # Set environment variables for password
+        env = os.environ.copy()
+        env['PGPASSWORD'] = db_password
+        
+        print("Resetting database to empty state...")
+        
+        # Drop all tables - use psql without timeout
+        drop_cmd = [
+            '/usr/bin/psql',
+            '--host', db_host,
+            '--port', db_port,
+            '--username', db_user,
+            '--dbname', db_name,
+            '--no-password',
+            '--command', 'DROP TABLE IF EXISTS items CASCADE; DROP TABLE IF EXISTS images CASCADE; DROP TABLE IF EXISTS categories CASCADE; DROP TABLE IF EXISTS text_content CASCADE; DROP TABLE IF EXISTS qr_aliases CASCADE; DROP TABLE IF EXISTS _schema_version CASCADE;'
+        ]
+        
+        drop_result = subprocess.run(drop_cmd, env=env, capture_output=True, text=True, timeout=30)
+        if drop_result.returncode != 0:
+            print(f"Drop tables error: {drop_result.stderr}")
+            return False
+        
+        print(f"Drop tables output: {drop_result.stdout}")
+        
+        # Clean up image directory
+        if IMAGE_STORAGE_METHOD == 'filesystem' and os.path.exists(IMAGE_DIR):
+            print("Cleaning up image files...")
+            shutil.rmtree(IMAGE_DIR)
+            os.makedirs(IMAGE_DIR, exist_ok=True)
+        
+        # Reinitialize database schema with timeout protection
+        print("Reinitializing database schema...")
+        try:
+            from thingdb.database import init_database
+            init_database()
+            print("Database reset completed successfully")
+        except Exception as init_error:
+            print(f"Schema init error (will auto-init on next access): {init_error}")
+            # Not fatal - schema will be created on next DB access
+        
+        return True
+        
+    except subprocess.TimeoutExpired:
+        print("Database reset timeout - operation took too long")
+        return False
+    except Exception as e:
+        print(f"Database reset error: {e}")
+        return False
+
 def restart_application():
     """Restart the application by stopping the current process"""
     def delayed_restart():

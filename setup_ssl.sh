@@ -164,6 +164,15 @@ needs_service_update() {
         return 0  # Needs update (upgrade scenario)
     fi
     
+    # CRITICAL: Check if SSL certificates exist but service file doesn't have SSL config
+    # This happens during upgrades when install.sh overwrites the service file
+    if [ -f "$CERT_FILE" ] && [ -f "$KEY_FILE" ]; then
+        if ! grep -q "--certfile" /etc/systemd/system/thingdb.service 2>/dev/null || \
+           ! grep -q "--keyfile" /etc/systemd/system/thingdb.service 2>/dev/null; then
+            return 0  # Needs update - certificates exist but service lacks SSL config
+        fi
+    fi
+    
     return 1  # Up to date
 }
 

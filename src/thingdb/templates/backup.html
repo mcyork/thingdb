@@ -288,6 +288,58 @@
         </div>
     </div>
 
+    <!-- Demo Databases Section -->
+    <div class="card" id="demo-section">
+        <h3 style="margin-bottom: 16px;">📚 Demo Databases</h3>
+        <p style="font-size: 13px; color: var(--text-light); margin-bottom: 16px;">
+            Quick-start with pre-populated example databases to explore ThingDB features.
+        </p>
+        <div id="demo-list">
+            <div style="text-align: center; padding: 20px; color: var(--text-light);">
+                <span style="font-size: 24px;">📦</span>
+                <p style="font-size: 13px;">Loading demo databases...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reset Database Section -->
+    <div class="card" style="border: 2px solid #ff9800;">
+        <h3 style="margin-bottom: 16px; color: #ff5722;">⚠️ Reset Database</h3>
+        <p style="font-size: 13px; color: var(--text-light); margin-bottom: 16px;">
+            <strong>Danger Zone:</strong> This will permanently delete all items, images, categories, and data from your database.
+            The database will be reset to empty (like a fresh installation).
+        </p>
+        
+        <!-- Reset Confirmation Input -->
+        <div id="reset-confirmation-box" style="display: none; margin-bottom: 16px;">
+            <div style="background: #fff3e0; border: 1px solid #ff9800; border-radius: 6px; padding: 16px; margin-bottom: 12px;">
+                <p style="margin: 0 0 12px 0; font-size: 13px; font-weight: 600;">This will permanently delete:</p>
+                <ul style="margin: 0 0 12px 0; padding-left: 20px; font-size: 13px;">
+                    <li>All items</li>
+                    <li>All photos</li>
+                    <li>All categories</li>
+                    <li>All data</li>
+                </ul>
+                <p style="margin: 0 0 8px 0; font-size: 13px; font-weight: 600;">
+                    Type <code style="background: #fff; padding: 2px 6px; border-radius: 3px;">DELETE EVERYTHING</code> to confirm:
+                </p>
+                <input type="text" id="reset-confirmation-input" class="form-input" placeholder="Type: DELETE EVERYTHING" style="margin-bottom: 12px;">
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-danger" onclick="confirmReset()" style="flex: 1;">🗑️ Reset Database</button>
+                    <button class="btn btn-secondary" onclick="cancelReset()" style="flex: 1;">Cancel</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Status Message for Reset -->
+        <div class="status-message" id="reset-status-message"></div>
+        
+        <!-- Initial Reset Button -->
+        <button class="btn btn-secondary btn-block" onclick="initiateReset()" id="reset-init-btn">
+            Reset to Empty Database
+        </button>
+    </div>
+
     <!-- Available Backups List -->
     <div class="card">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
@@ -658,5 +710,136 @@ function handleFileDrop(event) {
         showStatus('⚠️ Please select a .zip backup file', 'warning');
     }
 }
+
+// Demo Database Functions
+function loadDemoBackups() {
+    fetch('/api/backup/demos')
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                renderDemoList(data.demos);
+            }
+        })
+        .catch(err => console.error('Failed to load demos:', err));
+}
+
+function renderDemoList(demos) {
+    const demoList = document.getElementById('demo-list');
+    
+    if (demos.length === 0) {
+        demoList.innerHTML = `
+            <div style="text-align: center; padding: 20px; color: var(--text-light); font-size: 13px;">
+                <p>No demo databases available.</p>
+                <p style="margin-top: 8px; font-size: 12px;">Demo databases can be added to <code>/var/lib/thingdb/demos/</code></p>
+            </div>
+        `;
+        return;
+    }
+    
+    demoList.innerHTML = demos.map(demo => `
+        <div class="backup-item" style="margin-bottom: 8px;">
+            <div style="flex: 1;">
+                <div style="font-weight: 600; color: #333; margin-bottom: 2px;">${demo.name}</div>
+                <div style="font-size: 12px; color: #666;">${demo.size}</div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="restoreDemo('${demo.filename}')">
+                📥 Load Demo
+            </button>
+        </div>
+    `).join('');
+}
+
+function restoreDemo(filename) {
+    if (!confirm(`Load "${filename}" demo database?\n\nThis will replace all current data.`)) {
+        return;
+    }
+    
+    fetch(`/api/backup/restore-demo/${filename}`, {
+        method: 'POST'
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            alert('✅ ' + data.message);
+            setTimeout(() => window.location.href = '/', 3000);
+        } else {
+            alert('❌ Error: ' + data.error);
+        }
+    })
+    .catch(err => alert('❌ Failed to restore demo: ' + err.message));
+}
+
+// Reset Database Functions
+function initiateReset() {
+    document.getElementById('reset-confirmation-box').style.display = 'block';
+    document.getElementById('reset-init-btn').style.display = 'none';
+    document.getElementById('reset-confirmation-input').value = '';
+    document.getElementById('reset-confirmation-input').focus();
+}
+
+function cancelReset() {
+    document.getElementById('reset-confirmation-box').style.display = 'none';
+    document.getElementById('reset-init-btn').style.display = 'block';
+    document.getElementById('reset-confirmation-input').value = '';
+    hideResetStatus();
+}
+
+function confirmReset() {
+    const confirmation = document.getElementById('reset-confirmation-input').value;
+    
+    if (confirmation !== 'DELETE EVERYTHING') {
+        showResetStatus('⚠️ Please type exactly: DELETE EVERYTHING', 'warning');
+        return;
+    }
+    
+    // Disable button and show loading
+    const resetBtn = event.target;
+    resetBtn.disabled = true;
+    resetBtn.textContent = '🔄 Resetting...';
+    
+    fetch('/api/backup/reset-database', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmation: confirmation })
+    })
+    .then(res => {
+        if (!res.ok) {
+            throw new Error('Server returned ' + res.status);
+        }
+        return res.json();
+    })
+    .then(data => {
+        if (data.success) {
+            showResetStatus('✅ ' + data.message, 'success');
+            // Redirect to home after brief delay
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 3000);
+        } else {
+            showResetStatus('❌ Error: ' + data.error, 'error');
+            resetBtn.disabled = false;
+            resetBtn.textContent = '🗑️ Reset Database';
+        }
+    })
+    .catch(err => {
+        showResetStatus('❌ Failed to reset: ' + err.message, 'error');
+        resetBtn.disabled = false;
+        resetBtn.textContent = '🗑️ Reset Database';
+    });
+}
+
+function showResetStatus(message, type) {
+    const statusEl = document.getElementById('reset-status-message');
+    statusEl.textContent = message;
+    statusEl.className = 'status-message status-' + type + ' show';
+}
+
+function hideResetStatus() {
+    const statusEl = document.getElementById('reset-status-message');
+    statusEl.classList.remove('show');
+}
+
+// Load demos on page load
+document.addEventListener('DOMContentLoaded', loadDemoBackups);
 </script>
 {% endblock %}
