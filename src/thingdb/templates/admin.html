@@ -553,7 +553,12 @@ function shutdownSystem() {
 
 // --- Scanner Setup ---
 function autoDetectWifi() {
-    fetch('/api/scanner/wifi-info')
+    fetch('/api/scanner/wifi-info?' + new Date().getTime(), {
+        cache: 'no-cache',
+        headers: {
+            'Cache-Control': 'no-cache'
+        }
+    })
         .then(res => res.json())
         .then(data => {
             if (data.ssid) {
@@ -587,8 +592,13 @@ function updateQRCode() {
     document.getElementById('qr-loading').style.display = 'block';
     document.getElementById('qr-display').style.display = 'none';
     
-    // Get initialization data
-    fetch('/api/scanner/init-qr')
+    // Get initialization data (with cache-busting to ensure fresh secret)
+    fetch('/api/scanner/init-qr?' + new Date().getTime(), {
+        cache: 'no-cache',
+        headers: {
+            'Cache-Control': 'no-cache'
+        }
+    })
         .then(res => res.json())
         .then(data => {
             if (!data.success) {

@@ -57,10 +57,15 @@ def get_init_qr():
             'port': int(server_port)
         }
         
-        return jsonify({
+        response = jsonify({
             'success': True,
             'data': init_data
         })
+        # Prevent caching to ensure fresh secret is always returned
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        return response
         
     except Exception as e:
         return jsonify({
