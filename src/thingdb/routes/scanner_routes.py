@@ -250,12 +250,19 @@ def scan_item():
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Get item information
+        # First check if this is an alternative GUID (alias)
+        cursor.execute('SELECT item_guid FROM qr_aliases WHERE qr_code = %s', (guid,))
+        alias_result = cursor.fetchone()
+        
+        # Use the base GUID if this is an alias, otherwise use the scanned GUID
+        base_guid = alias_result[0] if alias_result else guid
+        
+        # Get item information using the base GUID
         cursor.execute('''
             SELECT guid, item_name, label_number
             FROM items
             WHERE guid = %s
-        ''', (guid,))
+        ''', (base_guid,))
         
         item = cursor.fetchone()
         conn.close()
@@ -266,9 +273,10 @@ def scan_item():
                 'error': 'Item not found'
             }), 404
         
+        # Always return the base GUID, even if an alternative GUID was scanned
         return jsonify({
             'success': True,
-            'guid': item[0],
+            'guid': item[0],  # Base GUID
             'name': item[1] or 'Unnamed Item',
             'label_number': item[2]
         })
@@ -283,7 +291,7 @@ def scan_item():
 @scanner_bp.route('/api/scanner/move-item', methods=['POST'])
 @require_auth
 def move_item():
-    """Initiate move operation - validates but doesn't execute yet"""
+    """Move an item to a new parent - validates and executes in one call"""
     try:
         data = request.get_json()
         item_guid = data.get('item_guid', '').strip()
@@ -342,88 +350,6 @@ def move_item():
                 'error': 'Cannot create circular reference'
             }), 400
         
-        conn.close()
-        
-        # Move is valid, return pending status
-        return jsonify({
-            'success': True,
-            'message': 'Move ready. Scan OK or CANCEL to confirm.',
-            'pending': True
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-
-@scanner_bp.route('/api/scanner/confirm-move', methods=['POST'])
-@require_auth
-def confirm_move():
-    """Confirm or cancel a move operation"""
-    try:
-        data = request.get_json()
-        item_guid = data.get('item_guid', '').strip()
-        parent_guid = data.get('parent_guid', '').strip()
-        confirm = data.get('confirm', False)
-        
-        if not item_guid or not parent_guid:
-            return jsonify({
-                'success': False,
-                'error': 'item_guid and parent_guid are required'
-            }), 400
-        
-        if not is_valid_guid(item_guid) or not is_valid_guid(parent_guid):
-            return jsonify({
-                'success': False,
-                'error': 'Invalid GUID format'
-            }), 400
-        
-        if not confirm:
-            # Cancel operation
-            return jsonify({
-                'success': True,
-                'message': 'Move cancelled'
-            })
-        
-        # Execute the move
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # Re-validate (items might have changed)
-        cursor.execute('SELECT guid FROM items WHERE guid = %s', (item_guid,))
-        if not cursor.fetchone():
-            conn.close()
-            return jsonify({
-                'success': False,
-                'error': 'Item not found'
-            }), 404
-        
-        cursor.execute('SELECT guid FROM items WHERE guid = %s', (parent_guid,))
-        if not cursor.fetchone():
-            conn.close()
-            return jsonify({
-                'success': False,
-                'error': 'Parent item not found'
-            }), 404
-        
-        # Check for circular references again
-        if _creates_circular_reference(cursor, item_guid, parent_guid):
-            conn.close()
-            return jsonify({
-                'success': False,
-                'error': 'Cannot create circular reference'
-            }), 400
-        
-        # Prevent self-parenting
-        if item_guid == parent_guid:
-            conn.close()
-            return jsonify({
-                'success': False,
-                'error': 'Item cannot be its own parent'
-            }), 400
-        
         # Execute the move
         cursor.execute('''
             UPDATE items 
@@ -449,7 +375,7 @@ def confirm_move():
 @scanner_bp.route('/api/scanner/delete-item', methods=['POST'])
 @require_auth
 def delete_item():
-    """Initiate delete operation - validates but doesn't execute yet"""
+    """Delete an item - validates and executes in one call"""
     try:
         data = request.get_json()
         guid = data.get('guid', '').strip()
@@ -466,72 +392,12 @@ def delete_item():
                 'error': 'Invalid GUID format'
             }), 400
         
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # Check if item exists
-        cursor.execute('SELECT guid, item_name FROM items WHERE guid = %s', (guid,))
-        item = cursor.fetchone()
-        
-        if not item:
-            conn.close()
-            return jsonify({
-                'success': False,
-                'error': 'Item not found'
-            }), 404
-        
-        conn.close()
-        
-        # Delete is valid, return pending status
-        return jsonify({
-            'success': True,
-            'message': f'Delete ready for "{item[1] or "Unnamed Item"}". Scan OK or CANCEL to confirm.',
-            'pending': True,
-            'item_name': item[1] or 'Unnamed Item'
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-
-@scanner_bp.route('/api/scanner/confirm-delete', methods=['POST'])
-@require_auth
-def confirm_delete():
-    """Confirm or cancel a delete operation"""
-    try:
-        data = request.get_json()
-        guid = data.get('guid', '').strip()
-        confirm = data.get('confirm', False)
-        
-        if not guid:
-            return jsonify({
-                'success': False,
-                'error': 'GUID is required'
-            }), 400
-        
-        if not is_valid_guid(guid):
-            return jsonify({
-                'success': False,
-                'error': 'Invalid GUID format'
-            }), 400
-        
-        if not confirm:
-            # Cancel operation
-            return jsonify({
-                'success': True,
-                'message': 'Delete cancelled'
-            })
-        
-        # Execute the delete
         from thingdb.routes.item_routes import cleanup_item_images
         
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Re-validate item exists
+        # Check if item exists
         cursor.execute('SELECT guid FROM items WHERE guid = %s', (guid,))
         if not cursor.fetchone():
             conn.close()
@@ -557,6 +423,276 @@ def confirm_delete():
         return jsonify({
             'success': True,
             'message': 'Item deleted successfully'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+def _resolve_to_base_guid(cursor, guid):
+    """Resolve a GUID (which may be an alias) to its base GUID"""
+    # Check if this is an alias
+    cursor.execute(
+        'SELECT item_guid FROM qr_aliases WHERE qr_code = %s',
+        (guid,)
+    )
+    alias_result = cursor.fetchone()
+    return alias_result[0] if alias_result else guid
+
+
+@scanner_bp.route('/api/scanner/make-alias', methods=['POST'])
+@require_auth
+def make_alias():
+    """Create an alias linking a QR code to an existing item"""
+    try:
+        data = request.get_json()
+        first_code = data.get('first_code', '').strip()
+        second_code = data.get('second_code', '').strip()
+        
+        if not first_code or not second_code:
+            return jsonify({
+                'success': False,
+                'error': 'first_code and second_code are required'
+            }), 400
+        
+        if not is_valid_guid(first_code) or not is_valid_guid(second_code):
+            return jsonify({
+                'success': False,
+                'error': 'Invalid GUID format'
+            }), 400
+        
+        # Prevent aliasing to itself
+        if first_code == second_code:
+            return jsonify({
+                'success': False,
+                'error': 'Cannot create alias to itself'
+            }), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Resolve first code to base GUID
+        first_base_guid = _resolve_to_base_guid(cursor, first_code)
+        
+        # Verify first item exists
+        cursor.execute('SELECT guid FROM items WHERE guid = %s',
+                       (first_base_guid,))
+        if not cursor.fetchone():
+            conn.close()
+            return jsonify({
+                'success': False,
+                'error': 'First item not found'
+            }), 404
+        
+        # Resolve second code to base GUID (if it's an alias)
+        second_base_guid = _resolve_to_base_guid(cursor, second_code)
+        
+        # Verify second item exists (either as base item or alias)
+        cursor.execute('SELECT guid FROM items WHERE guid = %s',
+                       (second_base_guid,))
+        if not cursor.fetchone():
+            conn.close()
+            return jsonify({
+                'success': False,
+                'error': 'Second code does not exist as an item'
+            }), 404
+        
+        # Check if alias already exists
+        cursor.execute('SELECT id FROM qr_aliases WHERE qr_code = %s',
+                       (second_code,))
+        if cursor.fetchone():
+            conn.close()
+            return jsonify({
+                'success': False,
+                'error': 'Second code is already aliased to another item'
+            }), 400
+        
+        # Create the alias: second_code -> first_base_guid
+        cursor.execute('''
+            INSERT INTO qr_aliases (qr_code, item_guid)
+            VALUES (%s, %s)
+        ''', (second_code, first_base_guid))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Alias created: {second_code} -> {first_base_guid}'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@scanner_bp.route('/api/scanner/bulk-move', methods=['POST'])
+@require_auth
+def bulk_move():
+    """Move multiple items to a new parent in one operation"""
+    try:
+        data = request.get_json()
+        item_guids = data.get('item_guids', [])
+        parent_guid = data.get('parent_guid', '').strip()
+        
+        if not item_guids:
+            return jsonify({
+                'success': False,
+                'error': 'item_guids array is required'
+            }), 400
+        
+        if not isinstance(item_guids, list):
+            return jsonify({
+                'success': False,
+                'error': 'item_guids must be an array'
+            }), 400
+        
+        if not parent_guid:
+            return jsonify({
+                'success': False,
+                'error': 'parent_guid is required'
+            }), 400
+        
+        if not is_valid_guid(parent_guid):
+            return jsonify({
+                'success': False,
+                'error': 'Invalid parent_guid format'
+            }), 400
+        
+        # Validate all item GUIDs
+        for guid in item_guids:
+            if not is_valid_guid(guid):
+                return jsonify({
+                    'success': False,
+                    'error': f'Invalid GUID format: {guid}'
+                }), 400
+        
+        # Remove duplicates
+        item_guids = list(set(item_guids))
+        
+        # Prevent moving item to itself
+        if parent_guid in item_guids:
+            return jsonify({
+                'success': False,
+                'error': 'Cannot move item to itself'
+            }), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Verify parent exists
+        cursor.execute('SELECT guid FROM items WHERE guid = %s',
+                       (parent_guid,))
+        if not cursor.fetchone():
+            conn.close()
+            return jsonify({
+                'success': False,
+                'error': 'Parent item not found'
+            }), 404
+        
+        # Verify all items exist and check for circular references
+        valid_items = []
+        for item_guid in item_guids:
+            cursor.execute('SELECT guid FROM items WHERE guid = %s',
+                           (item_guid,))
+            if not cursor.fetchone():
+                conn.close()
+                return jsonify({
+                    'success': False,
+                    'error': f'Item not found: {item_guid}'
+                }), 404
+            
+            # Check for circular references
+            if _creates_circular_reference(cursor, item_guid, parent_guid):
+                conn.close()
+                return jsonify({
+                    'success': False,
+                    'error': f'Cannot create circular reference for item: '
+                             f'{item_guid}'
+                }), 400
+            
+            valid_items.append(item_guid)
+        
+        # Execute bulk move in a single transaction
+        moved_count = 0
+        for item_guid in valid_items:
+            cursor.execute('''
+                UPDATE items
+                SET parent_guid = %s, updated_date = CURRENT_TIMESTAMP
+                WHERE guid = %s
+            ''', (parent_guid, item_guid))
+            moved_count += cursor.rowcount
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully moved {moved_count} item(s)',
+            'moved_count': moved_count
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@scanner_bp.route('/api/scanner/audit-item', methods=['POST'])
+@require_auth
+def audit_item():
+    """Update last seen timestamp for an item (audit trail)"""
+    try:
+        data = request.get_json()
+        guid = data.get('guid', '').strip()
+        
+        if not guid:
+            return jsonify({
+                'success': False,
+                'error': 'GUID is required'
+            }), 400
+        
+        if not is_valid_guid(guid):
+            return jsonify({
+                'success': False,
+                'error': 'Invalid GUID format'
+            }), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Resolve to base GUID if alias
+        base_guid = _resolve_to_base_guid(cursor, guid)
+        
+        # Verify item exists
+        cursor.execute('SELECT guid FROM items WHERE guid = %s',
+                       (base_guid,))
+        if not cursor.fetchone():
+            conn.close()
+            return jsonify({
+                'success': False,
+                'error': 'Item not found'
+            }), 404
+        
+        # Update timestamp
+        cursor.execute('''
+            UPDATE items
+            SET updated_date = CURRENT_TIMESTAMP
+            WHERE guid = %s
+        ''', (base_guid,))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Item audit timestamp updated'
         })
         
     except Exception as e:
