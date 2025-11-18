@@ -31,7 +31,7 @@ load_env_file()
 
 
 # Now import modules that depend on environment variables
-from flask import Flask, render_template
+from flask import Flask, render_template, request, jsonify
 from thingdb import config
 from thingdb.database import init_database
 from thingdb.models import image_cache, thumbnail_cache
@@ -77,6 +77,12 @@ def create_app():
     # Error handlers
     @app.errorhandler(404)
     def not_found(error):
+        # Return JSON for API endpoints, HTML for web pages
+        if request.path.startswith('/api/'):
+            return jsonify({
+                'success': False,
+                'error': 'Endpoint not found'
+            }), 404
         return render_template('error.html',
                              heading='❌ Page Not Found',
                              message='The requested page could not be found.'), 404
