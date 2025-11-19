@@ -1,9 +1,13 @@
 #!/bin/bash
 # ThingDB Bootstrap Installer
 # This script downloads and runs the ThingDB installer
-# Usage: wget -qO- https://raw.githubusercontent.com/mcyork/thingdb/main/bootstrap.sh | bash
+# Usage (main branch): wget -qO- https://raw.githubusercontent.com/mcyork/thingdb/main/bootstrap.sh | bash
+# Usage (dev branch):  wget -qO- https://raw.githubusercontent.com/mcyork/thingdb/dev/bootstrap.sh | bash -s dev
 
 set -e
+
+# Get branch parameter (default to "main")
+BRANCH="${1:-main}"
 
 # Colors
 GREEN='\033[0;32m'
@@ -16,6 +20,11 @@ echo "╔═══════════════════════�
 echo "║         ThingDB One-Command Bootstrap Installer                ║"
 echo "╚════════════════════════════════════════════════════════════════╝"
 echo ""
+
+if [ "$BRANCH" != "main" ]; then
+    echo -e "${YELLOW}⚠️  Installing from ${BRANCH} branch (development/experimental)${NC}"
+    echo ""
+fi
 
 # Check if running on Raspberry Pi
 if grep -q "Raspberry Pi" /proc/cpuinfo 2>/dev/null; then
@@ -31,8 +40,8 @@ fi
 TEMP_DIR=$(mktemp -d)
 cd "$TEMP_DIR"
 
-echo -e "${BLUE}📥 Downloading ThingDB...${NC}"
-wget -q --show-progress https://github.com/mcyork/thingdb/archive/refs/heads/main.zip -O thingdb.zip
+echo -e "${BLUE}📥 Downloading ThingDB from ${BRANCH} branch...${NC}"
+wget -q --show-progress "https://github.com/mcyork/thingdb/archive/refs/heads/${BRANCH}.zip" -O thingdb.zip
 
 echo ""
 echo -e "${BLUE}📦 Extracting...${NC}"
@@ -42,7 +51,7 @@ echo ""
 echo -e "${BLUE}🚀 Starting installation...${NC}"
 echo ""
 
-cd thingdb-main
+cd "thingdb-${BRANCH}"
 chmod +x install.sh
 ./install.sh
 

@@ -221,6 +221,22 @@
                 </div>
             </div>
 
+            <!-- QR Code Data Display -->
+            <div id="qr-data-display" style="display: none; margin-bottom: 24px;">
+                <h3 style="font-size: 16px; margin-bottom: 12px;">QR Code Contents (for verification)</h3>
+                <div style="background: var(--background-light); padding: 16px; border-radius: 8px; font-family: monospace; font-size: 12px;">
+                    <div style="margin-bottom: 8px;"><strong>Secret:</strong> <span id="qr-data-secret" style="word-break: break-all;"></span></div>
+                    <div style="margin-bottom: 8px;"><strong>SSID:</strong> <span id="qr-data-ssid"></span></div>
+                    <div style="margin-bottom: 8px;"><strong>Password:</strong> <span id="qr-data-password"></span></div>
+                    <div style="margin-bottom: 8px;"><strong>IP:</strong> <span id="qr-data-ip"></span></div>
+                    <div style="margin-bottom: 8px;"><strong>Port:</strong> <span id="qr-data-port"></span></div>
+                    <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-color);">
+                        <strong>Full JSON:</strong>
+                        <pre id="qr-data-json" style="margin-top: 8px; white-space: pre-wrap; word-break: break-all; font-size: 11px; color: var(--text-light);"></pre>
+                    </div>
+                </div>
+            </div>
+
             <!-- Instructions -->
             <div style="background: var(--background-light); padding: 16px; border-radius: 8px; font-size: 13px;">
                 <h4 style="margin: 0 0 8px 0; font-size: 14px;">Setup Instructions:</h4>
@@ -553,7 +569,12 @@ function shutdownSystem() {
 
 // --- Scanner Setup ---
 function autoDetectWifi() {
-    fetch('/api/scanner/wifi-info')
+    fetch('/api/scanner/wifi-info?' + new Date().getTime(), {
+        cache: 'no-cache',
+        headers: {
+            'Cache-Control': 'no-cache'
+        }
+    })
         .then(res => res.json())
         .then(data => {
             if (data.ssid) {
@@ -587,8 +608,13 @@ function updateQRCode() {
     document.getElementById('qr-loading').style.display = 'block';
     document.getElementById('qr-display').style.display = 'none';
     
-    // Get initialization data
-    fetch('/api/scanner/init-qr')
+    // Get initialization data (with cache-busting to ensure fresh secret)
+    fetch('/api/scanner/init-qr?' + new Date().getTime(), {
+        cache: 'no-cache',
+        headers: {
+            'Cache-Control': 'no-cache'
+        }
+    })
         .then(res => res.json())
         .then(data => {
             if (!data.success) {
@@ -599,6 +625,15 @@ function updateQRCode() {
             const initData = data.data;
             if (ssid) initData.ssid = ssid;
             if (password) initData.password = password;
+            
+            // Display QR code data in text fields for verification
+            document.getElementById('qr-data-secret').textContent = initData.secret;
+            document.getElementById('qr-data-ssid').textContent = initData.ssid;
+            document.getElementById('qr-data-password').textContent = initData.password || '(empty)';
+            document.getElementById('qr-data-ip').textContent = initData.ip;
+            document.getElementById('qr-data-port').textContent = initData.port;
+            document.getElementById('qr-data-json').textContent = JSON.stringify(initData, null, 2);
+            document.getElementById('qr-data-display').style.display = 'block';
             
             // Generate QR code using existing service (via canvas or library)
             generateQRCodeImage(JSON.stringify(initData));
@@ -617,7 +652,9 @@ function generateQRCodeImage(data) {
     // Create QR code using a simple library approach
     // We'll use a canvas-based approach or an external service
     const qrSize = 300;
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(data)}`;
+    // Add cache-busting timestamp to prevent image caching
+    const timestamp = new Date().getTime();
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(data)}&t=${timestamp}`;
     
     const img = document.getElementById('qr-image');
     img.onload = function() {

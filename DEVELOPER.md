@@ -10,7 +10,7 @@ Want to test new features before they're released? Use the `dev` branch:
 
 ```bash
 # Dev branch one-liner:
-wget -qO- https://raw.githubusercontent.com/mcyork/thingdb/dev/bootstrap.sh | bash
+wget -qO- https://raw.githubusercontent.com/mcyork/thingdb/dev/bootstrap.sh | bash -s dev
 ```
 
 ### Manual Install (Dev Branch)
