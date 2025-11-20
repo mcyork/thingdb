@@ -281,8 +281,8 @@
                         <div style="margin-bottom: 8px;"><strong>Password:</strong> <span id="ds2800-qr-data-password"></span></div>
                         <div style="margin-bottom: 8px;"><strong>API URL:</strong> <span id="ds2800-qr-data-api-url" style="word-break: break-all;"></span></div>
                         <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-color);">
-                            <strong>Full JSON:</strong>
-                            <pre id="ds2800-qr-data-json" style="margin-top: 8px; white-space: pre-wrap; word-break: break-all; font-size: 11px; color: var(--text-light);"></pre>
+                            <strong>AT Commands (QR Code Content):</strong>
+                            <pre id="ds2800-qr-data-json" style="margin-top: 8px; white-space: pre-wrap; word-break: break-all; font-size: 11px; color: var(--text-light); font-family: monospace;"></pre>
                         </div>
                     </div>
                 </div>
@@ -293,14 +293,18 @@
                     <ol style="margin: 0; padding-left: 20px; color: var(--text-light);">
                         <li>Ensure Wi-Fi SSID and password are entered above</li>
                         <li>Click "Update QR Code" above to generate the DS2800 configuration</li>
-                        <li>Scan the QR code with your DS2800 (if supported) or manually enter:</li>
-                        <ul style="margin-top: 8px; padding-left: 20px;">
-                            <li>Wi-Fi SSID and password from the QR code</li>
-                            <li>API URL: <code id="ds2800-api-url-display" style="font-size: 11px;"></code></li>
-                            <li>Content-Type: <code>application/json</code></li>
-                            <li>Data Format: <code>JSON</code></li>
-                        </ul>
-                        <li>The scanner will send POST requests to <code>/api/scanner/receive-scan</code></li>
+                        <li>Scan the QR code with your DS2800 scanner. The QR code contains AT commands in the format:
+                            <code style="font-size: 11px; display: block; margin-top: 4px; font-family: monospace;">AT+URL=1,hostname,path;AT+RAP=ssid,password</code>
+                        </li>
+                        <li>If your scanner doesn't support QR code scanning, manually configure:
+                            <ul style="margin-top: 8px; padding-left: 20px;">
+                                <li>Wi-Fi SSID and password</li>
+                                <li>API URL: <code id="ds2800-api-url-display" style="font-size: 11px;"></code></li>
+                                <li>Content-Type: <code>application/json</code></li>
+                                <li>Data Format: <code>JSON</code> (for the POST request body)</li>
+                            </ul>
+                        </li>
+                        <li>The scanner will send POST requests with JSON body: <code>{"id": "device_id", "msg": "scanned_data"}</code></li>
                     </ol>
                 </div>
             </div>
@@ -743,24 +747,50 @@ function generateQRCodeImage(data) {
 }
 
 function generateDS2800QRCode(initData) {
-    // Create DS2800 configuration JSON
-    // Based on DS2800 documentation: needs SSID, password, and API URL
+    // Create DS2800 configuration using AT commands
+    // Format: AT+URL=1,hostname,path;AT+RAP=ssid,password
+    // Based on DS2800 documentation: uses AT commands, not JSON
+    
+    // Parse the API URL to extract hostname and path
     const protocol = window.location.protocol; // https: or http:
     const apiUrl = `${protocol}//${initData.ip}:${initData.port}/api/scanner/receive-scan`;
     
-    const ds2800Config = {
-        ssid: initData.ssid,
-        password: initData.password || '',
-        api_url: apiUrl
-    };
+    // Parse URL to get hostname, port, and path
+    let hostname = initData.ip;
+    let port = initData.port;
+    let path = '/api/scanner/receive-scan';
     
-    const configJson = JSON.stringify(ds2800Config);
+    // If we have a full URL, parse it
+    try {
+        const url = new URL(apiUrl);
+        hostname = url.hostname;
+        port = url.port || (url.protocol === 'https:' ? '443' : '80');
+        path = url.pathname;
+    } catch (e) {
+        // If URL parsing fails, use IP and default path
+        hostname = initData.ip;
+        port = initData.port;
+        path = '/api/scanner/receive-scan';
+    }
+    
+    // Build hostname with port if not default (80 for HTTP, 443 for HTTPS)
+    // DS-2800 format: hostname:port if non-standard port
+    let hostnameWithPort = hostname;
+    const isHttps = protocol === 'https:';
+    if ((isHttps && port !== '443') || (!isHttps && port !== '80')) {
+        hostnameWithPort = `${hostname}:${port}`;
+    }
+    
+    // Build AT command string
+    // AT+URL=1,hostname,path (1 = HTTP protocol, hostname may include port, path starts with /)
+    // AT+RAP=ssid,password (RAP = Router Access Point)
+    const atCommands = `AT+URL=1,${hostnameWithPort},${path};AT+RAP=${initData.ssid},${initData.password || ''}`;
     
     // Display configuration data
-    document.getElementById('ds2800-qr-data-ssid').textContent = ds2800Config.ssid;
-    document.getElementById('ds2800-qr-data-password').textContent = ds2800Config.password || '(empty)';
+    document.getElementById('ds2800-qr-data-ssid').textContent = initData.ssid;
+    document.getElementById('ds2800-qr-data-password').textContent = initData.password || '(empty)';
     document.getElementById('ds2800-qr-data-api-url').textContent = apiUrl;
-    document.getElementById('ds2800-qr-data-json').textContent = JSON.stringify(ds2800Config, null, 2);
+    document.getElementById('ds2800-qr-data-json').textContent = atCommands;
     document.getElementById('ds2800-api-url-display').textContent = apiUrl;
     document.getElementById('ds2800-qr-data-display').style.display = 'block';
     
@@ -768,10 +798,10 @@ function generateDS2800QRCode(initData) {
     document.getElementById('ds2800-qr-loading').style.display = 'block';
     document.getElementById('ds2800-qr-display').style.display = 'none';
     
-    // Generate QR code image
+    // Generate QR code image with AT commands (not JSON)
     const qrSize = 300;
     const timestamp = new Date().getTime();
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(configJson)}&t=${timestamp}`;
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(atCommands)}&t=${timestamp}`;
     
     const img = document.getElementById('ds2800-qr-image');
     img.onload = function() {
@@ -783,7 +813,7 @@ function generateDS2800QRCode(initData) {
         try {
             if (typeof QRCode !== 'undefined') {
                 const canvas = document.createElement('canvas');
-                QRCode.toCanvas(canvas, configJson, { width: qrSize }, function (error) {
+                QRCode.toCanvas(canvas, atCommands, { width: qrSize }, function (error) {
                     if (error) throw error;
                     img.src = canvas.toDataURL();
                     document.getElementById('ds2800-qr-loading').style.display = 'none';

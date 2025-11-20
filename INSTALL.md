@@ -9,9 +9,7 @@ wget -qO- https://raw.githubusercontent.com/mcyork/thingdb/main/bootstrap.sh | b
 ```
 
 This downloads, extracts, and installs ThingDB automatically. Works on:
-- ✅ Raspberry Pi (all models)
-- ✅ Ubuntu/Debian
-- ✅ macOS (with Homebrew)
+- ✅ Raspberry Pi 5 and others with lots of RAM (4GB+ recommended).
 
 **What it does:**
 1. Downloads ThingDB from GitHub
@@ -90,7 +88,7 @@ Open `http://localhost:5000` in your browser 🎉
 
 ### Recommended Hardware
 - **Raspberry Pi 4 or 5** (4GB+ RAM) - Best performance
-- **Pi Zero 2 W** (512MB RAM) - Works, but slower ML operations
+- **Pi Zero 2 W** (512MB RAM) - Works (slow ML operations), and is not recommended.
 
 ### Pi-Specific Tips
 
@@ -234,7 +232,7 @@ sudo ./setup_ssl.sh --force
 
 ---
 
-## 🐳 Docker Installation
+## 🐳 Docker Installation (not even remotely tested)
 
 ```bash
 # Using Docker Compose (easiest)
