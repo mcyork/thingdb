@@ -5,6 +5,8 @@ Handles scanner initialization, authentication, and item operations
 import os
 import json
 import socket
+from datetime import datetime
+from collections import deque
 from flask import Blueprint, request, jsonify
 from thingdb.database import get_db_connection
 from thingdb.utils.helpers import is_valid_guid
@@ -15,6 +17,10 @@ from thingdb.services.scanner_service import (
 from thingdb.routes.item_routes import _creates_circular_reference
 
 scanner_bp = Blueprint('scanner', __name__)
+
+# In-memory cache for recent scans (dumb scanner mode)
+# Stores last 100 scans for browser polling
+_recent_scans = deque(maxlen=100)
 
 
 def require_auth(f):
@@ -698,6 +704,164 @@ def audit_item():
         return jsonify({
             'success': True,
             'message': 'Item audit timestamp updated'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+# In-memory cache for recent scans (dumb scanner mode)
+# Stores last 100 scans for browser polling
+_recent_scans = deque(maxlen=100)
+
+
+@scanner_bp.route('/api/scanner/receive-scan', methods=['POST'])
+def receive_scan():
+    """
+    Receive scanned data from dumb scanners (DS2800, ESP32 dumb mode).
+    No authentication required. Validates scan and triggers browser notifications.
+    """
+    try:
+        data = request.get_json() or {}
+        device_id = data.get('id', '').strip()
+        scanned_data = data.get('msg', '').strip()
+        
+        if not device_id:
+            return jsonify({
+                'success': False,
+                'error': 'Device ID (id) is required'
+            }), 400
+        
+        if not scanned_data:
+            return jsonify({
+                'success': False,
+                'error': 'Scanned data (msg) is required'
+            }), 400
+        
+        # Validate if scanned data is a GUID
+        is_valid_guid_format = is_valid_guid(scanned_data)
+        
+        # Try to extract GUID from URL if present
+        # Handle formats like: https://example.com/qr/12345678-1234-1234-1234-123456789ABC
+        extracted_guid = scanned_data
+        if not is_valid_guid_format and '/' in scanned_data:
+            # Try to extract GUID from URL
+            parts = scanned_data.split('/')
+            for part in parts:
+                if is_valid_guid(part):
+                    extracted_guid = part
+                    is_valid_guid_format = True
+                    break
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        item_found = False
+        item_guid = None
+        item_name = None
+        
+        if is_valid_guid_format:
+            # Check if this is an alias
+            cursor.execute('SELECT item_guid FROM qr_aliases WHERE qr_code = %s', (extracted_guid,))
+            alias_result = cursor.fetchone()
+            base_guid = alias_result[0] if alias_result else extracted_guid
+            
+            # Check if item exists
+            cursor.execute('''
+                SELECT guid, item_name
+                FROM items
+                WHERE guid = %s
+            ''', (base_guid,))
+            
+            item_result = cursor.fetchone()
+            if item_result:
+                item_found = True
+                item_guid = item_result[0]
+                item_name = item_result[1] or 'Unnamed Item'
+        
+        conn.close()
+        
+        # Create scan event for browser notifications
+        scan_event = {
+            'timestamp': datetime.utcnow().isoformat(),
+            'device_id': device_id,
+            'scanned_data': scanned_data,
+            'extracted_guid': extracted_guid if is_valid_guid_format else None,
+            'is_valid_guid': is_valid_guid_format,
+            'item_found': item_found,
+            'item_guid': item_guid,
+            'item_name': item_name
+        }
+        
+        # Add to recent scans cache
+        _recent_scans.append(scan_event)
+        
+        # Return response (always 200 OK to scanner)
+        response_data = {
+            'success': True,
+            'scanned_data': scanned_data,
+            'device_id': device_id,
+            'item_found': item_found,
+            'is_valid_guid': is_valid_guid_format
+        }
+        
+        if item_found:
+            response_data['item_guid'] = item_guid
+            response_data['item_name'] = item_name
+            response_data['message'] = 'Scan received and processed'
+        elif is_valid_guid_format:
+            response_data['message'] = 'New QR code detected - browser will prompt for action'
+        else:
+            response_data['message'] = 'Scanned data is not a valid GUID format'
+        
+        return jsonify(response_data)
+        
+    except Exception as e:
+        # Still return 200 OK to scanner, but log the error
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': 'Scan received but processing failed'
+        }), 200
+
+
+@scanner_bp.route('/api/scanner/recent-scans', methods=['GET'])
+def get_recent_scans():
+    """
+    Get recent scans for browser polling (dumb scanner mode).
+    Returns scans from the last N seconds or last N scans.
+    """
+    try:
+        # Get query parameters
+        since_seconds = request.args.get('since', type=int, default=30)  # Default: last 30 seconds
+        max_results = request.args.get('max', type=int, default=50)  # Default: max 50 results
+        
+        # Filter scans by timestamp if requested
+        if since_seconds > 0:
+            cutoff_time = datetime.utcnow().timestamp() - since_seconds
+            recent = []
+            for scan in _recent_scans:
+                try:
+                    scan_time = datetime.fromisoformat(scan['timestamp'])
+                    if scan_time.timestamp() > cutoff_time:
+                        recent.append(scan)
+                except (ValueError, AttributeError, KeyError):
+                    # Skip invalid timestamps
+                    continue
+        else:
+            # Return all recent scans
+            recent = list(_recent_scans)
+        
+        # Limit results
+        recent = recent[-max_results:] if len(recent) > max_results else recent
+        
+        return jsonify({
+            'success': True,
+            'scans': recent,
+            'count': len(recent)
         })
         
     except Exception as e:

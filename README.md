@@ -31,6 +31,8 @@ This downloads, installs, and starts ThingDB with HTTPS automatically. **Tested 
 
 **See [INSTALL.md](INSTALL.md) for other installation options** (manual install, Docker, development setup, etc.)
 
+**📖 New to ThingDB?** See **[USER_GUIDE.md](USER_GUIDE.md)** for a complete guide on using the web interface, organizing items, QR codes, and best practices.
+
 ---
 
 ## Usage

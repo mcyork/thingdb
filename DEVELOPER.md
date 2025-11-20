@@ -184,6 +184,58 @@ thingdb/
 - `GET /api/backup/download/<filename>` - Download backup
 - `DELETE /api/backup/delete/<filename>` - Delete backup
 
+### Scanner API
+
+ThingDB provides REST APIs for portable scanners to interact with the inventory system. Two modes are supported:
+
+1. **Smart Scanner Mode** - ESP32-based scanners with full client-side intelligence, authentication, and state management
+2. **Dumb Scanner Mode** - Simple HTTP POST scanners (like DS2800) that send scan data, with browser providing the UI
+
+**Smart Scanner Authentication:**
+- All endpoints (except initialization) require an ephemeral secret in the request body
+- Secret is generated on service start and available via `/api/scanner/init-qr`
+- Secret is included in the initialization QR code for scanner setup
+
+**Dumb Scanner:**
+- No authentication required - scanners simply POST scan data
+- Browser receives notifications and handles all UI/decisions
+- Perfect for commercial scanners like DS2800 or ESP32 in "dumb mode"
+
+**Key Endpoints:**
+
+**Smart Scanner API (ESP32 with authentication):**
+- `GET /api/scanner/init-qr` - Get initialization data (Wi-Fi SSID/password, secret, server IP/port) for QR code generation
+- `GET /api/scanner/wifi-info` - Auto-detect Wi-Fi SSID from Raspberry Pi (password may require manual entry)
+- `POST /api/scanner/scan-item` - Scan an item QR code, returns item info (resolves aliases to base GUID)
+- `POST /api/scanner/move-item` - Move item to new parent (single-step, validates and executes)
+- `POST /api/scanner/delete-item` - Delete item (single-step, validates and executes)
+- `POST /api/scanner/make-alias` - Link a QR code to an existing item (both codes must exist as items)
+- `POST /api/scanner/bulk-move` - Move multiple items to a parent in one operation
+- `POST /api/scanner/audit-item` - Update last-seen timestamp for audit trail
+
+**Dumb Scanner API (DS2800-style, no authentication):**
+- `POST /api/scanner/receive-scan` - Receive scanned data from dumb scanners, triggers browser notifications
+
+**Features:**
+- **Alias Resolution**: Scanned GUIDs are automatically resolved to base GUIDs if they're aliases
+- **Single-Step Operations**: Move and delete operations validate and execute atomically
+- **Circular Reference Prevention**: Move operations prevent creating circular parent-child relationships
+- **Wi-Fi Auto-Detection**: Attempts to auto-detect SSID from NetworkManager or wpa_supplicant
+- **Dumb Scanner Mode**: Simple HTTP POST endpoint for basic scanners (DS2800, ESP32 in dumb mode) that send scan data without authentication
+
+**Example Request:**
+```bash
+curl -k -X POST https://192.168.1.100:5000/api/scanner/scan-item \
+  -H "Content-Type: application/json" \
+  -d '{"secret":"YOUR_SECRET","guid":"73f2b740-850d-4aef-aa08-e436c232cad8"}'
+```
+
+**Reference Implementation:**
+See [ThingDBScanner](https://github.com/mcyork/ThingDBScanner) for a complete ESP32 implementation demonstrating the API.
+
+**Full API Documentation:**
+For detailed endpoint specifications, request/response formats, error codes, and workflow examples, see the Scanner API documentation (available in the repository docs).
+
 ---
 
 ## Semantic Search

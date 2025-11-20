@@ -238,8 +238,8 @@
             </div>
 
             <!-- Instructions -->
-            <div style="background: var(--background-light); padding: 16px; border-radius: 8px; font-size: 13px;">
-                <h4 style="margin: 0 0 8px 0; font-size: 14px;">Setup Instructions:</h4>
+            <div style="background: var(--background-light); padding: 16px; border-radius: 8px; font-size: 13px; margin-bottom: 32px;">
+                <h4 style="margin: 0 0 8px 0; font-size: 14px;">ESP32 Scanner Setup Instructions:</h4>
                 <ol style="margin: 0; padding-left: 20px; color: var(--text-light);">
                     <li>Enter your Wi-Fi SSID and password (or use Auto-Detect)</li>
                     <li>Click "Update QR Code" to generate the initialization QR code</li>
@@ -247,6 +247,62 @@
                     <li>The scanner will connect to Wi-Fi and authenticate with ThingDB</li>
                     <li>The ephemeral secret persists until the system reboots</li>
                 </ol>
+            </div>
+
+            <!-- DS2800 Scanner Section -->
+            <div style="border-top: 2px solid var(--border-color); padding-top: 32px; margin-top: 32px;">
+                <h2 style="margin-bottom: 16px;">📱 DS2800 Scanner Setup</h2>
+                <p style="font-size: 14px; color: var(--text-light); margin-bottom: 24px;">
+                    Configure your DS2800 or compatible dumb scanner. The scanner will send scan data to ThingDB via HTTP POST.
+                </p>
+
+                <!-- DS2800 QR Code Display -->
+                <div style="text-align: center; margin-bottom: 24px;">
+                    <h3 style="font-size: 16px; margin-bottom: 12px;">DS2800 Configuration QR Code</h3>
+                    <div id="ds2800-qr-code-container" style="background: white; padding: 20px; border-radius: 8px; display: inline-block; border: 1px solid var(--border-color);">
+                        <div id="ds2800-qr-loading" style="padding: 40px;">
+                            <div class="loading"></div>
+                            <p style="margin-top: 12px; color: var(--text-light);">Loading QR code...</p>
+                        </div>
+                        <div id="ds2800-qr-display" style="display: none;">
+                            <img id="ds2800-qr-image" src="" alt="DS2800 Configuration QR Code" style="max-width: 300px; height: auto;">
+                            <p style="margin-top: 12px; font-size: 12px; color: var(--text-light);">
+                                Scan this QR code or manually enter the configuration into your DS2800 scanner.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- DS2800 QR Code Data Display -->
+                <div id="ds2800-qr-data-display" style="display: none; margin-bottom: 24px;">
+                    <h3 style="font-size: 16px; margin-bottom: 12px;">DS2800 Configuration (for verification)</h3>
+                    <div style="background: var(--background-light); padding: 16px; border-radius: 8px; font-family: monospace; font-size: 12px;">
+                        <div style="margin-bottom: 8px;"><strong>SSID:</strong> <span id="ds2800-qr-data-ssid"></span></div>
+                        <div style="margin-bottom: 8px;"><strong>Password:</strong> <span id="ds2800-qr-data-password"></span></div>
+                        <div style="margin-bottom: 8px;"><strong>API URL:</strong> <span id="ds2800-qr-data-api-url" style="word-break: break-all;"></span></div>
+                        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-color);">
+                            <strong>Full JSON:</strong>
+                            <pre id="ds2800-qr-data-json" style="margin-top: 8px; white-space: pre-wrap; word-break: break-all; font-size: 11px; color: var(--text-light);"></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- DS2800 Instructions -->
+                <div style="background: var(--background-light); padding: 16px; border-radius: 8px; font-size: 13px;">
+                    <h4 style="margin: 0 0 8px 0; font-size: 14px;">DS2800 Setup Instructions:</h4>
+                    <ol style="margin: 0; padding-left: 20px; color: var(--text-light);">
+                        <li>Ensure Wi-Fi SSID and password are entered above</li>
+                        <li>Click "Update QR Code" above to generate the DS2800 configuration</li>
+                        <li>Scan the QR code with your DS2800 (if supported) or manually enter:</li>
+                        <ul style="margin-top: 8px; padding-left: 20px;">
+                            <li>Wi-Fi SSID and password from the QR code</li>
+                            <li>API URL: <code id="ds2800-api-url-display" style="font-size: 11px;"></code></li>
+                            <li>Content-Type: <code>application/json</code></li>
+                            <li>Data Format: <code>JSON</code></li>
+                        </ul>
+                        <li>The scanner will send POST requests to <code>/api/scanner/receive-scan</code></li>
+                    </ol>
+                </div>
             </div>
         </div>
     </div>
@@ -637,6 +693,9 @@ function updateQRCode() {
             
             // Generate QR code using existing service (via canvas or library)
             generateQRCodeImage(JSON.stringify(initData));
+            
+            // Generate DS2800 QR code
+            generateDS2800QRCode(initData);
         })
         .catch(err => {
             showModal('QR Code Error', 'Failed to generate QR code: ' + err.message, '❌');
@@ -678,6 +737,64 @@ function generateQRCodeImage(data) {
         } catch (e) {
             showModal('QR Code Error', 'Failed to generate QR code image. Please try again.', '❌');
             document.getElementById('qr-loading').style.display = 'none';
+        }
+    };
+    img.src = qrUrl;
+}
+
+function generateDS2800QRCode(initData) {
+    // Create DS2800 configuration JSON
+    // Based on DS2800 documentation: needs SSID, password, and API URL
+    const protocol = window.location.protocol; // https: or http:
+    const apiUrl = `${protocol}//${initData.ip}:${initData.port}/api/scanner/receive-scan`;
+    
+    const ds2800Config = {
+        ssid: initData.ssid,
+        password: initData.password || '',
+        api_url: apiUrl
+    };
+    
+    const configJson = JSON.stringify(ds2800Config);
+    
+    // Display configuration data
+    document.getElementById('ds2800-qr-data-ssid').textContent = ds2800Config.ssid;
+    document.getElementById('ds2800-qr-data-password').textContent = ds2800Config.password || '(empty)';
+    document.getElementById('ds2800-qr-data-api-url').textContent = apiUrl;
+    document.getElementById('ds2800-qr-data-json').textContent = JSON.stringify(ds2800Config, null, 2);
+    document.getElementById('ds2800-api-url-display').textContent = apiUrl;
+    document.getElementById('ds2800-qr-data-display').style.display = 'block';
+    
+    // Show loading
+    document.getElementById('ds2800-qr-loading').style.display = 'block';
+    document.getElementById('ds2800-qr-display').style.display = 'none';
+    
+    // Generate QR code image
+    const qrSize = 300;
+    const timestamp = new Date().getTime();
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(configJson)}&t=${timestamp}`;
+    
+    const img = document.getElementById('ds2800-qr-image');
+    img.onload = function() {
+        document.getElementById('ds2800-qr-loading').style.display = 'none';
+        document.getElementById('ds2800-qr-display').style.display = 'block';
+    };
+    img.onerror = function() {
+        // Fallback: try using qrcode.js if available
+        try {
+            if (typeof QRCode !== 'undefined') {
+                const canvas = document.createElement('canvas');
+                QRCode.toCanvas(canvas, configJson, { width: qrSize }, function (error) {
+                    if (error) throw error;
+                    img.src = canvas.toDataURL();
+                    document.getElementById('ds2800-qr-loading').style.display = 'none';
+                    document.getElementById('ds2800-qr-display').style.display = 'block';
+                });
+            } else {
+                throw new Error('QR code generation failed');
+            }
+        } catch (e) {
+            console.error('DS2800 QR code generation failed:', e);
+            document.getElementById('ds2800-qr-loading').style.display = 'none';
         }
     };
     img.src = qrUrl;
