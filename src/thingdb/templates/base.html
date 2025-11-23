@@ -271,5 +271,163 @@
     </div>
     
     {% block scripts %}{% endblock %}
+    
+    <script>
+// Dumb scanner polling (for DS2800 and ESP32 dumb mode) - Global across all pages
+let lastScanTimestamp = null;
+let scanPollInterval = null;
+
+function startScanPolling() {
+    // Poll every 2 seconds for new scans
+    scanPollInterval = setInterval(pollForScans, 2000);
+    // Also poll immediately
+    pollForScans();
+}
+
+function stopScanPolling() {
+    if (scanPollInterval) {
+        clearInterval(scanPollInterval);
+        scanPollInterval = null;
+    }
+}
+
+function pollForScans() {
+    fetch('/api/scanner/recent-scans?since=5&max=10')
+        .then(res => res.json())
+        .then(data => {
+            if (data.success && data.scans && data.scans.length > 0) {
+                // Process new scans (only ones we haven't seen)
+                data.scans.forEach(scan => {
+                    const scanTime = new Date(scan.timestamp);
+                    if (!lastScanTimestamp || scanTime > lastScanTimestamp) {
+                        handleScanNotification(scan);
+                        lastScanTimestamp = scanTime;
+                    }
+                });
+            }
+        })
+        .catch(err => {
+            console.error('Error polling for scans:', err);
+        });
+}
+
+function handleScanNotification(scan) {
+    console.log('New scan received:', scan);
+    
+    // Request browser notification permission if not already granted
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+    }
+    
+    // Show browser notification
+    if ('Notification' in window && Notification.permission === 'granted') {
+        let notificationText = `Scanner: ${scan.scanned_data}`;
+        if (scan.item_found) {
+            notificationText = `Found: ${scan.item_name || scan.item_guid}`;
+        } else if (scan.is_valid_guid) {
+            notificationText = `New QR code: ${scan.scanned_data}`;
+        }
+        
+        const notification = new Notification('ThingDB Scanner', {
+            body: notificationText,
+            icon: '/static/favicon.svg',
+            tag: `scan-${scan.timestamp}` // Prevent duplicate notifications
+        });
+        
+        // Click notification to navigate to item or handle scan
+        notification.onclick = function() {
+            window.focus();
+            if (scan.item_found && scan.item_guid) {
+                window.location.href = `/item/${scan.item_guid}`;
+            } else if (scan.is_valid_guid) {
+                // Use process-guid POST endpoint to create item if it doesn't exist
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/process-guid';
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'guid';
+                input.value = scan.extracted_guid;
+                form.appendChild(input);
+                document.body.appendChild(form);
+                form.submit();
+            }
+            notification.close();
+        };
+    }
+    
+    // Also show in-page notification/modal
+    showScanNotification(scan);
+}
+
+function showScanNotification(scan) {
+    let title = '📷 Scanner Detected';
+    let message = `Scanned: ${scan.scanned_data}`;
+    let icon = '📷';
+    let action = null;
+    
+    if (scan.item_found) {
+        title = '✅ Item Found';
+        message = `${scan.item_name || 'Unnamed Item'}\nGUID: ${scan.item_guid}`;
+        icon = '✅';
+        action = {
+            text: 'View Item',
+            url: `/item/${scan.item_guid}`
+        };
+    } else if (scan.is_valid_guid) {
+        title = '🆕 New QR Code';
+        message = `New QR code detected: ${scan.scanned_data}\nWould you like to create a new item?`;
+        icon = '🆕';
+        // Use process-guid POST endpoint which creates the item if it doesn't exist
+        action = {
+            text: 'Create Item',
+            guid: scan.extracted_guid,
+            method: 'POST',
+            url: '/process-guid'
+        };
+    } else {
+        title = '⚠️ Invalid Scan';
+        message = `Scanned data is not a valid GUID format: ${scan.scanned_data}`;
+        icon = '⚠️';
+    }
+    
+    // Show notification with action button
+    if (action) {
+        if (confirm(`${icon} ${title}\n\n${message}\n\nWould you like to ${action.text.toLowerCase()}?`)) {
+            if (action.method === 'POST' && action.guid) {
+                // Submit POST form for process-guid
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = action.url;
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'guid';
+                input.value = action.guid;
+                form.appendChild(input);
+                document.body.appendChild(form);
+                form.submit();
+            } else {
+                window.location.href = action.url;
+            }
+        }
+    } else {
+        alert(`${icon} ${title}\n\n${message}`);
+    }
+}
+
+// Start polling when page loads (works on all pages)
+document.addEventListener('DOMContentLoaded', function() {
+    startScanPolling();
+    
+    // Stop polling when page is hidden (save resources)
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            stopScanPolling();
+        } else {
+            startScanPolling();
+        }
+    });
+});
+    </script>
 </body>
 </html>
