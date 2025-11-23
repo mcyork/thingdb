@@ -748,8 +748,9 @@ function generateQRCodeImage(data) {
 
 function generateDS2800QRCode(initData) {
     // Create DS2800 configuration using AT commands
-    // Format: AT+URL=1,hostname,path;AT+RAP=ssid,password
-    // Based on DS2800 documentation: uses AT commands, not JSON
+    // Format: AT+URL=1,hostname:port,path;AT+RAP=ssid,password
+    // Based on AT_COMMAND_SUPPORT.md: DS2800 expects AT command strings, not JSON
+    // See docs/scanner/AT_COMMAND_SUPPORT.md for full specification
     
     // Parse the API URL to extract hostname and path
     const protocol = window.location.protocol; // https: or http:
@@ -781,14 +782,23 @@ function generateDS2800QRCode(initData) {
         hostnameWithPort = `${hostname}:${port}`;
     }
     
-    // Build AT command string
-    // AT+URL=1,hostname,path (1 = HTTP protocol, hostname may include port, path starts with /)
-    // AT+RAP=ssid,password (RAP = Router Access Point)
-    const atCommands = `AT+URL=1,${hostnameWithPort},${path};AT+RAP=${initData.ssid},${initData.password || ''}`;
+    // Ensure path starts with / (per AT_COMMAND_SUPPORT.md requirements)
+    if (!path.startsWith('/')) {
+        path = '/' + path;
+    }
     
-    // Display configuration data
-    document.getElementById('ds2800-qr-data-ssid').textContent = initData.ssid;
-    document.getElementById('ds2800-qr-data-password').textContent = initData.password || '(empty)';
+    // Trim whitespace from SSID and password (per AT_COMMAND_SUPPORT.md edge cases)
+    const ssid = (initData.ssid || '').trim();
+    const password = (initData.password || '').trim();
+    
+    // Build AT command string
+    // Format: AT+URL=1,hostname:port,path;AT+RAP=ssid,password
+    // Per AT_COMMAND_SUPPORT.md specification
+    const atCommands = `AT+URL=1,${hostnameWithPort},${path};AT+RAP=${ssid},${password}`;
+    
+    // Display configuration data (using trimmed values)
+    document.getElementById('ds2800-qr-data-ssid').textContent = ssid;
+    document.getElementById('ds2800-qr-data-password').textContent = password || '(empty)';
     document.getElementById('ds2800-qr-data-api-url').textContent = apiUrl;
     document.getElementById('ds2800-qr-data-json').textContent = atCommands;
     document.getElementById('ds2800-api-url-display').textContent = apiUrl;
