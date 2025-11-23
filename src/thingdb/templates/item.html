@@ -961,9 +961,10 @@ function saveItemName() {
             if (overlay) {
                 overlay.remove();
             }
-            // Remove edit_title parameter from URL and reload
+            // Remove both edit_title and new_item parameters from URL and reload
             const url = new URL(window.location);
             url.searchParams.delete('edit_title');
+            url.searchParams.delete('new_item');
             window.location.href = url.toString();
         } else {
             alert('Update failed: ' + data.error);
@@ -1409,6 +1410,13 @@ function dismissAssociation() {
         // Remove from DOM so it stays gone
         banner.remove();
     }
+    
+    // Remove new_item parameter from URL so banner doesn't come back on refresh
+    const url = new URL(window.location);
+    url.searchParams.delete('new_item');
+    // Add edit_title parameter to trigger yellow overlay
+    url.searchParams.set('edit_title', 'true');
+    window.history.replaceState({}, '', url.toString());
     
     // Trigger edit mode with yellow overlay
     triggerNewItemEditMode();
