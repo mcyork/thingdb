@@ -108,8 +108,8 @@ def process_guid():
     conn.commit()
     conn.close()
     
-    # Redirect to item page with association dialog
-    return redirect(url_for('core.item_detail', guid=guid, new_item='1'))
+    # Redirect to item page with edit_title to trigger yellow overlay and forced editing
+    return redirect(url_for('core.item_detail', guid=guid, edit_title='true'))
 
 @core_bp.route('/item/<guid>')
 def item_detail(guid):
@@ -182,9 +182,11 @@ def item_detail(guid):
         time_diff = datetime.datetime.now() - created_date
         is_recently_created = time_diff.total_seconds() < 300  # 5 minutes
     
-    # Show association dialog ONLY when new_item parameter is present
+    # Show association dialog when new_item parameter is present
+    # Also trigger edit mode when edit_title parameter is present
     is_new_from_param = request.args.get('new_item') == '1'
     show_association = is_new_from_param
+    # Note: edit_title parameter is handled in the template JavaScript
     
     # Build structured item_data dictionary to match original
     item_data_dict = {

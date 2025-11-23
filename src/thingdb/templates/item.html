@@ -943,10 +943,14 @@ function editHeaderName() {
 }
 
 
-document.getElementById('header-edit-name-form').addEventListener('submit', function(e) {
-    e.preventDefault();
+// Save title function (used by both form submit and Enter key)
+function saveItemName() {
     const newName = document.getElementById('header-name-input').value.trim();
-    if (!newName) return;
+    if (!newName) {
+        alert('Item name cannot be empty');
+        return;
+    }
+    
     fetch(`/update-item-name/{{ guid }}`, {
         method: 'POST',
         body: new URLSearchParams({ 'item_name': newName })
@@ -964,7 +968,23 @@ document.getElementById('header-edit-name-form').addEventListener('submit', func
         } else {
             alert('Update failed: ' + data.error);
         }
+    }).catch(error => {
+        console.error('Error saving item name:', error);
+        alert('Failed to save item name. Please try again.');
     });
+}
+
+document.getElementById('header-edit-name-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    saveItemName();
+});
+
+// Also handle Enter key in the title input field
+document.getElementById('header-name-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        saveItemName();
+    }
 });
 
 function editDescription() {
@@ -1244,39 +1264,44 @@ function goBack() {
     {% endif %}
 }
 
+// Function to trigger yellow overlay and forced editing
+function triggerNewItemEditMode() {
+    // Immediately trigger the edit mode for the title
+    editHeaderName();
+    
+    // A short delay helps ensure the input is visible and ready for focus
+    setTimeout(() => {
+        const nameInput = document.getElementById('header-name-input');
+        if (nameInput) {
+            // Add overlay to grey out content
+            const overlay = document.createElement('div');
+            overlay.className = 'new-item-overlay';
+            overlay.id = 'new-item-overlay';
+            overlay.onclick = function(e) {
+                // Prevent clicking through the overlay
+                e.preventDefault();
+                e.stopPropagation();
+            };
+            document.body.appendChild(overlay);
+            
+            // Add visual highlight to draw attention
+            nameInput.classList.add('new-item-highlight');
+            nameInput.focus();
+            nameInput.select(); // Select the default text for easy replacement
+            
+            // Remove highlight after animation completes
+            setTimeout(() => {
+                nameInput.classList.remove('new-item-highlight');
+            }, 2000);
+        }
+    }, 100);
+}
+
 // New item forced editing functionality
 document.addEventListener('DOMContentLoaded', function() {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has('edit_title')) {
-        // Immediately trigger the edit mode for the title
-        editHeaderName();
-        
-        // A short delay helps ensure the input is visible and ready for focus
-        setTimeout(() => {
-            const nameInput = document.getElementById('header-name-input');
-            if (nameInput) {
-                // Add overlay to grey out content
-                const overlay = document.createElement('div');
-                overlay.className = 'new-item-overlay';
-                overlay.id = 'new-item-overlay';
-                overlay.onclick = function(e) {
-                    // Prevent clicking through the overlay
-                    e.preventDefault();
-                    e.stopPropagation();
-                };
-                document.body.appendChild(overlay);
-                
-                // Add visual highlight to draw attention
-                nameInput.classList.add('new-item-highlight');
-                nameInput.focus();
-                nameInput.select(); // Select the default text for easy replacement
-                
-                // Remove highlight after animation completes
-                setTimeout(() => {
-                    nameInput.classList.remove('new-item-highlight');
-                }, 2000);
-            }
-        }, 100);
+        triggerNewItemEditMode();
     }
 });
 
@@ -1377,8 +1402,16 @@ function showAssociationSearch() {
 }
 
 function dismissAssociation() {
-    // User chose to keep as new item - just hide banner
-    document.getElementById('association-banner').style.display = 'none';
+    // User chose to keep as new item - hide banner and trigger edit mode with yellow overlay
+    const banner = document.getElementById('association-banner');
+    if (banner) {
+        banner.style.display = 'none';
+        // Remove from DOM so it stays gone
+        banner.remove();
+    }
+    
+    // Trigger edit mode with yellow overlay
+    triggerNewItemEditMode();
 }
 
 function cancelAndDelete() {
