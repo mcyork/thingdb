@@ -276,6 +276,8 @@
 // Dumb scanner polling (for DS2800 and ESP32 dumb mode) - Global across all pages
 let lastScanTimestamp = null;
 let scanPollInterval = null;
+let processedScans = new Set(); // Track scans we've already shown notifications for
+let scanNotificationShown = false; // Track if we've shown a notification on this page load
 
 function startScanPolling() {
     // Poll every 2 seconds for new scans
@@ -299,9 +301,40 @@ function pollForScans() {
                 // Process new scans (only ones we haven't seen)
                 data.scans.forEach(scan => {
                     const scanTime = new Date(scan.timestamp);
+                    const scanKey = `${scan.timestamp}-${scan.scanned_data}`;
+                    
+                    // Skip if we've already processed this scan
+                    if (processedScans.has(scanKey)) {
+                        return;
+                    }
+                    
+                    // Skip if we're already on the item page for this scan (prevents duplicate dialogs)
+                    if (scan.item_found && scan.item_guid) {
+                        const currentPath = window.location.pathname;
+                        if (currentPath === `/item/${scan.item_guid}`) {
+                            processedScans.add(scanKey);
+                            return;
+                        }
+                    }
+                    
+                    // Skip if we're on a new item page (association banner will handle it)
+                    const urlParams = new URLSearchParams(window.location.search);
+                    if (urlParams.has('new_item') || urlParams.has('edit_title')) {
+                        // We're on a new item page, don't show duplicate notification
+                        processedScans.add(scanKey);
+                        return;
+                    }
+                    
+                    // Skip if we've already shown a notification for this scan on this page
+                    if (processedScans.has(scanKey)) {
+                        return;
+                    }
+                    
                     if (!lastScanTimestamp || scanTime > lastScanTimestamp) {
                         handleScanNotification(scan);
                         lastScanTimestamp = scanTime;
+                        processedScans.add(scanKey);
+                        scanNotificationShown = true;
                     }
                 });
             }
@@ -367,6 +400,7 @@ function showScanNotification(scan) {
     let action = null;
     
     if (scan.item_found) {
+        // Existing item - show notification and navigate
         title = '✅ Item Found';
         message = `${scan.item_name || 'Unnamed Item'}\nGUID: ${scan.item_guid}`;
         icon = '✅';
@@ -375,48 +409,43 @@ function showScanNotification(scan) {
             url: `/item/${scan.item_guid}`
         };
     } else if (scan.is_valid_guid) {
-        title = '🆕 New QR Code';
-        message = `New QR code detected: ${scan.scanned_data}\nWould you like to create a new item?`;
-        icon = '🆕';
-        // Use process-guid POST endpoint which creates the item if it doesn't exist
-        action = {
-            text: 'Create Item',
-            guid: scan.extracted_guid,
-            method: 'POST',
-            url: '/process-guid'
-        };
+        // New GUID - automatically navigate to process-guid
+        // This will show the association banner, so we don't need a dialog here
+        // Just navigate directly to avoid double prompts
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/process-guid';
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'guid';
+        input.value = scan.extracted_guid;
+        form.appendChild(input);
+        document.body.appendChild(form);
+        form.submit();
+        return; // Don't show dialog, just navigate
     } else {
+        // Invalid format - show alert
         title = '⚠️ Invalid Scan';
         message = `Scanned data is not a valid GUID format: ${scan.scanned_data}`;
         icon = '⚠️';
     }
     
-    // Show notification with action button
+    // Show notification with action button (only for existing items or invalid scans)
     if (action) {
         if (confirm(`${icon} ${title}\n\n${message}\n\nWould you like to ${action.text.toLowerCase()}?`)) {
-            if (action.method === 'POST' && action.guid) {
-                // Submit POST form for process-guid
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = action.url;
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = 'guid';
-                input.value = action.guid;
-                form.appendChild(input);
-                document.body.appendChild(form);
-                form.submit();
-            } else {
-                window.location.href = action.url;
-            }
+            window.location.href = action.url;
         }
-    } else {
+    } else if (!scan.is_valid_guid) {
+        // Only show alert for invalid scans (valid new GUIDs navigate automatically)
         alert(`${icon} ${title}\n\n${message}`);
     }
 }
 
 // Start polling when page loads (works on all pages)
 document.addEventListener('DOMContentLoaded', function() {
+    // Reset processed scans when page loads (but keep tracking to prevent duplicates within same page)
+    // Don't reset processedScans - we want to prevent showing the same scan twice even after navigation
+    
     startScanPolling();
     
     // Stop polling when page is hidden (save resources)
@@ -426,6 +455,12 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             startScanPolling();
         }
+    });
+    
+    // Clear processed scans when navigating away (but only after a delay to prevent immediate re-show)
+    window.addEventListener('beforeunload', function() {
+        // Keep processedScans for a bit to prevent showing same scan on new page
+        // They'll naturally expire as new scans come in
     });
 });
     </script>

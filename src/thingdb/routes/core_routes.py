@@ -108,8 +108,9 @@ def process_guid():
     conn.commit()
     conn.close()
     
-    # Redirect to item page with edit_title to trigger yellow overlay and forced editing
-    return redirect(url_for('core.item_detail', guid=guid, edit_title='true'))
+    # Redirect to item page with new_item to show association banner
+    # The banner will trigger edit_title when dismissed
+    return redirect(url_for('core.item_detail', guid=guid, new_item='1'))
 
 @core_bp.route('/item/<guid>')
 def item_detail(guid):
