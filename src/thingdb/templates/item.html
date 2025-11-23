@@ -302,6 +302,17 @@
         z-index: 1500;
         pointer-events: auto;
     }
+    /* Association Banner Overlay - greys out page while banner is shown */
+    .association-overlay {
+        position: fixed;
+        top: 60px; /* Start below the header */
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.3);
+        z-index: 1499; /* Below banner (1500) but above content */
+        pointer-events: auto;
+    }
     .new-item-highlight {
         background: #fff3cd !important;
         border: 2px solid #ffc107 !important;
@@ -437,6 +448,8 @@
     margin: 16px;
     padding: 20px;
     animation: slideDown 0.3s ease-out;
+    position: relative;
+    z-index: 1500; /* Above overlay so banner is clickable */
 }
 
 @keyframes slideDown {
@@ -1304,6 +1317,21 @@ document.addEventListener('DOMContentLoaded', function() {
     if (urlParams.has('edit_title')) {
         triggerNewItemEditMode();
     }
+    
+    // Add overlay for association banner if it's shown
+    const associationBanner = document.getElementById('association-banner');
+    if (associationBanner) {
+        const associationOverlay = document.createElement('div');
+        associationOverlay.className = 'association-overlay';
+        associationOverlay.id = 'association-overlay';
+        associationOverlay.onclick = function(e) {
+            // Prevent clicking through the overlay, but allow clicks on banner
+            // The banner has higher z-index so clicks on it will work
+            e.preventDefault();
+            e.stopPropagation();
+        };
+        document.body.appendChild(associationOverlay);
+    }
 });
 
 // Upload functionality
@@ -1403,6 +1431,12 @@ function showAssociationSearch() {
 }
 
 function dismissAssociation() {
+    // Remove association overlay
+    const overlay = document.getElementById('association-overlay');
+    if (overlay) {
+        overlay.remove();
+    }
+    
     // User chose to keep as new item - hide banner and trigger edit mode with yellow overlay
     const banner = document.getElementById('association-banner');
     if (banner) {
@@ -1423,6 +1457,12 @@ function dismissAssociation() {
 }
 
 function cancelAndDelete() {
+    // Remove association overlay
+    const overlay = document.getElementById('association-overlay');
+    if (overlay) {
+        overlay.remove();
+    }
+    
     // User chose to cancel - delete the temporary item and go home
     const banner = document.getElementById('association-banner');
     banner.innerHTML = '<div style="text-align: center; padding: 20px;"><div class="loading"></div><p>Cancelling...</p></div>';
@@ -1512,6 +1552,11 @@ function renderAssociationResults(results) {
 }
 
 function associateWithItem(targetGuid) {
+    // Remove association overlay
+    const overlay = document.getElementById('association-overlay');
+    if (overlay) {
+        overlay.remove();
+    }
     const banner = document.getElementById('association-banner');
     banner.innerHTML = '<div style="text-align: center; padding: 20px;"><div class="loading"></div><p>Linking QR code...</p></div>';
     
