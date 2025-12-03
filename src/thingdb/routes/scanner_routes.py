@@ -739,6 +739,11 @@ def receive_scan():
     body_length = len(raw_body) if raw_body else 0
     body_preview = raw_body[:200].decode('utf-8', errors='replace') if raw_body else ''
     
+    # Use print() to ensure visibility in journal logs
+    print(f"[SCANNER DEBUG] Request from {client_ip} (User-Agent: {user_agent}, Content-Type: {content_type}, Content-Length: {content_length}, Body length: {body_length})", flush=True)
+    if body_length > 0:
+        print(f"[SCANNER DEBUG] Raw body preview: {body_preview}", flush=True)
+    print(f"[SCANNER DEBUG] request.form: {dict(request.form) if request.form else 'empty'}", flush=True)
     logger.info(f"Scanner request received from {client_ip} (User-Agent: {user_agent}, Content-Type: {content_type}, Content-Length: {content_length}, Body length: {body_length})")
     if body_length > 0:
         logger.info(f"Raw body preview: {body_preview}")
@@ -809,6 +814,7 @@ def receive_scan():
         if not device_id:
             device_id = 'ESP32-Scanner'
         
+        print(f"[SCANNER DEBUG] Parsed - Device ID: {device_id}, Scanned: {scanned_data[:50] if scanned_data else 'EMPTY'}...", flush=True)
         logger.info(f"Scanner data - Device ID: {device_id}, Scanned: {scanned_data[:50]}...")
         
         # Default device ID if not provided (for form-encoded scanners that only send GUID)
