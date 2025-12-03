@@ -732,7 +732,17 @@ def receive_scan():
     client_ip = request.remote_addr
     user_agent = request.headers.get('User-Agent', 'Unknown')
     content_type = request.headers.get('Content-Type', '').lower()
-    logger.info(f"Scanner request received from {client_ip} (User-Agent: {user_agent}, Content-Type: {content_type})")
+    content_length = request.headers.get('Content-Length', '0')
+    
+    # Get raw body for debugging
+    raw_body = request.get_data()
+    body_length = len(raw_body) if raw_body else 0
+    body_preview = raw_body[:200].decode('utf-8', errors='replace') if raw_body else ''
+    
+    logger.info(f"Scanner request received from {client_ip} (User-Agent: {user_agent}, Content-Type: {content_type}, Content-Length: {content_length}, Body length: {body_length})")
+    if body_length > 0:
+        logger.info(f"Raw body preview: {body_preview}")
+    logger.info(f"request.form: {dict(request.form) if request.form else 'empty'}")
     
     try:
         device_id = ''
@@ -750,18 +760,33 @@ def receive_scan():
             if request.form:
                 device_id = request.form.get('id', '').strip()
                 scanned_data = request.form.get('msg', '').strip()
+                logger.info(f"Parsed from form: id={device_id}, msg={scanned_data}")
             
             # If no form data, try raw body (scanner might send GUID directly)
             if not scanned_data and request.data:
                 body_text = request.data.decode('utf-8', errors='replace').strip()
+                logger.info(f"Raw body text: {body_text}")
                 # If it's just a GUID, use it as scanned_data
                 if is_valid_guid(body_text):
                     scanned_data = body_text
                     device_id = 'ESP32-Scanner'  # Default device ID
                 else:
-                    # Try to parse as form-encoded string
-                    scanned_data = body_text
-                    device_id = 'ESP32-Scanner'
+                    # Try to parse as form-encoded string manually
+                    # Format might be: id=value&msg=value or just the GUID
+                    if '=' in body_text:
+                        # Try to parse form-encoded manually
+                        parts = body_text.split('&')
+                        for part in parts:
+                            if '=' in part:
+                                key, value = part.split('=', 1)
+                                if key == 'id':
+                                    device_id = value.strip()
+                                elif key == 'msg':
+                                    scanned_data = value.strip()
+                    else:
+                        # Just use the body as scanned data
+                        scanned_data = body_text
+                        device_id = 'ESP32-Scanner'
         else:
             # Try JSON first, then form, then raw data
             data = request.get_json()
