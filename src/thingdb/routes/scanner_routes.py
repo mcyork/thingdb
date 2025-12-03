@@ -888,15 +888,15 @@ def receive_scan():
             'item_name': item_name
         }
         
-            # Add to recent scans cache
-            _recent_scans.append(scan_event)
-            
-            # Push to SSE queue for real-time notifications
-            try:
-                _scan_event_queue.put(scan_event, block=False)
-            except queue.Full:
-                # Queue is full, skip (non-blocking)
-                pass
+        # Add to recent scans cache
+        _recent_scans.append(scan_event)
+        
+        # Push to SSE queue for real-time notifications
+        try:
+            _scan_event_queue.put(scan_event, block=False)
+        except queue.Full:
+            # Queue is full, skip (non-blocking)
+            pass
         
         # Return response (always 200 OK to scanner)
         response_data = {
