@@ -6,11 +6,9 @@ import os
 import json
 import socket
 import logging
-import queue
-import threading
 from datetime import datetime
 from collections import deque
-from flask import Blueprint, request, jsonify, Response, stream_with_context
+from flask import Blueprint, request, jsonify
 from thingdb.database import get_db_connection
 from thingdb.utils.helpers import is_valid_guid
 from thingdb.services.scanner_service import (
@@ -25,9 +23,6 @@ logger = logging.getLogger(__name__)
 # In-memory cache for recent scans (dumb scanner mode)
 # Stores last 100 scans for browser polling
 _recent_scans = deque(maxlen=100)
-
-# Queue for Server-Sent Events (SSE) - real-time scan notifications
-_scan_event_queue = queue.Queue()
 
 
 def require_auth(f):
@@ -891,13 +886,6 @@ def receive_scan():
         # Add to recent scans cache
         _recent_scans.append(scan_event)
         
-        # Push to SSE queue for real-time notifications
-        try:
-            _scan_event_queue.put(scan_event, block=False)
-        except queue.Full:
-            # Queue is full, skip (non-blocking)
-            pass
-        
         # Return response (always 200 OK to scanner)
         response_data = {
             'success': True,
@@ -977,56 +965,4 @@ def get_recent_scans():
             'success': False,
             'error': str(e)
         }), 500
-
-
-@scanner_bp.route('/api/scanner/scan-events', methods=['GET'])
-def scan_events():
-    """
-    Server-Sent Events (SSE) stream for real-time scan notifications.
-    Replaces polling with push-based updates.
-    """
-    def event_stream():
-        """Generator function that yields SSE events"""
-        try:
-            # Send initial connection message
-            yield f"data: {json.dumps({'type': 'connected', 'message': 'Scanner event stream connected'})}\n\n"
-            
-            # Keep connection alive with periodic heartbeats
-            last_heartbeat = datetime.utcnow()
-            
-            while True:
-                try:
-                    # Check for new scan events (with timeout for heartbeat)
-                    try:
-                        scan_event = _scan_event_queue.get(timeout=30)
-                        # Send the scan event
-                        yield f"data: {json.dumps(scan_event)}\n\n"
-                    except queue.Empty:
-                        # Send heartbeat to keep connection alive
-                        now = datetime.utcnow()
-                        if (now - last_heartbeat).total_seconds() >= 30:
-                            yield f"data: {json.dumps({'type': 'heartbeat', 'timestamp': now.isoformat()})}\n\n"
-                            last_heartbeat = now
-                        continue
-                        
-                except GeneratorExit:
-                    # Client disconnected
-                    break
-                except Exception as e:
-                    logger.error(f"Error in SSE stream: {e}", exc_info=True)
-                    yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
-                    break
-                    
-        except Exception as e:
-            logger.error(f"SSE stream error: {e}", exc_info=True)
-    
-    return Response(
-        stream_with_context(event_stream()),
-        mimetype='text/event-stream',
-        headers={
-            'Cache-Control': 'no-cache',
-            'X-Accel-Buffering': 'no',  # Disable nginx buffering
-            'Connection': 'keep-alive'
-        }
-    )
 
