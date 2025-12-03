@@ -5,6 +5,7 @@ Handles scanner initialization, authentication, and item operations
 import os
 import json
 import socket
+import logging
 from datetime import datetime
 from collections import deque
 from flask import Blueprint, request, jsonify
@@ -17,6 +18,7 @@ from thingdb.services.scanner_service import (
 from thingdb.routes.item_routes import _creates_circular_reference
 
 scanner_bp = Blueprint('scanner', __name__)
+logger = logging.getLogger(__name__)
 
 # In-memory cache for recent scans (dumb scanner mode)
 # Stores last 100 scans for browser polling
@@ -723,19 +725,73 @@ def receive_scan():
     """
     Receive scanned data from dumb scanners (DS2800, ESP32 dumb mode).
     No authentication required. Validates scan and triggers browser notifications.
+    
+    Accepts both JSON and application/x-www-form-urlencoded formats.
     """
+    # Log incoming request for debugging
+    client_ip = request.remote_addr
+    user_agent = request.headers.get('User-Agent', 'Unknown')
+    content_type = request.headers.get('Content-Type', '').lower()
+    logger.info(f"Scanner request received from {client_ip} (User-Agent: {user_agent}, Content-Type: {content_type})")
+    
     try:
-        data = request.get_json() or {}
-        device_id = data.get('id', '').strip()
-        scanned_data = data.get('msg', '').strip()
+        device_id = ''
+        scanned_data = ''
         
+        # Handle different content types
+        if 'application/json' in content_type:
+            # JSON format: {"id": "device_id", "msg": "scanned_data"}
+            data = request.get_json() or {}
+            device_id = data.get('id', '').strip()
+            scanned_data = data.get('msg', '').strip()
+        elif 'application/x-www-form-urlencoded' in content_type or 'x-www-form-urlencoded' in content_type:
+            # Form-encoded format: either form fields or raw body as GUID
+            # Try form fields first
+            if request.form:
+                device_id = request.form.get('id', '').strip()
+                scanned_data = request.form.get('msg', '').strip()
+            
+            # If no form data, try raw body (scanner might send GUID directly)
+            if not scanned_data and request.data:
+                body_text = request.data.decode('utf-8', errors='replace').strip()
+                # If it's just a GUID, use it as scanned_data
+                if is_valid_guid(body_text):
+                    scanned_data = body_text
+                    device_id = 'ESP32-Scanner'  # Default device ID
+                else:
+                    # Try to parse as form-encoded string
+                    scanned_data = body_text
+                    device_id = 'ESP32-Scanner'
+        else:
+            # Try JSON first, then form, then raw data
+            data = request.get_json()
+            if data:
+                device_id = data.get('id', '').strip()
+                scanned_data = data.get('msg', '').strip()
+            elif request.form:
+                device_id = request.form.get('id', '').strip()
+                scanned_data = request.form.get('msg', '').strip()
+            elif request.data:
+                body_text = request.data.decode('utf-8', errors='replace').strip()
+                if is_valid_guid(body_text):
+                    scanned_data = body_text
+                    device_id = 'ESP32-Scanner'
+                else:
+                    scanned_data = body_text
+                    device_id = 'ESP32-Scanner'
+        
+        # Default device ID if not provided
         if not device_id:
-            return jsonify({
-                'success': False,
-                'error': 'Device ID (id) is required'
-            }), 400
+            device_id = 'ESP32-Scanner'
+        
+        logger.info(f"Scanner data - Device ID: {device_id}, Scanned: {scanned_data[:50]}...")
+        
+        # Default device ID if not provided (for form-encoded scanners that only send GUID)
+        if not device_id:
+            device_id = 'ESP32-Scanner'
         
         if not scanned_data:
+            logger.warning(f"Scanner request missing scanned data from {client_ip} (device: {device_id})")
             return jsonify({
                 'success': False,
                 'error': 'Scanned data (msg) is required'
@@ -817,10 +873,19 @@ def receive_scan():
         else:
             response_data['message'] = 'Scanned data is not a valid GUID format'
         
+        # Log successful processing
+        if item_found:
+            logger.info(f"Scanner scan successful - Item found: {item_name} ({item_guid})")
+        elif is_valid_guid_format:
+            logger.info(f"Scanner scan - Valid GUID format but item not found: {extracted_guid}")
+        else:
+            logger.info(f"Scanner scan - Invalid GUID format: {scanned_data[:50]}")
+        
         return jsonify(response_data)
         
     except Exception as e:
         # Still return 200 OK to scanner, but log the error
+        logger.error(f"Scanner request error from {client_ip}: {str(e)}", exc_info=True)
         return jsonify({
             'success': False,
             'error': str(e),
