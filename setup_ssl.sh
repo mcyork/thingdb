@@ -62,6 +62,7 @@ update_service_file() {
     
     if [ "$use_ssl" = "yes" ]; then
         # HTTPS configuration with SSL
+        # Bind to both port 5000 (standard) and port 443 (for scanners)
         sudo tee /etc/systemd/system/thingdb.service > /dev/null << 'SERVICEEOF'
 [Unit]
 Description=ThingDB Inventory Management System
@@ -74,8 +75,11 @@ User=thingdb
 Group=thingdb
 WorkingDirectory=/var/lib/thingdb/app
 Environment="PATH=/var/lib/thingdb/app/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+# Allow binding to port 443 (requires capability)
+AmbientCapabilities=CAP_NET_BIND_SERVICE
 ExecStart=/var/lib/thingdb/app/venv/bin/gunicorn \
     --bind 0.0.0.0:5000 \
+    --bind 0.0.0.0:443 \
     --certfile /var/lib/thingdb/ssl/cert.pem \
     --keyfile /var/lib/thingdb/ssl/key.pem \
     --workers 2 \
@@ -102,6 +106,7 @@ SyslogIdentifier=thingdb
 WantedBy=multi-user.target
 SERVICEEOF
         echo -e "${GREEN}✓${NC} Service configured for HTTPS (Gunicorn with SSL)"
+        echo -e "${BLUE}  Listening on ports 5000 and 443${NC}"
     else
         # HTTP-only configuration
         sudo tee /etc/systemd/system/thingdb.service > /dev/null << 'SERVICEEOF'
@@ -441,8 +446,10 @@ echo ""
 
 if [ -f "$CERT_FILE" ]; then
     echo -e "${GREEN}Access ThingDB with HTTPS:${NC}"
-    echo "  https://${IP_ADDRESS}:5000"
+    echo "  https://${IP_ADDRESS}:5000  (standard web access)"
+    echo "  https://${IP_ADDRESS}:443   (scanner endpoint)"
     echo "  https://${HOSTNAME}.local:5000"
+    echo "  https://${HOSTNAME}.local:443"
     echo ""
     
     # Check if this is a BYO cert or self-signed
