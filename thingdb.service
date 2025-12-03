@@ -9,8 +9,11 @@ User=thingdb
 Group=thingdb
 WorkingDirectory=/var/lib/thingdb/app
 Environment="PATH=/var/lib/thingdb/app/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+# Allow binding to port 443 (requires capability)
+AmbientCapabilities=CAP_NET_BIND_SERVICE
 ExecStart=/var/lib/thingdb/app/venv/bin/gunicorn \
     --bind 0.0.0.0:5000 \
+    --bind 0.0.0.0:443 \
     --workers 2 \
     --timeout 600 \
     --access-logfile - \
